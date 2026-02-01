@@ -1,0 +1,407 @@
+# Modern UI/UX Dashboard Quickstart
+
+**Feature**: 004-modern-ui-ux-dashboard
+**Date**: 2026-01-25
+**Quick Setup**: Get the luxury dashboard running in <5 minutes
+
+## Prerequisites
+
+Before starting, ensure you have:
+
+- ✅ **Node.js 20+** installed (`node --version`)
+- ✅ **Backend running** at `http://localhost:8000` (see [backend README](../../../backend/README.md))
+- ✅ **Better Auth configured** with shared `BETTER_AUTH_SECRET` between frontend and backend
+- ✅ **Neon PostgreSQL** database populated with user and task tables
+- ✅ **Test user account** created in the database (for authentication)
+
+---
+
+## Quick Start (5 Steps)
+
+### 1. Install Dependencies
+
+```bash
+cd frontend
+npm install
+```
+
+**Expected output**:
+```
+added 284 packages, and audited 285 packages in 12s
+```
+
+---
+
+### 2. Configure Environment Variables
+
+Create `frontend/.env.local` with the following:
+
+```env
+# API Backend URL
+NEXT_PUBLIC_API_URL=http://localhost:8000
+
+# Better Auth Configuration
+BETTER_AUTH_SECRET=<copy-from-backend-.env>
+BETTER_AUTH_URL=http://localhost:3000
+
+# Optional: Enable debug logging
+NEXT_PUBLIC_DEBUG=true
+```
+
+**⚠️ Important**: `BETTER_AUTH_SECRET` MUST match the value in `backend/.env` exactly.
+
+**Where to find backend secret**:
+```bash
+grep BETTER_AUTH_SECRET ../backend/.env
+```
+
+---
+
+### 3. Run Development Server
+
+```bash
+npm run dev
+```
+
+**Expected output**:
+```
+  ▲ Next.js 16.0.0
+  - Local:        http://localhost:3000
+  - Ready in 1.2s
+```
+
+Visit **http://localhost:3000** in your browser.
+
+---
+
+### 4. Test Authentication
+
+1. Navigate to **http://localhost:3000** (automatically redirects to `/sign-in`)
+2. Enter test credentials:
+   - Email: `user@example.com` (or your test user)
+   - Password: `password123` (or your test password)
+3. Click **Sign In**
+4. **On success**: Redirect to `/dashboard` with JWT stored in HttpOnly cookie
+5. **On failure**: Check console for error messages
+
+**Verify authentication**:
+- Open DevTools → Application → Cookies → `http://localhost:3000`
+- Should see `auth-token` cookie with `HttpOnly` and `Secure` flags
+
+---
+
+### 5. Test Dashboard Features
+
+#### A. View Task Metrics
+- Dashboard loads with 4 metric cards:
+  - **Total Tasks**
+  - **Completed**
+  - **Pending**
+  - **Overdue**
+- Metrics update automatically from backend
+
+#### B. Create a Task (Optimistic Update)
+1. Click **New Task** button
+2. Fill in:
+   - Title: `Test optimistic update`
+   - Description: `This should appear instantly`
+   - Priority: `High`
+3. Click **Create**
+4. **Observe**: Task appears in list within <100ms (before server confirmation)
+5. **Check**: Task persists after page refresh (confirmed by server)
+
+#### C. Toggle Task Completion
+1. Click checkbox next to any task
+2. **Observe**: Checkbox animates with spring physics immediately
+3. **Observe**: Task moves to "Completed" section (or vice versa)
+4. **Check**: Page refresh shows persisted state
+
+#### D. Edit and Delete
+1. Hover over a task → Click **Edit** button (pencil icon)
+2. Modify title or description → Click **Save**
+3. **Observe**: Inline update without page reload
+4. Click **Delete** button (trash icon) → Confirm
+5. **Observe**: Task fades out with animation
+
+---
+
+## Architecture Overview
+
+### File Structure
+
+```text
+frontend/
+├── src/
+│   ├── app/                     # Next.js 16 App Router
+│   │   ├── (auth)/sign-in/      # Authentication pages
+│   │   ├── (dashboard)/         # Protected dashboard routes
+│   │   ├── layout.tsx           # Root layout (fonts, providers)
+│   │   └── globals.css          # Tailwind + design tokens
+│   │
+│   ├── components/              # React components
+│   │   ├── ui/                  # shadcn/ui primitives
+│   │   ├── layout/              # Sidebar, Topbar, MobileNav
+│   │   ├── dashboard/           # MetricsGrid, TaskStream, TaskForm
+│   │   └── atoms/               # ShimmerSkeleton, LuxuryButton, AnimatedCheckbox
+│   │
+│   └── lib/                     # Utilities and business logic
+│       ├── api/                 # ApiClient, task methods, types
+│       ├── auth/                # Better Auth client, JWT utils
+│       ├── hooks/               # useOptimistic, useDraftRecovery
+│       └── utils/               # Helper functions
+│
+├── public/                      # Static assets (fonts, images)
+├── tests/                       # Vitest + React Testing Library
+├── .env.local                   # Environment variables (gitignored)
+├── next.config.mjs              # Next.js configuration
+├── tailwind.config.ts           # Midnight Stone design tokens
+└── package.json                 # Dependencies
+```
+
+### Technology Stack
+
+- **Framework**: Next.js 16 (App Router, React Server Components)
+- **UI Library**: React 19 (with `useOptimistic` hook)
+- **Styling**: Tailwind CSS v4 + shadcn/ui primitives
+- **Animations**: Framer Motion (spring physics for checkboxes and lists)
+- **Authentication**: Better Auth client SDK (JWT in HttpOnly cookies)
+- **Icons**: Lucide React (lightweight, customizable)
+- **Fonts**: Inter (UI/data) + Playfair Display (headers)
+- **Testing**: Vitest + React Testing Library + Playwright (E2E)
+
+### Design System: Midnight Stone
+
+**Color Palette**:
+```typescript
+// tailwind.config.ts
+{
+  colors: {
+    stone: {
+      950: '#0c0a09',  // Deep slate background
+      900: '#1c1917',  // Secondary background
+      800: '#292524',  // Card background
+      700: '#44403c',  // Border color
+    },
+    amber: {
+      500: '#f59e0b',  // Primary accent (CTAs, highlights)
+      600: '#d97706',  // Hover state
+    }
+  }
+}
+```
+
+**Glassmorphism**:
+```css
+.glass {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+}
+```
+
+**Typography**:
+- **Headers**: Playfair Display (serif, elegant)
+- **Body/UI**: Inter (sans-serif, highly readable)
+
+---
+
+## Testing the Dashboard
+
+### Manual Testing Checklist
+
+#### Authentication Flow
+- [ ] Unauthenticated access to `/dashboard` redirects to `/sign-in`
+- [ ] Sign-in with valid credentials redirects to `/dashboard`
+- [ ] Sign-in with invalid credentials shows error message
+- [ ] JWT stored in HttpOnly cookie (check DevTools → Cookies)
+- [ ] JWT NOT accessible via `document.cookie` in console (security check)
+- [ ] Sign-out clears cookie and redirects to `/sign-in`
+
+#### Dashboard Loading
+- [ ] Metrics cards show shimmer skeletons during load
+- [ ] Metrics populate with correct counts after load
+- [ ] Task list shows shimmer skeletons during load
+- [ ] Task list populates with user's tasks
+- [ ] Empty state shows when user has no tasks
+
+#### Optimistic Updates
+- [ ] Create task: Appears immediately (<100ms perceived latency)
+- [ ] Toggle complete: Checkbox animates instantly
+- [ ] Edit task: Updates appear immediately
+- [ ] Delete task: Fades out immediately
+- [ ] Network failure: Inline error shows with "Retry" button
+
+#### Visual Design
+- [ ] Midnight Stone palette applied (deep slate + amber accents)
+- [ ] Glassmorphism effects on sidebar and cards
+- [ ] Smooth animations (staggered list, spring checkboxes)
+- [ ] Responsive layout (desktop sidebar, mobile bottom nav)
+- [ ] Zero layout shift during load (CLS = 0px)
+
+#### Session Expiry & Draft Recovery
+- [ ] Clear cookies → Navigate to protected route → Redirect to sign-in
+- [ ] Start creating task → Clear cookies → Draft saved to localStorage
+- [ ] Sign in again → "Restore unsaved work?" modal appears
+- [ ] Click "Restore" → Form pre-filled with draft
+- [ ] Click "Discard" → Draft deleted, form empty
+
+---
+
+## Development Commands
+
+```bash
+# Start dev server
+npm run dev
+
+# Run type checking
+npm run type-check
+
+# Run linting
+npm run lint
+
+# Run tests (watch mode)
+npm run test
+
+# Run tests (CI mode)
+npm run test:ci
+
+# Run E2E tests
+npm run test:e2e
+
+# Build for production
+npm run build
+
+# Start production server
+npm run start
+
+# Clean build artifacts
+npm run clean
+```
+
+---
+
+## Troubleshooting
+
+### Issue: "auth-token cookie not set after sign-in"
+
+**Symptoms**:
+- Sign-in succeeds but redirects back to sign-in page
+- No `auth-token` cookie in DevTools
+
+**Solution**:
+1. Verify `BETTER_AUTH_SECRET` matches between frontend and backend
+2. Check backend logs for JWT generation errors
+3. Ensure Better Auth middleware is configured in `frontend/src/app/api/auth/[...better-auth]/route.ts`
+
+---
+
+### Issue: "Network request failed" when creating tasks
+
+**Symptoms**:
+- Tasks don't appear after creation
+- Console shows `Failed to fetch` error
+
+**Solution**:
+1. Verify backend is running at `http://localhost:8000`
+2. Check `NEXT_PUBLIC_API_URL` in `.env.local`
+3. Ensure CORS configured in backend to allow `http://localhost:3000`
+4. Check backend logs for 500 errors
+
+---
+
+### Issue: "User ID mismatch" (403 Forbidden)
+
+**Symptoms**:
+- API requests return 403 errors
+- Backend logs show "User ID mismatch"
+
+**Solution**:
+1. Verify JWT `user_id` claim matches path parameter in API requests
+2. Check `getUserIdFromJWT()` function extracts correct user ID
+3. Ensure JWT not expired (check `exp` claim)
+
+---
+
+### Issue: Glassmorphism effects not rendering
+
+**Symptoms**:
+- Sidebar and cards appear flat (no blur effect)
+- Console warning: "backdrop-filter not supported"
+
+**Solution**:
+- Verify browser supports CSS `backdrop-filter` (Chrome 76+, Firefox 103+, Safari 9+)
+- If using older browser: Fallback styles should apply (solid background)
+- Check Tailwind config includes `backdrop-blur` utilities
+
+---
+
+### Issue: Layout shift during loading
+
+**Symptoms**:
+- Page jumps as content loads
+- Poor Lighthouse CLS score
+
+**Solution**:
+1. Ensure skeleton loaders match final content dimensions
+2. Use fixed heights for metric cards (e.g., `h-32`)
+3. Reserve space for task list with `min-h-[400px]`
+4. Avoid dynamic `height: auto` during streaming
+
+---
+
+## Performance Benchmarks
+
+Run Lighthouse audit to verify performance goals:
+
+```bash
+npm run lighthouse
+```
+
+**Expected Scores**:
+- **Performance**: 90+ (First Contentful Paint < 1.5s)
+- **Accessibility**: 95+ (ARIA labels, semantic HTML)
+- **Best Practices**: 100 (HTTPS, no console errors)
+- **SEO**: 90+ (meta tags, structured data)
+
+**Custom Metrics**:
+- **CLS (Cumulative Layout Shift)**: 0px (zero tolerance for layout shifts)
+- **Optimistic Update Latency**: <100ms (measured with Chrome DevTools Performance tab)
+- **Sign-in to Dashboard**: <5s (measured from credential submit to dashboard render)
+
+---
+
+## Next Steps
+
+After verifying the dashboard works:
+
+1. **Customize Design Tokens**: Edit `tailwind.config.ts` to adjust colors, fonts, spacing
+2. **Add More Features**: Implement task filtering, sorting, search
+3. **Write Tests**: Add component tests for TaskStream, MetricsGrid
+4. **Deploy to Production**: Configure environment variables for production API URL
+5. **Enable Analytics**: Track user interactions with Vercel Analytics or similar
+
+---
+
+## Additional Resources
+
+- **Next.js 16 Docs**: https://nextjs.org/docs
+- **React 19 useOptimistic**: https://react.dev/reference/react/useOptimistic
+- **Tailwind CSS v4**: https://tailwindcss.com/docs
+- **Better Auth Docs**: https://better-auth.com/docs
+- **shadcn/ui**: https://ui.shadcn.com
+- **Framer Motion**: https://www.framer.com/motion
+
+---
+
+## Support
+
+**Issues?** Check:
+1. Backend logs (`cd backend && tail -f logs/app.log`)
+2. Frontend console (DevTools → Console)
+3. Network tab (DevTools → Network → Filter by "Fetch/XHR")
+
+**Still stuck?** Review:
+- [plan.md](./plan.md) - Implementation architecture
+- [data-model.md](./data-model.md) - Component hierarchy and state management
+- [contracts/better-auth-flow.md](./contracts/better-auth-flow.md) - Authentication details

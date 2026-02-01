@@ -1,0 +1,518 @@
+@import "tailwindcss";
+
+/* =============================================================================
+   FUTURISTIC DESIGN SYSTEM - Midnight Stone + Cyber-Minimalism
+   ============================================================================= */
+
+@layer base {
+  :root {
+    --background: 12 10 9; /* #0c0a09 - Deep slate */
+    --foreground: 250 250 250; /* Off-white text */
+    --primary: 245 158 11; /* Amber accent */
+    --primary-foreground: 12 10 9;
+  }
+
+  body {
+    background-color: #0c0a09; /* stone-950 */
+    color: #f3f4f6; /* gray-100 */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* Digital Texture Background */
+  body::before {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100"%3E%3Cfilter id="noise"%3E%3CfeTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" stitchTiles="stitch"/%3E%3C/filter%3E%3Crect width="100" height="100" filter="url(%23noise)" opacity="0.03"/%3E%3C/svg%3E');
+    pointer-events: none;
+    z-index: 0;
+  }
+}
+
+@layer components {
+  /* =============================================================================
+     GLASSMORPHISM UTILITIES
+     ============================================================================= */
+
+  .glass {
+    background-color: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  }
+
+  .glass-dark {
+    background-color: rgba(28, 25, 23, 0.5);
+    backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+  }
+
+  .glass-card {
+    background-color: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s;
+  }
+
+  .glass-card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(245, 158, 11, 0.2), transparent);
+  }
+
+  /* T057: Hover effects for interactive cards */
+  .glass-card-interactive {
+    background-color: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s;
+    cursor: pointer;
+  }
+
+  .glass-card-interactive:hover {
+    backdrop-filter: blur(24px);
+    border-color: rgba(245, 158, 11, 0.2);
+    box-shadow: 0 4px 16px rgba(245, 158, 11, 0.15);
+    transform: translateY(-2px);
+  }
+
+  .glass-card-interactive:active {
+    transform: translateY(0);
+  }
+
+  /* =============================================================================
+     1PX GHOST BORDERS
+     ============================================================================= */
+
+  .border-ghost {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .border-ghost-amber {
+    border: 1px solid rgba(245, 158, 11, 0.1);
+  }
+
+  /* =============================================================================
+     NEON GLOW EFFECTS
+     ============================================================================= */
+
+  .glow-amber {
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.3);
+  }
+
+  .glow-amber-subtle {
+    box-shadow: 0 4px 16px rgba(245, 158, 11, 0.15);
+  }
+
+  .glow-cyan {
+    box-shadow: 0 0 20px rgba(34, 211, 238, 0.3);
+  }
+
+  /* Shadow utilities for neon glow effects */
+  .shadow-neon-amber {
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.3);
+  }
+
+  .shadow-neon-subtle {
+    box-shadow: 0 4px 16px rgba(245, 158, 11, 0.15);
+  }
+
+  .shadow-neon-cyan {
+    box-shadow: 0 0 20px rgba(34, 211, 238, 0.3);
+  }
+
+  .shadow-neon-emerald {
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+  }
+
+  .shadow-neon-purple {
+    box-shadow: 0 0 20px rgba(168, 85, 247, 0.3);
+  }
+
+  .shadow-neon-red {
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.3);
+  }
+
+  .shadow-glass {
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  }
+
+  .shadow-glass-lg {
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+  }
+
+  /* Optimistic state glow (pending → synced) */
+  .optimistic-pending {
+    animation: glow-pulse 2s ease-in-out infinite;
+    border-color: rgba(245, 158, 11, 0.3);
+  }
+
+  .optimistic-synced {
+    border-color: rgba(16, 185, 129, 0.2);
+    transition: all 0.5s;
+  }
+
+  /* =============================================================================
+     TACTILE MAXIMALISM - 3D Deforming Effects
+     ============================================================================= */
+
+  .tactile-button {
+    position: relative;
+    transition: all 0.15s ease-out;
+    transform-style: preserve-3d;
+  }
+
+  /* T057: Enhanced hover state with backdrop-blur and border glow */
+  .tactile-button:hover {
+    border-color: rgba(245, 158, 11, 0.2);
+    backdrop-filter: brightness(1.1) blur(16px);
+  }
+
+  .tactile-button:active {
+    animation: tactile-press 0.15s ease-out;
+    transform: translateY(1px) scale(0.98);
+  }
+
+  .tactile-button::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), transparent);
+    opacity: 0;
+    transition: opacity 0.15s ease-out;
+  }
+
+  .tactile-button:hover::before {
+    opacity: 1;
+  }
+
+  /* =============================================================================
+     SHIMMER SKELETON LOADERS
+     ============================================================================= */
+
+  .shimmer {
+    position: relative;
+    overflow: hidden;
+    background-image: linear-gradient(90deg, #1c1917, #292524, #1c1917);
+    background-size: 1000px 100%;
+    animation: shimmer 2s cubic-bezier(0.4, 0.0, 0.6, 1) infinite;
+  }
+
+  .shimmer::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(245, 158, 11, 0.05), transparent);
+    animation: shimmer 2s cubic-bezier(0.4, 0.0, 0.6, 1) infinite;
+  }
+
+  /* =============================================================================
+     COMMAND CENTER AESTHETIC
+     ============================================================================= */
+
+  .command-panel {
+    background-color: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(245, 158, 11, 0.1);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s;
+  }
+
+  .command-panel::after {
+    content: "";
+    position: absolute;
+    top: -1px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 60%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(245, 158, 11, 0.4), transparent);
+  }
+
+  /* Status indicators */
+  .status-dot {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 9999px;
+  }
+
+  .status-dot-active {
+    background-color: #34d399;
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  .status-dot-pending {
+    background-color: #fbbf24;
+    box-shadow: 0 0 8px rgba(245, 158, 11, 0.6);
+    animation: glow-pulse 2s ease-in-out infinite;
+  }
+
+  .status-dot-error {
+    background-color: #f87171;
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
+  }
+
+  /* =============================================================================
+     TYPOGRAPHY ENHANCEMENTS
+     ============================================================================= */
+
+  .text-glow {
+    text-shadow: 0 0 20px rgba(245, 158, 11, 0.5);
+  }
+
+  /* T058: Playfair Display for page headers */
+  .heading-futuristic {
+    font-size: 2.25rem;
+    line-height: 2.5rem;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    font-family: var(--font-playfair);
+    background: linear-gradient(135deg, #ffffff 0%, #d4d4d8 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* T059: Typography hierarchy with Inter for body text */
+  .text-body {
+    font-family: var(--font-inter);
+  }
+
+  .text-heading {
+    font-family: var(--font-playfair);
+  }
+}
+
+@layer utilities {
+  /* Zero layout shift utilities */
+  .aspect-square-fixed {
+    aspect-ratio: 1 / 1;
+    min-height: 0;
+  }
+
+  /* Performance optimization */
+  .gpu-accelerated {
+    transform: translateZ(0);
+    will-change: transform;
+  }
+
+  /* T077: Accessibility - Screen reader only (visually hidden but accessible) */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+
+  .not-sr-only {
+    position: static;
+    width: auto;
+    height: auto;
+    padding: 0;
+    margin: 0;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+  }
+
+  /* T077: Accessibility - Focus visible styles (WCAG 2.1 AA compliant) */
+  .focus-visible-ring:focus-visible {
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 2px #0c0a09, 0 0 0 4px rgba(245, 158, 11, 0.5);
+  }
+
+  /* T077: Enhanced focus visible for interactive elements */
+  .focus-ring:focus-visible {
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 2px #0c0a09, 0 0 0 4px rgba(245, 158, 11, 0.5);
+  }
+
+  /* T077: Skip link styles for keyboard navigation */
+  .skip-link {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+
+  .skip-link:focus {
+    position: absolute;
+    width: auto;
+    height: auto;
+    padding: 0.5rem 1rem;
+    margin: 0;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+    top: 1rem;
+    left: 1rem;
+    z-index: 50;
+    background-color: #f59e0b;
+    color: #0c0a09;
+    border-radius: 0.5rem;
+    font-weight: 500;
+  }
+
+  /* T070: Safe area insets for mobile devices with notches */
+  .safe-area-inset-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* T077: High contrast mode support */
+  @media (prefers-contrast: high) {
+    .glass {
+      background-color: rgba(0, 0, 0, 0.9);
+      border: 2px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .tactile-button:focus-visible {
+      outline: 3px solid #f59e0b;
+      outline-offset: 3px;
+    }
+  }
+
+  /* T077: Reduced motion support */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/* =============================================================================
+   ANIMATIONS
+   ============================================================================= */
+
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+@keyframes glow-pulse {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.3);
+  }
+  50% {
+    opacity: 0.8;
+    box-shadow: 0 0 30px rgba(245, 158, 11, 0.5);
+  }
+}
+
+@keyframes tactile-press {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(0.98) translateY(1px);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s cubic-bezier(0.4, 0.0, 0.6, 1) infinite;
+}
+
+.animate-glow-pulse {
+  animation: glow-pulse 2s ease-in-out infinite;
+}
+
+.animate-tactile-press {
+  animation: tactile-press 0.15s ease-out;
+}
+
+/* =============================================================================
+   T063: VIEW TRANSITIONS API
+   ============================================================================= */
+
+@view-transition {
+  navigation: auto;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.5s;
+}
+
+::view-transition-old(root) {
+  animation-name: fade-out, slide-to-left;
+}
+
+::view-transition-new(root) {
+  animation-name: fade-in, slide-from-right;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes slide-from-right {
+  from {
+    transform: translateX(30px);
+  }
+}
+
+@keyframes slide-to-left {
+  to {
+    transform: translateX(-30px);
+  }
+}

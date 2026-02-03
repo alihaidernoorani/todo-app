@@ -5,7 +5,6 @@
  * through server actions, since HttpOnly cookies cannot be accessed directly.
  */
 
-import { NextRequest } from 'next/server'
 import { getJWTPayload } from '@/lib/auth/jwt-utils'
 
 export async function GET() {

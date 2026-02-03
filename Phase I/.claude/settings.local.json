@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(.specify/scripts/bash/check-prerequisites.sh --json)",
-      "Bash(.specify/scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks)",
-      "Bash(mkdir -p src/models src/services tests/unit tests/integration)"
-    ]
-  }
-}

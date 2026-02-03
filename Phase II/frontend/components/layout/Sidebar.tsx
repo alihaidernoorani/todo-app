@@ -1,13 +1,13 @@
 /**
- * T064: Sidebar Component
+ * T013: Sidebar Component - TaskFlow (Clean Light Mode)
  *
  * Collapsible navigation sidebar for desktop (md+).
  * Features:
- * - Glassmorphism styling with Midnight Stone palette
+ * - Clean Light Mode styling (slate-50 background, blue accents)
+ * - TaskFlow branding (replaces "Command Center")
  * - Collapsible state management
  * - Smooth slide-in/out transitions (Framer Motion)
  * - Navigation links with active states
- * - Logo and branding
  *
  * Desktop only - hidden on mobile (< md breakpoint)
  */
@@ -45,10 +45,10 @@ export function Sidebar() {
         stiffness: 300,
         damping: 30,
       }}
-      className="hidden md:flex flex-col h-screen w-[280px] glass-dark border-r border-ghost-amber fixed left-0 top-0 z-40"
+      className="hidden md:flex flex-col h-screen w-[280px] bg-slate-50/95 backdrop-blur-sm border-r border-slate-200 fixed left-0 top-0 z-40"
     >
       {/* Logo and Brand */}
-      <div className="p-6 border-b border-ghost-amber">
+      <div className="p-6 border-b border-slate-200">
         <AnimatePresence mode="wait">
           {!isCollapsed ? (
             <motion.div
@@ -58,10 +58,10 @@ export function Sidebar() {
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
             >
-              <h1 className="text-heading text-2xl font-bold text-gray-100">
-                Command Center
+              <h1 className="text-heading text-2xl font-bold text-slate-900">
+                TaskFlow
               </h1>
-              <p className="text-sm text-gray-400 mt-1">Mission Control</p>
+              <p className="text-sm text-slate-600 mt-1">My Tasks</p>
             </motion.div>
           ) : (
             <motion.div
@@ -72,7 +72,7 @@ export function Sidebar() {
               transition={{ duration: 0.2 }}
               className="text-center"
             >
-              <span className="text-2xl font-bold text-amber-500">CC</span>
+              <span className="text-2xl font-bold text-blue-600">TF</span>
             </motion.div>
           )}
         </AnimatePresence>
@@ -91,14 +91,14 @@ export function Sidebar() {
                 transition-all duration-200
                 ${
                   isActive
-                    ? 'bg-amber-500/20 border border-amber-500/30 text-amber-300'
-                    : 'text-gray-300 hover:bg-white/5 hover:border hover:border-white/10'
+                    ? 'bg-blue-50 border border-blue-200 text-blue-700'
+                    : 'text-slate-600 hover:bg-slate-100'
                 }
               `}
             >
               <span
                 className={`
-                ${isActive ? 'text-amber-400' : 'text-gray-400'}
+                ${isActive ? 'text-blue-600' : 'text-slate-500'}
               `}
               >
                 {item.icon}
@@ -122,13 +122,13 @@ export function Sidebar() {
       </nav>
 
       {/* Collapse Toggle Button */}
-      <div className="p-4 border-t border-ghost-amber">
+      <div className="p-4 border-t border-slate-200">
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
           className="
             w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg
-            bg-white/5 hover:bg-white/10 border border-white/10 hover:border-amber-500/20
-            text-gray-300 hover:text-amber-300
+            bg-white hover:bg-slate-100 border border-slate-300
+            text-slate-600 hover:text-blue-600
             transition-all duration-200
           "
           aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}

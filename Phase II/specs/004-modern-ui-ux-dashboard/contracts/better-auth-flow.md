@@ -307,61 +307,98 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiMTIzZ
 
 ### Problem
 
-- JWT stored in HttpOnly cookie (inaccessible to JavaScript)
+- JWT stored in HttpOnly cookie (inaccessible to client-side JavaScript)
 - Client components need `user_id` for API path construction (`/api/{user_id}/tasks`)
+- Client-side JavaScript MUST NOT directly decode JWT payload (spec requirement)
 
-### Solution: Server-Side Extraction
+### Solution: Server Action Pattern
 
-**Approach**: Use Next.js Server Actions to read cookie server-side and return user_id to client
+**Approach**: Use Next.js Server Action to read HttpOnly cookie server-side, decode JWT, and return only the user_id string to client.
 
 **Implementation**:
 
-**Server Action** (`frontend/src/lib/auth/jwt-utils.ts`):
+**Server Action** (`frontend/src/lib/auth/actions.ts`):
 ```typescript
 'use server'
 
 import { cookies } from 'next/headers'
 import { jwtDecode } from 'jwt-decode'
 
-export async function getUserIdFromJWT(): Promise<string | null> {
-  const cookieStore = cookies()
+interface JWTPayload {
+  user_id: string
+  email: string
+  exp: number
+}
+
+/**
+ * Server Action to extract user_id from HttpOnly JWT cookie.
+ * This is the ONLY way client components should obtain user_id.
+ * Client-side JavaScript MUST NOT decode JWT directly.
+ */
+export async function getUserId(): Promise<string | null> {
+  const cookieStore = await cookies()
   const authToken = cookieStore.get('auth-token')
 
-  if (!authToken) {
+  if (!authToken?.value) {
     return null
   }
 
   try {
-    const decoded = jwtDecode<{ user_id: string }>(authToken.value)
+    const decoded = jwtDecode<JWTPayload>(authToken.value)
+
+    // Check token expiry
+    if (decoded.exp * 1000 < Date.now()) {
+      return null
+    }
+
     return decoded.user_id
-  } catch (error) {
+  } catch {
     return null
   }
 }
 ```
 
-**Client Component Usage**:
+**ApiClient Integration** (`frontend/src/lib/api/client.ts`):
 ```typescript
 'use client'
 
-import { getUserIdFromJWT } from '@/lib/auth/jwt-utils'
+import { getUserId } from '@/lib/auth/actions'
 
-export function TaskStream() {
-  const [userId, setUserId] = useState<string | null>(null)
+class ApiClient {
+  private userId: string | null = null
 
-  useEffect(() => {
-    getUserIdFromJWT().then(setUserId)
-  }, [])
+  async init(): Promise<void> {
+    this.userId = await getUserId()
+  }
 
-  // Use userId for API path construction
-  const createTask = async (data: TaskCreate) => {
-    if (!userId) throw new Error('Not authenticated')
-    const response = await fetch(`/api/${userId}/tasks`, { ... })
+  async fetch<T>(endpoint: string, options?: RequestInit): Promise<T> {
+    if (!this.userId) {
+      throw new Error('Not authenticated')
+    }
+
+    const url = `${process.env.NEXT_PUBLIC_API_URL}/api/${this.userId}${endpoint}`
+
+    const response = await fetch(url, {
+      ...options,
+      credentials: 'include',
+    })
+
+    // ... error handling
+    return response.json()
   }
 }
 ```
 
-**Security Note**: Server Action only decodes JWT (no signature verification) because cookie is already trusted (set by our own server). Backend still validates signature on API requests.
+### Security Properties
+
+| Property | How Achieved |
+|----------|--------------|
+| JWT never exposed to client JS | HttpOnly cookie; client only receives user_id string |
+| No client-side JWT decode | Server Action performs decode in Node.js runtime |
+| Token validation | Backend verifies JWT signature; validates path user_id matches JWT user_id |
+| XSS protection | Even with XSS, attacker cannot access JWT contents |
+
+**Note**: Server Action decodes JWT without signature verification because the HttpOnly cookie was set by our own server. Backend performs full JWT validation on every API request.
 
 ---
 

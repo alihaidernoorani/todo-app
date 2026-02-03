@@ -15,6 +15,14 @@
 - Q: Should the system attempt to preserve unsaved work when a session expires? → A: Save draft to localStorage before redirect
 - Q: How should the system handle simultaneous edits to the same task from multiple devices? → A: Last write wins with visual indicator
 
+### Session 2026-02-02
+
+- Q: What are the public authentication routes? → A: /login and /signup are the only public authentication routes; legacy (auth)/sign-in routes are deprecated and will redirect to /login
+- Q: How should JWT user_id be accessed by client-side JavaScript? → A: Client-side JavaScript must never directly decode JWT payload; user_id is obtained via Next.js Server Action that reads the HttpOnly cookie server-side
+- Q: Should client construct API paths containing user_id? → A: Yes, frontend constructs `/api/{user_id}/tasks` paths using user_id obtained from Server Action (not by client-side JWT decoding); backend requires path-based user context
+- Q: What is the canonical design system name? → A: Clean Light Mode (all other names deprecated)
+- Q: What is the canonical button component name? → A: PrimaryButton
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Authenticated Dashboard Access (Priority: P1)
@@ -23,16 +31,16 @@ As a registered user, I need to securely sign in and access my personal dashboar
 
 **Why this priority**: Authentication is foundational - without secure user access, no other dashboard functionality is viable. This establishes the security perimeter and enables all subsequent user interactions.
 
-**Independent Test**: Can be fully tested by creating an account, signing in, and verifying the user sees their personalized dashboard with a welcome message. Delivers immediate value by providing secure access to user-specific content.
+**Independent Test**: Can be fully tested by creating an account, signing in via /login, and verifying the user sees their personalized dashboard with a welcome message. Delivers immediate value by providing secure access to user-specific content.
 
 **Acceptance Scenarios**:
 
-1. **Given** I am a new user, **When** I navigate to the dashboard URL, **Then** I am redirected to the sign-in page
-2. **Given** I am on the sign-in page with valid credentials, **When** I submit the login form, **Then** I am redirected to my personalized dashboard
+1. **Given** I am a new user, **When** I navigate to the dashboard URL, **Then** I am redirected to the /login page
+2. **Given** I am on the /login page with valid credentials, **When** I submit the login form, **Then** I am redirected to my personalized dashboard
 3. **Given** I am authenticated, **When** I navigate to protected routes, **Then** my JWT token is automatically included in all API requests
-4. **Given** my session expires, **When** I attempt to access protected content, **Then** I am securely redirected to sign-in without data exposure
+4. **Given** my session expires, **When** I attempt to access protected content, **Then** I am securely redirected to /login without data exposure
 5. **Given** I am signed in on one device, **When** I sign in on another device, **Then** both sessions remain valid independently
-6. **Given** I am actively creating a task, **When** my session expires, **Then** my unsaved work is saved to localStorage as a draft, I am redirected to sign-in, and after re-authenticating I see a prompt to restore my draft
+6. **Given** I am actively creating a task, **When** my session expires, **Then** my unsaved work is saved to localStorage as a draft, I am redirected to /login, and after re-authenticating I see a prompt to restore my draft
 
 ---
 
@@ -77,11 +85,11 @@ As a user interacting with the dashboard, I expect a modern, sophisticated visua
 
 **Why this priority**: The visual design creates the first impression and ongoing emotional connection with the product. While not blocking functionality, it significantly impacts user satisfaction and perceived quality.
 
-**Independent Test**: Can be fully tested by loading the dashboard on multiple screen sizes and verifying the Midnight Stone color palette, glassmorphism effects, typography hierarchy, and smooth transitions render correctly. Delivers value by creating a distinctive, memorable user experience.
+**Independent Test**: Can be fully tested by loading the dashboard on multiple screen sizes and verifying the Clean Light Mode color palette, subtle glassmorphism effects, typography hierarchy, and smooth transitions render correctly. Delivers value by creating a distinctive, memorable user experience.
 
 **Acceptance Scenarios**:
 
-1. **Given** I am viewing the dashboard, **When** the page loads, **Then** I see deep slate backgrounds (#0c0a09) with amber accent highlights (#f59e0b)
+1. **Given** I am viewing the dashboard, **When** the page loads, **Then** I see clean white backgrounds (#ffffff) with slate secondary colors (#f8fafc) and blue accent highlights (#2563eb)
 2. **Given** I hover over interactive elements, **When** my cursor enters a card or button, **Then** I see subtle glassmorphism effects with backdrop blur and translucent borders
 3. **Given** I am reading content, **When** I view headings and body text, **Then** page titles use a serif font (Playfair Display) and data uses Inter for clarity
 4. **Given** I interact with the task list, **When** items appear or update, **Then** I see staggered animations with spring physics providing a sense of polish
@@ -101,7 +109,7 @@ As a mobile user, I need intuitive navigation that is accessible and doesn't obs
 
 1. **Given** I am on mobile, **When** I scroll the dashboard, **Then** the bottom navigation bar remains fixed and accessible
 2. **Given** I am on mobile, **When** I tap a navigation item, **Then** the view transitions smoothly without page refresh
-3. **Given** I am on desktop, **When** I view the dashboard, **Then** I see a collapsible glass sidebar instead of bottom navigation
+3. **Given** I am on desktop, **When** I view the dashboard, **Then** I see a collapsible glass sidebar with Clean Light Mode styling instead of bottom navigation
 4. **Given** the sidebar is collapsed on desktop, **When** I click the expand toggle, **Then** it animates smoothly into view
 
 ---
@@ -116,16 +124,16 @@ As a user accessing my tasks through the API, I need all requests to be automati
 
 **Acceptance Scenarios**:
 
-1. **Given** I am authenticated as User A, **When** API requests are made, **Then** all endpoints automatically include my user ID in the path (`/api/{user_id}/tasks`)
+1. **Given** I am authenticated as User A, **When** API requests are made, **Then** all endpoints automatically scope to my user ID server-side using JWT token validation
 2. **Given** I attempt to access another user's data by manipulating the URL, **When** the request reaches the server, **Then** I receive a 403 Forbidden error
-3. **Given** my JWT token contains my user ID, **When** the API client makes requests, **Then** it extracts my user ID from the token and constructs scoped URLs
-4. **Given** I am signed out, **When** the API client attempts a request, **Then** the request fails gracefully without exposing user ID routes
+3. **Given** my JWT token contains my user ID, **When** the API client makes requests, **Then** the client obtains user_id via Server Action, constructs `/api/{user_id}/tasks` path, and server validates JWT matches path user_id
+4. **Given** I am signed out, **When** the API client attempts a request, **Then** the request fails gracefully at the authentication layer
 
 ---
 
 ### Edge Cases
 
-- When a user's session expires while actively working: System saves unsaved work to localStorage, clears tokens, redirects to sign-in, and restores draft after re-authentication
+- When a user's session expires while actively working: System saves unsaved work to localStorage, clears tokens, redirects to /login, and restores draft after re-authentication
 - How does the system handle network failures during optimistic task updates?
 - What happens when a user navigates directly to a protected route without being authenticated?
 - How does the dashboard behave when task data exceeds expected volumes (e.g., 1000+ tasks)?
@@ -141,16 +149,16 @@ As a user accessing my tasks through the API, I need all requests to be automati
 
 - **FR-001**: System MUST authenticate users using Better Auth client SDK with stateless JWT-based sessions
 - **FR-001a**: System MUST store JWT tokens in HttpOnly cookies to prevent XSS-based token theft
-- **FR-002**: System MUST provide a central ApiClient utility that automatically injects JWT tokens into Authorization Bearer headers for all API requests
-- **FR-003**: System MUST dynamically construct API paths using the authenticated user's ID in the format `/api/{user_id}/tasks`
+- **FR-002**: System MUST provide a central ApiClient utility that handles centralized fetch logic, credentials inclusion, error handling, 401 redirects, and user_id path interpolation; ApiClient obtains user_id via Server Action (never by client-side JWT decoding)
+- **FR-003**: System MUST construct API paths with user_id (e.g., `/api/{user_id}/tasks`) as required by backend; user_id is obtained exclusively via Next.js Server Action that reads HttpOnly cookie server-side; client-side JavaScript MUST NOT directly decode JWT payload
 - **FR-004**: System MUST display task metrics in top-row dashboard cards showing total tasks, completed tasks, pending tasks, overdue tasks, and priority breakdowns (High, Medium, Low)
 - **FR-004a**: System MUST allow users to assign priority levels (High, Medium, or Low) to tasks during creation and editing
 - **FR-005**: System MUST implement optimistic UI updates for task creation, updates, and completion using React 19's useOptimistic hook
 - **FR-006**: System MUST display shimmer skeleton loaders during initial data loading and streaming SSR
-- **FR-007**: System MUST apply the Midnight Stone color palette with deep slate backgrounds (#0c0a09) and amber accents (#f59e0b)
-- **FR-008**: System MUST use glassmorphism styling with backdrop-blur, semi-transparent backgrounds (bg-white/5), and 1px translucent borders (border-white/10)
+- **FR-007**: System MUST apply the Clean Light Mode color palette with clean white backgrounds (#ffffff) and slate secondary colors (#f8fafc) with blue accents (#2563eb)
+- **FR-008**: System MUST use subtle glassmorphism styling with backdrop-blur, semi-transparent backgrounds (bg-slate-50/95), and 1px translucent borders (border-slate-200/80)
 - **FR-009**: System MUST use Inter font for UI elements and data, and Playfair Display (or similar serif) for page headers
-- **FR-010**: System MUST customize shadcn/ui primitives with increased border-radius (rounded-xl) and soft shadows (shadow-2xl)
+- **FR-010**: System MUST customize shadcn/ui primitives with increased border-radius (rounded-xl) and soft shadows (shadow-sm) using PrimaryButton as the canonical button component
 - **FR-011**: System MUST implement staggered list animations and spring transitions using Framer Motion
 - **FR-012**: System MUST provide sticky bottom navigation on mobile devices
 - **FR-013**: System MUST provide a collapsible glass sidebar on desktop devices
@@ -193,12 +201,12 @@ As a user accessing my tasks through the API, I need all requests to be automati
 - Users expect immediate visual feedback for actions, prioritizing perceived performance over strict server confirmation
 - The application will be deployed in an environment supporting environment variables for BETTER_AUTH_SECRET
 - Network latency for API requests will typically be under 500ms for the target user base
-- JWT tokens stored in HttpOnly cookies will be automatically included in cross-origin requests when properly configured with CORS and SameSite attributes
+- JWT tokens stored in HttpOnly cookies will be automatically included in cross-origin requests when properly configured with CORS and SameSite attributes; client-side JavaScript obtains user_id via Server Action (server-side cookie read and JWT decode) but never directly accesses JWT payload
 
 ## Dependencies
 
 - Better Auth client SDK and server-side integration for authentication
-- Backend API endpoints supporting user-scoped task CRUD operations at `/api/{user_id}/tasks`
+- Backend API endpoints supporting task CRUD operations at `/api/{user_id}/tasks` with path-based user context and JWT validation
 - Tailwind CSS v4 configuration and build tooling
 - Next.js 16 with App Router and React Server Components support
 - shadcn/ui component library installed and configured

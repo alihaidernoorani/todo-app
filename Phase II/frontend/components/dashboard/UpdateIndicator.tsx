@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { RefreshCw } from "lucide-react";
+import { RotateCcw } from "lucide-react";
 
 interface UpdateIndicatorProps {
   /**
@@ -76,11 +76,11 @@ export function UpdateIndicator({
           }}
           className={`${positionClasses[position]} ${className}`}
         >
-          <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-amber-500/20 backdrop-blur-lg border border-amber-500/30 shadow-2xl">
+          <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-amber-50 border border-amber-200 shadow-sm">
             {/* Amber pulse indicator */}
             <div className="relative flex items-center justify-center">
               <motion.div
-                className="absolute w-3 h-3 bg-amber-500 rounded-full"
+                className="absolute w-3 h-3 bg-amber-400 rounded-full"
                 animate={{
                   scale: [1, 1.5, 1],
                   opacity: [0.7, 0.3, 0.7],
@@ -95,7 +95,7 @@ export function UpdateIndicator({
             </div>
 
             {/* Message text */}
-            <span className="text-sm font-medium text-amber-100 font-sans">
+            <span className="text-sm font-medium text-amber-800 font-sans">
               {message}
             </span>
 
@@ -105,11 +105,11 @@ export function UpdateIndicator({
                 onClick={onRefresh}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/30 hover:bg-amber-500/40 border border-amber-500/40 transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-amber-300 bg-amber-100 hover:bg-amber-200 transition-colors"
                 aria-label="Refresh to load latest version"
               >
-                <RefreshCw className="w-3.5 h-3.5 text-amber-100" />
-                <span className="text-xs font-medium text-amber-100 font-sans">
+                <RotateCcw className="w-3.5 h-3.5 text-amber-700" />
+                <span className="text-xs font-medium text-amber-700 font-sans">
                   Refresh
                 </span>
               </motion.button>

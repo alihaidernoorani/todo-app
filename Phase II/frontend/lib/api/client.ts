@@ -9,6 +9,8 @@
  * - 401 error interceptor for session expiry
  */
 
+import { getJWTToken } from '../auth/jwt-utils'
+
 export class ApiClient {
   private baseURL: string
 
@@ -56,6 +58,17 @@ export class ApiClient {
     // Add Content-Type for JSON requests
     if (options.body && !headers.has('Content-Type')) {
       headers.set('Content-Type', 'application/json')
+    }
+
+    // Inject Authorization Bearer header with session token
+    try {
+      const token = await getJWTToken()
+      if (token) {
+        headers.set('Authorization', `Bearer ${token}`)
+      }
+    } catch (error) {
+      console.warn('[ApiClient] Failed to get session token for Authorization header:', error)
+      // Continue without token - backend will handle 401
     }
 
     try {

@@ -1,19 +1,19 @@
 /**
- * Animated Checkbox Component
+ * T019: Animated Checkbox Component - Clean Light Mode
  *
  * Interactive checkbox with spring animation for task completion.
  * Features:
  * - Framer Motion spring physics (stiffness: 300, damping: 20)
  * - Scale animation on check/uncheck
- * - Emerald accent for checked state
- * - Glassmorphism border
+ * - Green accent for checked state (semantic success color)
+ * - Blue accents for hover/focus (matches primary theme)
  * - Optimistic state support
  *
- * Design:
- * - Unchecked: Ghost border (white/10)
- * - Checked: Emerald fill with checkmark icon
- * - Pending: Amber border with spinner
- * - Hover: Border glow effect
+ * Design (Clean Light Mode):
+ * - Unchecked: White background with slate-300 border
+ * - Checked: Green-600 fill with white checkmark icon
+ * - Pending: Blue-300 border with spinner
+ * - Hover: Blue-500 border glow
  *
  * Usage:
  * ```tsx
@@ -74,26 +74,35 @@ export function AnimatedCheckbox({
       role="checkbox"
       className={`
         relative w-5 h-5 rounded border transition-all duration-200
-        ${checked ? "bg-emerald-500/20 border-emerald-500/50" : "bg-white/5 border-white/10"}
-        ${isPending ? "border-amber-500/50" : ""}
-        ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:border-emerald-500/30"}
-        focus-visible-ring
+        ${checked ? "bg-green-600 border-green-600" : "bg-white border-slate-300"}
+        ${isPending ? "border-blue-300" : ""}
+        ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:border-blue-500"}
+        focus-ring
       `}
     >
       {/* Checkmark */}
       {checked && !isPending && (
         <motion.div
           initial={{ scale: 0, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
+          animate={{
+            scale: [0, 1.2, 1],
+            opacity: 1,
+            backgroundColor: ["transparent", "rgba(34, 197, 94, 0.2)", "transparent"] // Green pop effect
+          }}
           exit={{ scale: 0, opacity: 0 }}
           transition={{
-            type: "spring",
-            stiffness: 300,
-            damping: 20,
+            scale: {
+              type: "spring",
+              stiffness: 300,
+              damping: 20,
+            },
+            backgroundColor: {
+              duration: 0.3,
+            }
           }}
-          className="absolute inset-0 flex items-center justify-center"
+          className="absolute inset-0 flex items-center justify-center rounded-full"
         >
-          <Check className="w-4 h-4 text-emerald-400" strokeWidth={3} />
+          <Check className="w-4 h-4 text-white" strokeWidth={3} />
         </motion.div>
       )}
 
@@ -105,7 +114,7 @@ export function AnimatedCheckbox({
           className="absolute inset-0 flex items-center justify-center"
         >
           <svg
-            className="animate-spin h-3 w-3 text-amber-400"
+            className="animate-spin h-3 w-3 text-blue-600"
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
             viewBox="0 0 24 24"

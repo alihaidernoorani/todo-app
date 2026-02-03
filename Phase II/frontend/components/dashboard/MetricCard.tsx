@@ -3,14 +3,14 @@
  *
  * Displays a single metric with icon, label, and value.
  * Features:
- * - Glassmorphism styling with ghost borders
+ * - Clean light mode styling with subtle shadows
  * - Icon with colored background
- * - Large value display with gradient text
+ * - Large value display with tech blue accents
  * - Staggered entry animation via Framer Motion
  *
  * Design:
- * - Follows Midnight Stone aesthetic
- * - Hover effects with border glow
+ * - Follows "Slate & Snow" aesthetic
+ * - Hover effects with subtle shadow enhancement
  * - Responsive sizing
  * - Zero layout shift (fixed dimensions)
  *
@@ -61,34 +61,34 @@ interface MetricCardProps {
 
 const colorClasses = {
   amber: {
-    bg: "bg-amber-500/20",
-    border: "border-amber-500/30",
-    icon: "text-amber-400",
-    glow: "hover:shadow-neon-amber",
+    bg: "bg-amber-100",
+    border: "border-amber-200",
+    icon: "text-amber-600",
+    hover: "hover:shadow-md hover:border-amber-300",
   },
   emerald: {
-    bg: "bg-emerald-500/20",
-    border: "border-emerald-500/30",
-    icon: "text-emerald-400",
-    glow: "hover:shadow-neon-emerald",
+    bg: "bg-emerald-100",
+    border: "border-emerald-200",
+    icon: "text-emerald-600",
+    hover: "hover:shadow-md hover:border-emerald-300",
   },
   blue: {
-    bg: "bg-blue-500/20",
-    border: "border-blue-500/30",
-    icon: "text-blue-400",
-    glow: "hover:shadow-neon-cyan",
+    bg: "bg-blue-100",
+    border: "border-blue-200",
+    icon: "text-blue-600",
+    hover: "hover:shadow-md hover:border-blue-300",
   },
   purple: {
-    bg: "bg-purple-500/20",
-    border: "border-purple-500/30",
-    icon: "text-purple-400",
-    glow: "hover:shadow-neon-purple",
+    bg: "bg-purple-100",
+    border: "border-purple-200",
+    icon: "text-purple-600",
+    hover: "hover:shadow-md hover:border-purple-300",
   },
   red: {
-    bg: "bg-red-500/20",
-    border: "border-red-500/30",
-    icon: "text-red-400",
-    glow: "hover:shadow-neon-red",
+    bg: "bg-red-100",
+    border: "border-red-200",
+    icon: "text-red-600",
+    hover: "hover:shadow-md hover:border-red-300",
   },
 }
 
@@ -104,9 +104,9 @@ export function MetricCard({ icon, label, value, color, index = 0 }: MetricCardP
         delay: index * 0.1,
         ease: [0.16, 1, 0.3, 1], // Custom ease for smooth spring-like motion
       }}
-      className={`glass-card border-ghost-amber h-32 transition-all duration-300 ${colors.glow} hover:border-${color}-500/20 cursor-default group`}
+      className={`bg-white rounded-lg border border-slate-200 h-32 transition-all duration-300 ${colors.hover} cursor-default group shadow-sm`}
     >
-      <div className="space-y-3">
+      <div className="p-4 space-y-3">
         {/* Icon */}
         <div
           className={`w-10 h-10 rounded-lg ${colors.bg} border ${colors.border} flex items-center justify-center transition-transform duration-300 group-hover:scale-110`}
@@ -115,20 +115,15 @@ export function MetricCard({ icon, label, value, color, index = 0 }: MetricCardP
         </div>
 
         {/* Label */}
-        <p className="text-sm font-medium text-gray-400 tracking-wide uppercase">
+        <p className="text-sm font-medium text-slate-600 tracking-wide uppercase">
           {label}
         </p>
 
         {/* Value */}
-        <p className="text-3xl font-bold text-gray-100 font-mono tracking-tight">
+        <p className="text-3xl font-bold text-slate-900 font-mono tracking-tight">
           {value.toLocaleString()}
         </p>
       </div>
-
-      {/* Hover indicator (subtle bottom glow) */}
-      <div
-        className={`absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-${color}-500/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300`}
-      />
     </motion.div>
   )
 }

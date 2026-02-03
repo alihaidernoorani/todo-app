@@ -1,11 +1,12 @@
 /**
- * T065: Topbar Component
+ * T014: Topbar Component - TaskFlow (Clean Light Mode)
  *
  * Top navigation bar for desktop layout.
  * Features:
+ * - "My Tasks" page title (replaces "Dashboard")
  * - User menu with sign-out option
  * - Notifications placeholder
- * - Glassmorphism sticky header
+ * - Clean light theme styling
  * - Responsive positioning (adjusts for Sidebar)
  *
  * Desktop only - hidden on mobile (< md breakpoint)
@@ -26,7 +27,7 @@ export function Topbar() {
   const handleSignOut = async () => {
     try {
       await authClient.signOut()
-      router.push('/sign-in')
+      router.push('/login')
       router.refresh()
     } catch (error) {
       console.error('Sign-out failed:', error)
@@ -34,11 +35,11 @@ export function Topbar() {
   }
 
   return (
-    <header className="hidden md:block sticky top-0 z-30 glass-dark border-b border-ghost-amber">
+    <header className="hidden md:block sticky top-0 z-30 bg-white border-b border-slate-200">
       <div className="flex items-center justify-between h-16 px-6">
         {/* Left side - Page title or breadcrumb */}
         <div>
-          <h2 className="text-lg font-semibold text-gray-100">Dashboard</h2>
+          <h2 className="text-lg font-semibold text-slate-900">My Tasks</h2>
         </div>
 
         {/* Right side - Actions */}
@@ -47,16 +48,16 @@ export function Topbar() {
           <button
             className="
               relative p-2 rounded-lg
-              text-gray-400 hover:text-gray-200
-              bg-white/5 hover:bg-white/10
-              border border-white/10 hover:border-amber-500/20
+              text-slate-600 hover:text-slate-900
+              bg-slate-50 hover:bg-slate-100
+              border border-slate-200
               transition-all duration-200
             "
             aria-label="Notifications"
           >
             <Bell className="w-5 h-5" />
             {/* Notification badge */}
-            <span className="absolute top-1 right-1 w-2 h-2 bg-amber-500 rounded-full" />
+            <span className="absolute top-1 right-1 w-2 h-2 bg-blue-600 rounded-full" />
           </button>
 
           {/* User Menu */}
@@ -65,9 +66,9 @@ export function Topbar() {
               onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
               className="
                 flex items-center gap-2 px-3 py-2 rounded-lg
-                text-gray-300 hover:text-gray-100
-                bg-white/5 hover:bg-white/10
-                border border-white/10 hover:border-amber-500/20
+                text-slate-700 hover:text-slate-900
+                bg-slate-50 hover:bg-slate-100
+                border border-slate-200
                 transition-all duration-200
               "
               aria-label="User menu"
@@ -86,8 +87,8 @@ export function Topbar() {
                   transition={{ duration: 0.15 }}
                   className="
                     absolute right-0 mt-2 w-48
-                    glass-card border-ghost-amber
-                    shadow-glass-lg
+                    bg-white rounded-lg border border-slate-200
+                    shadow-lg
                   "
                 >
                   <div className="py-2">
@@ -95,8 +96,8 @@ export function Topbar() {
                     <button
                       className="
                         w-full flex items-center gap-3 px-4 py-2
-                        text-left text-gray-300 hover:text-gray-100
-                        hover:bg-white/5
+                        text-left text-slate-700 hover:text-slate-900
+                        hover:bg-slate-50
                         transition-colors duration-150
                       "
                     >
@@ -105,15 +106,15 @@ export function Topbar() {
                     </button>
 
                     {/* Divider */}
-                    <div className="my-2 border-t border-ghost" />
+                    <div className="my-2 border-t border-slate-200" />
 
                     {/* Sign Out */}
                     <button
                       onClick={handleSignOut}
                       className="
                         w-full flex items-center gap-3 px-4 py-2
-                        text-left text-red-300 hover:text-red-200
-                        hover:bg-red-500/10
+                        text-left text-red-600 hover:text-red-700
+                        hover:bg-red-50
                         transition-colors duration-150
                       "
                     >

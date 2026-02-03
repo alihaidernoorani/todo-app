@@ -1,11 +1,12 @@
 /**
- * T067: Dashboard Layout with Responsive Navigation
+ * T008: Dashboard Layout with Client-Side Auth Protection
  *
  * Orchestrates navigation components based on screen size:
  * - Desktop (md+): Sidebar + Topbar
  * - Mobile (< md): MobileNav (sticky bottom)
  *
  * Features:
+ * - Client-side route protection via AuthGuard
  * - Responsive breakpoints
  * - Smooth layout transitions
  * - Content area adjusts for navigation
@@ -15,6 +16,7 @@
 import { Sidebar } from '@/components/layout/Sidebar'
 import { Topbar } from '@/components/layout/Topbar'
 import { MobileNav } from '@/components/layout/MobileNav'
+import { AuthGuard } from '@/components/auth/AuthGuard'
 
 export default function DashboardLayout({
   children,
@@ -22,7 +24,7 @@ export default function DashboardLayout({
   children: React.ReactNode
 }) {
   return (
-    <>
+    <AuthGuard>
       {/* Desktop Layout (md+) */}
       <div className="min-h-screen flex">
         {/* T064: Sidebar - Desktop only, collapsible */}
@@ -42,6 +44,6 @@ export default function DashboardLayout({
 
       {/* T066: MobileNav - Mobile only, sticky bottom */}
       <MobileNav />
-    </>
+    </AuthGuard>
   )
 }

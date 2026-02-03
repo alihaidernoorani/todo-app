@@ -8,7 +8,7 @@
  * - Priority select (High, Medium, Low)
  * - Form validation
  * - Loading states
- * - Glassmorphism styling
+ * - Clean light mode styling
  *
  * Modes:
  * - Create: Empty form, "Create Task" button
@@ -34,7 +34,7 @@
 "use client"
 
 import { useState, FormEvent } from "react"
-import { LuxuryButton } from "@/components/atoms/LuxuryButton"
+import { PrimaryButton } from "@/components/atoms/PrimaryButton"
 import { Plus, Save, X } from "lucide-react"
 import type { TaskCreate, TaskUpdate, TaskPriority } from "@/lib/api/types"
 
@@ -127,16 +127,16 @@ export function TaskForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="glass-card border-ghost-amber p-6 space-y-4">
+    <form onSubmit={handleSubmit} className="bg-white rounded-lg border border-slate-200 p-6 space-y-4 shadow-sm">
       {/* Form Header */}
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-100">
+        <h3 className="text-lg font-semibold text-slate-900">
           {mode === "create" ? "Create New Task" : "Edit Task"}
         </h3>
         <button
           type="button"
           onClick={onCancel}
-          className="p-1 rounded hover:bg-white/10 text-gray-400 hover:text-gray-200 transition-colors"
+          className="p-1 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-colors"
           aria-label="Close form"
         >
           <X className="w-5 h-5" />
@@ -145,15 +145,15 @@ export function TaskForm({
 
       {/* Error Display */}
       {error && (
-        <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
-          <p className="text-sm text-red-200">{error}</p>
+        <div className="p-3 rounded-lg bg-red-50 border border-red-200">
+          <p className="text-sm text-red-700">{error}</p>
         </div>
       )}
 
       {/* Title Input */}
       <div>
-        <label htmlFor="task-title" className="block text-sm font-medium text-gray-300 mb-2">
-          Title <span className="text-red-400">*</span>
+        <label htmlFor="task-title" className="block text-sm font-medium text-slate-700 mb-2">
+          Title <span className="text-red-500">*</span>
         </label>
         <input
           id="task-title"
@@ -162,19 +162,19 @@ export function TaskForm({
           onChange={(e) => setTitle(e.target.value)}
           disabled={isSubmitting}
           maxLength={255}
-          className="w-full px-4 py-2.5 rounded-lg bg-white/5 border border-white/10 text-gray-100 placeholder-gray-500 focus-visible-ring transition-all duration-200 hover:border-white/20 disabled:opacity-50"
+          className="w-full px-4 py-2.5 rounded-lg border border-slate-300 text-slate-900 placeholder-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 hover:border-slate-400 disabled:opacity-50"
           placeholder="Enter task title..."
           required
           autoFocus
         />
-        <p className="text-xs text-gray-500 mt-1">
+        <p className="text-xs text-slate-500 mt-1">
           {title.length}/255 characters
         </p>
       </div>
 
       {/* Description Textarea */}
       <div>
-        <label htmlFor="task-description" className="block text-sm font-medium text-gray-300 mb-2">
+        <label htmlFor="task-description" className="block text-sm font-medium text-slate-700 mb-2">
           Description
         </label>
         <textarea
@@ -184,17 +184,17 @@ export function TaskForm({
           disabled={isSubmitting}
           maxLength={2000}
           rows={3}
-          className="w-full px-4 py-2.5 rounded-lg bg-white/5 border border-white/10 text-gray-100 placeholder-gray-500 focus-visible-ring transition-all duration-200 hover:border-white/20 disabled:opacity-50 resize-none"
+          className="w-full px-4 py-2.5 rounded-lg border border-slate-300 text-slate-900 placeholder-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 hover:border-slate-400 disabled:opacity-50 resize-none"
           placeholder="Add details (optional)..."
         />
-        <p className="text-xs text-gray-500 mt-1">
+        <p className="text-xs text-slate-500 mt-1">
           {description.length}/2000 characters
         </p>
       </div>
 
       {/* Priority Select */}
       <div>
-        <label htmlFor="task-priority" className="block text-sm font-medium text-gray-300 mb-2">
+        <label htmlFor="task-priority" className="block text-sm font-medium text-slate-700 mb-2">
           Priority
         </label>
         <select
@@ -202,15 +202,15 @@ export function TaskForm({
           value={priority}
           onChange={(e) => setPriority(e.target.value as TaskPriority)}
           disabled={isSubmitting}
-          className="w-full px-4 py-2.5 rounded-lg bg-white/5 border border-white/10 text-gray-100 focus-visible-ring transition-all duration-200 hover:border-white/20 disabled:opacity-50 cursor-pointer"
+          className="w-full px-4 py-2.5 rounded-lg border border-slate-300 text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 hover:border-slate-400 disabled:opacity-50 cursor-pointer"
         >
-          <option value="High" className="bg-stone-900">
+          <option value="High" className="bg-white">
             High Priority
           </option>
-          <option value="Medium" className="bg-stone-900">
+          <option value="Medium" className="bg-white">
             Medium Priority
           </option>
-          <option value="Low" className="bg-stone-900">
+          <option value="Low" className="bg-white">
             Low Priority
           </option>
         </select>
@@ -218,24 +218,24 @@ export function TaskForm({
 
       {/* Action Buttons */}
       <div className="flex items-center gap-3 pt-2">
-        <LuxuryButton
+        <PrimaryButton
           type="submit"
           variant="primary"
           icon={mode === "create" ? <Plus className="w-4 h-4" /> : <Save className="w-4 h-4" />}
           isLoading={isSubmitting}
-          fullWidth
+          disabled={isSubmitting}
         >
           {mode === "create" ? "Create Task" : "Update Task"}
-        </LuxuryButton>
+        </PrimaryButton>
 
-        <LuxuryButton
+        <PrimaryButton
           type="button"
-          variant="ghost"
+          variant="outline"
           onClick={onCancel}
           disabled={isSubmitting}
         >
           Cancel
-        </LuxuryButton>
+        </PrimaryButton>
       </div>
     </form>
   )

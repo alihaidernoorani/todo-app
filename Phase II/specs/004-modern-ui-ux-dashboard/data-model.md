@@ -193,7 +193,7 @@ export interface DraftTask {
 **Lifecycle**:
 1. User starts creating task (types in form)
 2. Session expires (401 from API) → Save current form state to localStorage
-3. Redirect to /sign-in
+3. Redirect to /login
 4. User re-authenticates → Check localStorage for draft
 5. If draft found AND < 24 hours old → Show "Restore unsaved work?" modal
 6. User confirms → Pre-fill form with draft data, delete draft from localStorage
@@ -203,6 +203,8 @@ export interface DraftTask {
 
 ## Component Architecture
 
+> **REVISED 2026-02-02**: Updated for "Clean Light Mode" theme and public auth pages
+
 ### Component Hierarchy
 
 ```text
@@ -211,29 +213,40 @@ App Shell (Server Component)
 ├── RootLayout (Server Component)
 │   ├── <html> + <body> tags
 │   ├── Font Loading (Inter variable, Playfair Display)
-│   ├── Tailwind Global Styles (globals.css)
+│   ├── Tailwind Global Styles (globals.css - Clean Light Mode)
 │   └── Better Auth Provider (Client Boundary)
 │
-├── (auth) Route Group [No Sidebar]
-│   ├── AuthLayout (Server Component)
-│   │   └── Centered Form Container
-│   │
-│   └── /sign-in/page.tsx (Client Component)
-│       └── SignInForm
+├── /login (Public Route - No Auth Required)
+│   └── LoginPage (Client Component)
+│       └── LoginForm
+│           ├── Email Input (light theme styling)
+│           ├── Password Input
+│           ├── Submit Button (PrimaryButton - blue-600)
+│           ├── "Forgot password?" Link
+│           ├── "Sign up" Link → /signup
+│           └── Error Message Display
+│
+├── /signup (Public Route - No Auth Required)
+│   └── SignupPage (Client Component)
+│       └── SignupForm
+│           ├── Name Input
 │           ├── Email Input
 │           ├── Password Input
-│           ├── Submit Button (LuxuryButton)
-│           └── Better Auth Integration
+│           ├── Confirm Password Input
+│           ├── Submit Button (PrimaryButton - blue-600)
+│           ├── "Sign in" Link → /login
+│           └── Error Message Display
 │
-└── (dashboard) Route Group [With Layout]
+└── (dashboard) Route Group [Protected - Auth Required]
     ├── DashboardLayout (Client Component)
-    │   ├── Sidebar (Client - Glassmorphism)
-    │   │   ├── Logo
+    │   ├── AuthGuard (checks session, redirects to /login if unauthenticated)
+    │   ├── Sidebar (Light theme - bg-slate-50, border-slate-200)
+    │   │   ├── "TaskFlow" Logo/Name
     │   │   ├── Navigation Links
     │   │   └── Collapse Toggle
     │   │
     │   ├── Topbar (Client)
-    │   │   ├── Page Title (Playfair Display)
+    │   │   ├── Page Title: "My Tasks" (Playfair Display)
     │   │   ├── User Avatar
     │   │   └── Sign Out Button
     │   │
@@ -243,35 +256,35 @@ App Shell (Server Component)
     └── /page.tsx (Server Component with Suspense)
         ├── <Suspense fallback={<MetricsGridSkeleton />}>
         │   └── MetricsGrid (Client Component)
-        │       ├── MetricCard (Atomic) - Total Tasks
-        │       ├── MetricCard (Atomic) - Completed Tasks
-        │       ├── MetricCard (Atomic) - Pending Tasks
-        │       └── MetricCard (Atomic) - Overdue Tasks
+        │       ├── MetricCard - "Total Tasks"
+        │       ├── MetricCard - "Completed"
+        │       ├── MetricCard - "In Progress"
+        │       └── MetricCard - "Overdue"
         │
         └── <Suspense fallback={<TaskStreamSkeleton />}>
             └── TaskStream (Client Component)
                 ├── TaskForm (Client)
-                │   ├── Title Input
+                │   ├── Title Input (border-slate-300, focus:ring-blue-500)
                 │   ├── Description Textarea
                 │   ├── Priority Dropdown
-                │   ├── Submit Button (LuxuryButton)
+                │   ├── Submit Button (PrimaryButton - blue-600)
                 │   └── DraftRecovery Modal (conditional)
                 │
                 ├── TaskItem (Client) x N
                 │   ├── AnimatedCheckbox (Atomic)
                 │   ├── Task Content
-                │   │   ├── Title (with priority badge)
-                │   │   └── Description
+                │   │   ├── Title (text-slate-900, with priority badge)
+                │   │   └── Description (text-slate-600)
                 │   ├── Action Buttons
-                │   │   ├── Edit Button (LuxuryButton)
-                │   │   └── Delete Button (LuxuryButton)
+                │   │   ├── Edit Button (ghost style)
+                │   │   └── Delete Button (ghost style)
                 │   └── InlineError (conditional if _error)
-                │       ├── Error Message
+                │       ├── Error Message (text-red-600)
                 │       └── Retry Button
                 │
                 └── EmptyState (if no tasks)
                     ├── Illustration/Icon
-                    ├── "No tasks yet" message
+                    ├── "No tasks yet. Create your first task to get started."
                     └── CTA to create first task
 ```
 
@@ -321,6 +334,7 @@ interface ShimmerSkeletonProps {
 }
 ```
 **Usage**: Placeholder during Suspense or loading states
+**Styling**: Light theme (bg-slate-200 with shimmer animation)
 
 ---
 
@@ -336,9 +350,9 @@ interface AnimatedCheckboxProps {
 
 ---
 
-**LuxuryButton.tsx**:
+**PrimaryButton.tsx** (renamed from LuxuryButton):
 ```typescript
-interface LuxuryButtonProps {
+interface PrimaryButtonProps {
   variant: "primary" | "secondary" | "ghost"
   size: "sm" | "md" | "lg"
   children: React.ReactNode
@@ -346,7 +360,7 @@ interface LuxuryButtonProps {
   disabled?: boolean
 }
 ```
-**Styling**: Glassmorphism (backdrop-blur, translucent border), hover state with glow
+**Styling**: Clean light theme (bg-blue-600, rounded-lg, shadow-sm), hover state with bg-blue-700
 
 ---
 
@@ -451,8 +465,8 @@ if (response.status === 401) {
   // 2. Clear auth cookies
   document.cookie = "auth-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
 
-  // 3. Redirect to sign-in
-  window.location.href = "/sign-in"
+  // 3. Redirect to login
+  window.location.href = "/login"
 }
 ```
 
@@ -566,8 +580,9 @@ CREATE INDEX idx_tasks_user_completed ON tasks(user_id, is_completed);
 - 403 Forbidden if mismatch
 
 **Frontend Enforcement**:
-- ApiClient extracts `user_id` from JWT (via server-side decode)
-- All API paths constructed with authenticated user's ID
+- ApiClient obtains `user_id` via Server Action (`getUserId()`) which reads HttpOnly cookie server-side
+- Client-side JavaScript NEVER directly decodes JWT payload
+- All API paths constructed with user_id from Server Action: `/api/${userId}/tasks`
 - No client-side logic for user switching (single-user session)
 
 ### Draft Data Privacy

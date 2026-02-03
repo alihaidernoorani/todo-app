@@ -1,22 +1,21 @@
 /**
- * Shimmer Skeleton Loader
+ * T018: Shimmer Skeleton Loader - Clean Light Mode
  *
  * Animated placeholder component shown while data is loading.
  * Features:
- * - Animated gradient background (stone-900 → stone-800 → stone-900)
- * - Amber accent shimmer overlay
+ * - Light theme animated background (slate-200 with white shimmer)
  * - Configurable dimensions
- * - Matches final component size to prevent layout shift
+ * - Matches final component size to prevent layout shift (0px CLS)
  *
  * Design Notes:
  * - Uses CSS animations for 60fps performance
- * - Gradient moves horizontally with cubic-bezier easing
- * - Amber overlay adds futuristic feel
+ * - White shimmer overlay moves horizontally with cubic-bezier easing
+ * - Background: slate-200 (#e2e8f0)
  *
  * Usage:
  * ```tsx
  * // Card skeleton
- * <ShimmerSkeleton className="h-32 rounded-xl" />
+ * <ShimmerSkeleton className="h-32 rounded-lg" />
  *
  * // Text skeleton
  * <ShimmerSkeleton className="h-4 w-32 rounded" />
@@ -24,7 +23,7 @@
  * // Grid of skeletons
  * <div className="grid grid-cols-4 gap-4">
  *   {Array.from({ length: 4 }).map((_, i) => (
- *     <ShimmerSkeleton key={i} className="h-32 rounded-xl" />
+ *     <ShimmerSkeleton key={i} className="h-32 rounded-lg" />
  *   ))}
  * </div>
  * ```
@@ -68,7 +67,7 @@ export function ShimmerSkeleton({ className = "", ...props }: ShimmerSkeletonPro
  */
 export function MetricCardSkeleton() {
   return (
-    <div className="glass-card border-ghost-amber h-32">
+    <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-6 h-32">
       <div className="space-y-3">
         {/* Icon skeleton */}
         <ShimmerSkeleton className="w-10 h-10 rounded-lg" />
@@ -89,7 +88,7 @@ export function MetricCardSkeleton() {
  */
 export function TaskItemSkeleton() {
   return (
-    <div className="glass-card border-ghost p-4">
+    <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-4">
       <div className="flex items-center gap-4">
         {/* Checkbox skeleton */}
         <ShimmerSkeleton className="w-5 h-5 rounded" />

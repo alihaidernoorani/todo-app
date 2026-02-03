@@ -12,8 +12,8 @@
  * - Framer Motion animations
  *
  * Design:
- * - Glassmorphism card
- * - Hover effects with border glow
+ * - Clean light mode styling
+ * - Subtle shadow and hover effects
  * - Pending state: Amber border + spinner
  * - Error state: Red border + inline error
  * - Layout: Checkbox | Content | Priority | Actions
@@ -32,9 +32,9 @@
 "use client"
 
 import { motion } from "framer-motion"
-import { Edit2, Trash2 } from "lucide-react"
+import { Edit3, Trash2 } from "lucide-react"
 import { AnimatedCheckbox } from "@/components/atoms/AnimatedCheckbox"
-import { IconButton } from "@/components/atoms/LuxuryButton"
+import { PrimaryButton } from "@/components/atoms/PrimaryButton"
 import { InlineError } from "./InlineError"
 import type { OptimisticTask } from "@/lib/api/types"
 
@@ -67,19 +67,19 @@ interface TaskItemProps {
 
 const priorityColors = {
   High: {
-    bg: "bg-red-500/20",
-    border: "border-red-500/30",
-    text: "text-red-300",
+    bg: "bg-red-100",
+    border: "border-red-200",
+    text: "text-red-700",
   },
   Medium: {
-    bg: "bg-amber-500/20",
-    border: "border-amber-500/30",
-    text: "text-amber-300",
+    bg: "bg-amber-100",
+    border: "border-amber-200",
+    text: "text-amber-700",
   },
   Low: {
-    bg: "bg-blue-500/20",
-    border: "border-blue-500/30",
-    text: "text-blue-300",
+    bg: "bg-blue-100",
+    border: "border-blue-200",
+    text: "text-blue-700",
   },
 }
 
@@ -103,11 +103,11 @@ export function TaskItem({
         opacity: { duration: 0.2 },
       }}
       className={`
-        glass-card border-ghost p-4
+        bg-white rounded-lg border border-slate-200 p-4 shadow-sm
         ${task._optimistic ? "optimistic-pending" : ""}
-        ${task._error ? "border-red-500/30" : ""}
+        ${task._error ? "border-red-200" : ""}
         transition-all duration-300
-        hover:border-white/20
+        hover:shadow-md
       `}
     >
       {/* Main Content Row */}
@@ -127,8 +127,8 @@ export function TaskItem({
           {/* Title */}
           <h3
             className={`
-              text-base font-medium mb-1
-              ${task.is_completed ? "text-gray-500 line-through" : "text-gray-100"}
+              text-base font-medium mb-1 font-serif
+              ${task.is_completed ? "text-slate-500 line-through" : "text-slate-900"}
               transition-all duration-200
             `}
           >
@@ -140,7 +140,7 @@ export function TaskItem({
             <p
               className={`
                 text-sm
-                ${task.is_completed ? "text-gray-600" : "text-gray-400"}
+                ${task.is_completed ? "text-slate-500" : "text-slate-600"}
                 line-clamp-2
               `}
             >
@@ -149,7 +149,7 @@ export function TaskItem({
           )}
 
           {/* Timestamp */}
-          <p className="text-xs text-gray-500 mt-1">
+          <p className="text-xs text-slate-500 mt-1">
             {new Date(task.created_at).toLocaleDateString(undefined, {
               month: "short",
               day: "numeric",
@@ -174,14 +174,14 @@ export function TaskItem({
 
         {/* Action Buttons */}
         <div className="flex items-center gap-1">
-          <IconButton
-            icon={<Edit2 className="w-4 h-4" />}
+          <PrimaryButton
+            icon={<Edit3 className="w-4 h-4" />}
             ariaLabel={`Edit task: ${task.title}`}
             onClick={onEdit}
             variant="ghost"
             size="sm"
           />
-          <IconButton
+          <PrimaryButton
             icon={<Trash2 className="w-4 h-4" />}
             ariaLabel={`Delete task: ${task.title}`}
             onClick={onDelete}

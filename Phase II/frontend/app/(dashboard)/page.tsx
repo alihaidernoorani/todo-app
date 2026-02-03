@@ -23,21 +23,28 @@ import { MetricsGrid } from "@/components/dashboard/MetricsGrid"
 import { TaskStream } from "@/components/dashboard/TaskStream"
 import { MetricsGridSkeleton } from "@/components/atoms/ShimmerSkeleton"
 import { PageTransition } from "@/components/layout/PageTransition"
+import { useSession } from "@/lib/auth/useSession"
 
 export default function DashboardPage() {
+  const { session, status } = useSession()
+
   return (
     <PageTransition>
       {/* T077: Main landmark for accessibility and skip link target */}
       <main id="main-content" className="space-y-8">
         {/* Page header */}
         <div>
-          <h1 className="heading-futuristic mb-2">Mission Control</h1>
-          <p className="text-gray-400 text-body">Task overview and management</p>
+          <h1 className="text-3xl font-bold text-slate-900 mb-2 font-serif">
+            {status === 'authenticated' && session.user?.name
+              ? `Welcome back, ${session.user.name.split(' ')[0]}`
+              : 'My Tasks'}
+          </h1>
+          <p className="text-slate-600 text-body">Task overview and management</p>
         </div>
 
         {/* Metrics Grid (Phase 4 - User Story 2) */}
         <section aria-labelledby="metrics-heading">
-          <h2 id="metrics-heading" className="text-lg font-semibold text-gray-300 mb-4 text-heading">
+          <h2 id="metrics-heading" className="text-lg font-semibold text-slate-700 mb-4">
             System Status
           </h2>
           <Suspense fallback={<MetricsGridSkeleton />}>
@@ -47,7 +54,7 @@ export default function DashboardPage() {
 
         {/* Task Stream (Phase 5 - User Story 3) */}
         <section aria-labelledby="tasks-heading">
-          <h2 id="tasks-heading" className="text-lg font-semibold text-gray-300 mb-4 text-heading">
+          <h2 id="tasks-heading" className="text-lg font-semibold text-slate-700 mb-4">
             Active Tasks
           </h2>
           <TaskStream />

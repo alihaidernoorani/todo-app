@@ -18,6 +18,8 @@
  * - Tasks: Server Action → Backend API → Optimistic updates
  */
 
+"use client"
+
 import { Suspense } from "react"
 import { MetricsGrid } from "@/components/dashboard/MetricsGrid"
 import { TaskStream } from "@/components/dashboard/TaskStream"

@@ -4,13 +4,13 @@
  * Displays error messages with retry functionality for failed optimistic updates.
  * Features:
  * - Compact error message display
- * - Amber "Retry" button
+ * - Blue "Retry" button
  * - Slide-in animation
  * - Auto-dismissible (optional)
  *
  * Design:
  * - Red accent for error state
- * - Glassmorphism background
+ * - Clean light mode background
  * - Inline layout (doesn't disrupt flow)
  * - Clear error message with retry CTA
  *
@@ -29,7 +29,7 @@
 "use client"
 
 import { motion } from "framer-motion"
-import { AlertCircle, RefreshCw, X } from "lucide-react"
+import { AlertCircle, RotateCcw, X } from "lucide-react"
 
 interface InlineErrorProps {
   /**
@@ -70,13 +70,13 @@ export function InlineError({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
       transition={{ duration: 0.3 }}
-      className="flex items-center gap-3 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-sm"
+      className="flex items-center gap-3 p-3 rounded-lg bg-red-50 border border-red-200 text-sm"
     >
       {/* Error Icon */}
-      <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+      <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
 
       {/* Error Message */}
-      <p className="flex-1 text-red-200 text-xs">{message}</p>
+      <p className="flex-1 text-red-700 text-xs">{message}</p>
 
       {/* Action Buttons */}
       <div className="flex items-center gap-2">
@@ -84,9 +84,9 @@ export function InlineError({
         {onRetry && (
           <button
             onClick={onRetry}
-            className="inline-flex items-center gap-1.5 px-3 py-1 rounded bg-amber-500 hover:bg-amber-600 text-stone-950 text-xs font-semibold transition-all duration-200 tactile-button"
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition-all duration-200"
           >
-            <RefreshCw className="w-3 h-3" />
+            <RotateCcw className="w-3 h-3" />
             Retry
           </button>
         )}
@@ -96,7 +96,7 @@ export function InlineError({
           <button
             onClick={onDismiss}
             aria-label="Dismiss error"
-            className="p-1 rounded hover:bg-red-500/20 text-red-300 hover:text-red-200 transition-colors duration-200"
+            className="p-1 rounded hover:bg-red-100 text-red-600 hover:text-red-700 transition-colors duration-200"
           >
             <X className="w-4 h-4" />
           </button>

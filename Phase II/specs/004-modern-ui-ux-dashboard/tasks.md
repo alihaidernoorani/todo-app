@@ -1,227 +1,307 @@
-# Tasks: Modern UI/UX Dashboard
+# Tasks: TaskFlow Dashboard Pivot
 
 **Input**: Design documents from `/specs/004-modern-ui-ux-dashboard/`
-**Prerequisites**: plan.md ✓, spec.md ✓, research.md ✓, data-model.md ✓, contracts/ ✓
+**Prerequisites**: plan.md (revised 2026-02-02), spec.md, data-model.md, contracts/
+**Pivot Focus**: Transform from "Command Center" (dark mode) to "TaskFlow" (Clean Light Mode)
 
-**Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
+**Agent Assignments**:
+- `ui-structure-architect`: Architecture & Global Proxy (Phases 1-2)
+- `ui-interaction-designer`: Authentication & Task UI (Phases 3-5)
+- `ui-ux-futuristic-designer`: Visual Polish & Animations (Phase 6)
 
-## Format: `[ID] [P?] [Story] [Agent] Description`
+## Format: `[ID] [P?] [Story?] Description`
 
 - **[P]**: Can run in parallel (different files, no dependencies)
 - **[Story]**: Which user story this task belongs to (e.g., US1, US2, US3)
-- **[Agent]**: Specialized agent category (ui-structure-architect, ui-interaction-designer, Infrastructure)
 - Include exact file paths in descriptions
 
 ## Path Conventions
 
-- **Web app**: `backend/src/`, `frontend/src/`
-- Tasks use web app structure as defined in plan.md
+- **Web app**: `frontend/` for Next.js, `backend/` for FastAPI
+- All paths relative to `/Phase II/`
 
 ---
 
-## Phase 1: Setup (Shared Infrastructure)
+## Phase 1: Architecture & Route Restructuring
 
-**Purpose**: Project initialization and basic structure
+**Purpose**: Refactor folder structure to support standalone public `/login` and `/signup` routes
+**Agent**: `ui-structure-architect`
 
-### Frontend Setup
+### Route Migration
 
-- [X] T001 [P] [ui-structure-architect] Initialize Next.js 16 project with App Router in `frontend/` directory using `npx create-next-app@latest` with TypeScript and Tailwind CSS v4
-- [X] T002 [P] [ui-structure-architect] Configure Tailwind CSS v4 with Midnight Stone design tokens in `frontend/tailwind.config.ts` (stone-950: #0c0a09, amber-500: #f59e0b, glassmorphism utilities)
-- [X] T003 [P] [Infrastructure] Install core dependencies in `frontend/package.json`: Better Auth client SDK, shadcn/ui CLI, Framer Motion, Lucide icons, jwt-decode
-- [X] T004 [P] [ui-structure-architect] Configure TypeScript strict mode in `frontend/tsconfig.json` and set up path aliases (@/ for src/)
-- [X] T005 [P] [ui-structure-architect] Create route group structure in `frontend/app/`: (auth)/sign-in/, (dashboard)/, api/auth/[...better-auth]/
-- [X] T006 [P] [ui-structure-architect] Setup global styles in `frontend/app/globals.css` with Tailwind imports and custom CSS layers for glassmorphism
-- [X] T007 [P] [ui-structure-architect] Configure Next.js in `frontend/next.config.mjs` with environment variable support and CORS settings for backend
+- [X] T001 [P] Create standalone `/login` route at `frontend/app/login/page.tsx` (public, no auth required)
+- [X] T002 [P] Create standalone `/signup` route at `frontend/app/signup/page.tsx` (public, no auth required)
+- [X] T003 [P] Create shared auth layout at `frontend/app/(auth-pages)/layout.tsx` for login/signup pages (centered card, light background)
+- [X] T004 Remove deprecated `frontend/app/(auth)/sign-in/` directory (migrated to /login)
+- [X] T005 Remove deprecated `frontend/app/(auth)/layout.tsx` (replaced by (auth-pages))
 
-### Backend Setup
+### Client-Side Route Protection
 
-- [X] T008 [P] [Infrastructure] Add `priority` field (Enum: High, Medium, Low) to Task model in `backend/src/models/task.py` with SQLModel Field configuration
-- [X] T009 [P] [Infrastructure] Update TaskCreate, TaskUpdate, TaskRead Pydantic schemas in `backend/src/schemas/task.py` to include priority field with default="Medium"
-- [X] T010 [Infrastructure] Create Alembic migration in `backend/alembic/versions/` to add priority column to tasks table with NOT NULL constraint and default value
+- [X] T006 Create `AuthGuard` component at `frontend/components/auth/AuthGuard.tsx` (checks session, redirects to /login)
+- [X] T007 Create `useSession` hook at `frontend/lib/auth/useSession.ts` (wraps Better Auth session hook)
+- [X] T008 Update `frontend/app/(dashboard)/layout.tsx` to wrap children with `AuthGuard` component
+- [X] T009 Create `DashboardSkeleton` component at `frontend/components/layout/DashboardSkeleton.tsx` (loading state for auth check)
 
-**Checkpoint**: Project structure initialized, Tailwind configured with Midnight Stone theme, backend schema extended with priority
+**Checkpoint**: Route structure migrated to /login and /signup with client-side protection
 
 ---
 
-## Phase 2: Foundational (Blocking Prerequisites)
+## Phase 2: Design System - "Slate & Snow" Light Mode
 
-**Purpose**: Core infrastructure that MUST be complete before ANY user story can be implemented
+**Purpose**: Establish "Clean Light Mode" design tokens replacing "Midnight Stone" dark theme
+**Agent**: `ui-structure-architect`
 
-**⚠️ CRITICAL**: No user story work can begin until this phase is complete
+### Tailwind Configuration
 
-### API Client Foundation
+- [X] T010 Update `frontend/tailwind.config.ts` with Clean Light Mode color palette:
+  - Primary White (#ffffff), Secondary Slate (#f8fafc), Tech Blue (#2563eb)
+  - Remove stone-950, stone-900, amber-500 dark theme tokens
+- [X] T011 Update `frontend/app/globals.css` to remove dark theme CSS custom properties and add light theme tokens
+- [X] T012 [P] Update CSS utility classes in `frontend/app/globals.css`:
+  - `.card` → `bg-white rounded-lg border border-slate-200 shadow-sm`
+  - `.btn-primary` → `bg-blue-600 text-white hover:bg-blue-700`
+  - `.input` → `border-slate-300 focus:ring-blue-500`
 
-- [X] T011 [Infrastructure] Create ApiClient class in `frontend/lib/api/client.ts` with base URL configuration from NEXT_PUBLIC_API_URL environment variable
-- [X] T012 [Infrastructure] Implement JWT token extraction from HttpOnly cookies via Server Action `getUserIdFromJWT()` in `frontend/lib/auth/jwt-utils.ts` using `cookies()` from next/headers
-- [X] T013 [Infrastructure] Add user_id path interpolation to ApiClient in `frontend/lib/api/client.ts` to construct `/api/{user_id}/tasks` URLs
-- [X] T014 [Infrastructure] Implement Authorization Bearer header injection in ApiClient fetch wrapper using JWT from cookies
-- [X] T015 [Infrastructure] Add 401 error interceptor to ApiClient that triggers draft save and redirects to /sign-in on session expiry
+### Branding Updates
 
-### Better Auth Integration
+- [X] T013 Update `frontend/components/layout/Sidebar.tsx`:
+  - Change logo/title from "Command Center" to "TaskFlow"
+  - Apply `bg-slate-50 border-r border-slate-200` styling
+- [X] T014 Update `frontend/components/layout/Topbar.tsx`:
+  - Change page title from "Mission Control" to "My Tasks"
+  - Apply light theme styling with `text-slate-900` typography
+- [X] T015 [P] Update `frontend/components/layout/MobileNav.tsx` with light theme styling
 
-- [X] T016 [Infrastructure] Configure Better Auth client in `frontend/lib/auth/better-auth.ts` with BETTER_AUTH_SECRET and BETTER_AUTH_URL from environment
-- [X] T017 [P] [Infrastructure] Create Better Auth API route handler in `frontend/app/api/auth/[...all]/route.ts` for sign-in, sign-out, session endpoints
-- [X] T018 [P] [Infrastructure] Implement Next.js middleware in `frontend/middleware.ts` for route protection using Edge runtime to redirect unauthenticated users to /sign-in
+### Atom Component Updates
 
-### Type Definitions
+- [X] T016 Rename `frontend/components/atoms/LuxuryButton.tsx` to `frontend/components/atoms/PrimaryButton.tsx`
+- [X] T017 Update `frontend/components/atoms/PrimaryButton.tsx` styling:
+  - `bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:ring-blue-500`
+- [X] T018 [P] Update `frontend/components/atoms/ShimmerSkeleton.tsx`:
+  - Change from dark theme to `bg-slate-200 animate-pulse`
+- [X] T019 [P] Update `frontend/components/atoms/AnimatedCheckbox.tsx` with blue accent colors
 
-- [X] T019 [P] [Infrastructure] Copy TypeScript type definitions from `specs/004-modern-ui-ux-dashboard/contracts/frontend-backend-types.ts` to `frontend/lib/api/types.ts`
-- [X] T020 [P] [Infrastructure] Create task API methods in `frontend/lib/api/tasks.ts` with typed signatures: createTask, listTasks, getTask, updateTask, toggleComplete, deleteTask, getMetrics
-
-### Backend Metrics Endpoint
-
-- [X] T021 [Infrastructure] Implement `get_metrics()` service method in `backend/src/services/task_service.py` to compute total, completed, pending, overdue, and priority breakdowns
-- [X] T022 [Infrastructure] Create `GET /api/{user_id}/tasks/metrics` endpoint in `backend/src/api/v1/tasks.py` returning TaskMetrics schema with user_id authorization
-
-**Checkpoint**: Foundation ready - ApiClient functional, Better Auth configured, backend metrics endpoint deployed, user story implementation can now begin in parallel
+**Checkpoint**: Design system fully migrated to Clean Light Mode
 
 ---
 
 ## Phase 3: User Story 1 - Authenticated Dashboard Access (Priority: P1) 🎯 MVP
 
-**Goal**: Secure user authentication with JWT in HttpOnly cookies, protected routes, and draft recovery on session expiry
+**Goal**: Users can securely sign in via /login and access their personalized dashboard
+**Agent**: `ui-interaction-designer`
 
-**Independent Test**: Create account, sign in, verify JWT in HttpOnly cookie (DevTools), access dashboard, clear cookies to simulate expiry, verify redirect and draft save
+**Independent Test**: Navigate to /login, enter credentials, verify redirect to dashboard with "My Tasks" header
 
-### Implementation for User Story 1
+### Authentication Forms
 
-- [X] T023 [ui-structure-architect] Create sign-in page in `frontend/app/(auth)/sign-in/page.tsx` with Better Auth sign-in form using email/password inputs
-- [X] T024 [P] [ui-interaction-designer] Style sign-in form with glassmorphism card (bg-white/5, backdrop-blur-lg, border-white/10) and amber accent submit button
-- [X] T025 [P] [ui-structure-architect] Create auth layout in `frontend/app/(auth)/layout.tsx` with centered content and no sidebar
-- [X] T026 [ui-structure-architect] Create root layout in `frontend/app/layout.tsx` with Inter and Playfair Display fonts from Google Fonts, Better Auth provider wrapper
-- [X] T027 [Infrastructure] Implement session expiry detection hook `useDraftRecovery()` in `frontend/lib/hooks/use-draft-recovery.ts` that saves form state to localStorage on 401 error
-- [X] T028 [ui-interaction-designer] Create draft recovery modal component in `frontend/components/dashboard/DraftRecoveryModal.tsx` with "Restore" and "Discard" buttons
-- [X] T029 [Infrastructure] Add localStorage draft cleanup logic in `useDraftRecovery()` to delete drafts older than 24 hours on mount
+- [X] T020 [US1] Create `LoginForm` component at `frontend/components/auth/LoginForm.tsx`:
+  - Email/password inputs with light theme styling
+  - Better Auth `useSignIn` hook integration
+  - Loading state with spinner on submit button
+  - Inline error display below form
+  - "Sign up" link to `/signup`
+- [X] T021 [US1] Create `SignupForm` component at `frontend/components/auth/SignupForm.tsx`:
+  - Name, email, password, confirm password inputs
+  - Better Auth `useSignUp` hook integration
+  - Validation feedback (password match, email format)
+  - "Sign in" link to `/login`
+- [X] T022 [US1] Implement `/login` page at `frontend/app/login/page.tsx`:
+  - Bento grid layout with centered LoginForm
+  - TaskFlow branding at top
+  - Light gray background (`bg-slate-50`)
+- [X] T023 [US1] Implement `/signup` page at `frontend/app/signup/page.tsx`:
+  - Same Bento grid layout as login
+  - SignupForm with validation
 
-**Checkpoint**: Users can sign in with Better Auth, JWT stored in HttpOnly cookies, protected routes redirect to sign-in, draft recovery functional
+### Session Management
+
+- [X] T024 [US1] Update `frontend/lib/auth/better-auth.ts` to configure Better Auth client with HttpOnly cookies
+- [X] T025 [US1] Create `frontend/lib/auth/jwt-utils.ts` with `getUserIdFromJWT` server action
+- [X] T026 [US1] Update `frontend/lib/api/client.ts` ApiClient to:
+  - Intercept 401 responses and redirect to /login
+  - Save draft to localStorage before redirect
+
+### Dashboard Shell
+
+- [X] T027 [US1] Update `frontend/app/(dashboard)/page.tsx`:
+  - Display "Welcome back, {name}" with user from session
+  - Apply light theme styling
+- [X] T028 [US1] Update `frontend/app/(dashboard)/layout.tsx`:
+  - Integrate AuthGuard wrapper
+  - Apply sidebar + content layout with light theme
+
+**Checkpoint**: US1 Complete - Users can sign in via /login and see their dashboard
 
 ---
 
 ## Phase 4: User Story 2 - Real-Time Task Overview (Priority: P1)
 
-**Goal**: Display task metrics (total, completed, pending, overdue, priority breakdowns) in dashboard cards with shimmer skeleton loaders
+**Goal**: Users see task metrics (Total, Completed, Pending, Overdue) at a glance
+**Agent**: `ui-interaction-designer`
 
-**Independent Test**: Sign in, verify metrics cards show accurate counts from backend, verify shimmer loaders during initial load, test empty state when no tasks exist
+**Independent Test**: Sign in, verify metric cards display with correct counts and light theme styling
 
-### Implementation for User Story 2
+### Metrics Components
 
-- [X] T030 [P] [ui-structure-architect] Create MetricsGrid component in `frontend/components/dashboard/MetricsGrid.tsx` fetching data from `/api/{user_id}/tasks/metrics` endpoint
-- [X] T031 [P] [ui-structure-architect] Create MetricCard atomic component in `frontend/components/dashboard/MetricCard.tsx` with icon, label, value, and glassmorphism styling
-- [X] T032 [P] [ui-structure-architect] Create ShimmerSkeleton atomic component in `frontend/components/atoms/ShimmerSkeleton.tsx` with animated gradient background (bg-gradient-to-r from-stone-900 via-stone-800)
-- [X] T033 [ui-structure-architect] Wrap MetricsGrid in Suspense boundary in `frontend/app/(dashboard)/page.tsx` with ShimmerSkeleton fallback matching final card dimensions
-- [X] T034 [ui-interaction-designer] Add staggered entry animation to MetricCard using Framer Motion with spring physics (delay: index * 0.1s)
-- [X] T035 [P] [ui-interaction-designer] Create EmptyState component in `frontend/components/dashboard/EmptyState.tsx` with helpful messaging and "Create your first task" call-to-action
-- [X] T036 [ui-structure-architect] Add conditional rendering in MetricsGrid to show EmptyState when total tasks === 0
+- [X] T029 [US2] Update `frontend/components/dashboard/MetricsGrid.tsx`:
+  - Apply light theme card styling (`bg-white border-slate-200 shadow-sm`)
+  - Display "Total Tasks", "Completed", "In Progress", "Overdue" labels
+- [X] T030 [P] [US2] Create `MetricCard` component at `frontend/components/dashboard/MetricCard.tsx`:
+  - Large number display with `text-slate-900`
+  - Icon with blue accent
+  - Subtle shadow and rounded corners
+- [X] T031 [US2] Update `frontend/components/atoms/ShimmerSkeleton.tsx` for light theme metrics skeleton
+- [X] T032 [US2] Create empty state component at `frontend/components/dashboard/EmptyState.tsx`:
+  - "No tasks yet. Create your first task to get started."
+  - CTA button with blue accent
 
-**Checkpoint**: Dashboard displays 4 metric cards (Total, Completed, Pending, Overdue) with accurate data, shimmer loaders during fetch, empty state for new users
+**Checkpoint**: US2 Complete - Metrics display with light theme styling
 
 ---
 
 ## Phase 5: User Story 3 - Instant Task Interaction (Priority: P1)
 
-**Goal**: Optimistic task CRUD operations using React 19 useOptimistic with immediate UI updates, rollback on errors, and inline error display with retry
+**Goal**: Create, update, complete tasks with immediate visual feedback via useOptimistic
+**Agent**: `ui-interaction-designer`
 
-**Independent Test**: Create task and verify it appears instantly before server confirmation, toggle completion and see immediate checkbox animation, simulate network error and verify rollback with inline error + retry button
+**Independent Test**: Create task, verify it appears immediately; toggle completion, verify instant UI update
 
-### Implementation for User Story 3
+### Task Components
 
-- [X] T037 [ui-structure-architect] Create TaskStream component in `frontend/components/dashboard/TaskStream.tsx` with useOptimistic hook for task list state management
-- [X] T038 [P] [ui-structure-architect] Create TaskItem component in `frontend/components/dashboard/TaskItem.tsx` displaying task title, description, priority badge, completion checkbox, edit/delete buttons
-- [X] T039 [P] [ui-structure-architect] Create TaskForm component in `frontend/components/dashboard/TaskForm.tsx` with title, description, priority select inputs and glassmorphism styling
-- [X] T040 [P] [ui-interaction-designer] Create AnimatedCheckbox atomic component in `frontend/components/atoms/AnimatedCheckbox.tsx` with Framer Motion spring animation (stiffness: 300, damping: 20)
-- [X] T041 [P] [ui-interaction-designer] Create LuxuryButton atomic component in `frontend/components/atoms/LuxuryButton.tsx` with glassmorphism hover effects (hover:bg-white/10 transition)
-- [X] T042 [Infrastructure] Implement `useOptimisticTask()` custom hook in `frontend/lib/hooks/use-optimistic-task.ts` wrapping React 19 useOptimistic with task-specific mutation logic
-- [X] T043 [Infrastructure] Add optimistic task creation logic to TaskForm: update local state immediately, call ApiClient.createTask(), reconcile on success, rollback on error
-- [X] T044 [Infrastructure] Add optimistic toggle completion logic to TaskItem: update checkbox immediately, call ApiClient.toggleComplete(), reconcile on success, rollback on error
-- [X] T045 [Infrastructure] Add optimistic update logic to TaskForm: pre-fill form, update local state immediately, call ApiClient.updateTask(), reconcile on success, rollback on error
-- [X] T046 [Infrastructure] Add optimistic delete logic to TaskItem: fade out immediately, call ApiClient.deleteTask(), reconcile on success, rollback with fade-in on error
-- [X] T047 [ui-interaction-designer] Create InlineError component in `frontend/components/dashboard/InlineError.tsx` with error message text and amber "Retry" button
-- [X] T048 [Infrastructure] Add error state to OptimisticTask type and display InlineError below affected task when _error field is set
-- [X] T049 [ui-interaction-designer] Add staggered list animation to TaskStream using Framer Motion AnimatePresence with layout transitions
+- [X] T033 [US3] Update `frontend/components/dashboard/TaskForm.tsx`:
+  - Light theme input styling (`border-slate-300 focus:ring-blue-500`)
+  - Priority dropdown (High=red, Medium=amber, Low=blue)
+  - PrimaryButton with blue accent
+- [X] T034 [US3] Update `frontend/components/dashboard/TaskItem.tsx`:
+  - Rename from TaskCard if exists
+  - Light theme card with `bg-white border-slate-200`
+  - Playfair Display for task title
+  - Inter for metadata
+  - Priority badge with semantic colors
+- [X] T035 [US3] Update `frontend/components/dashboard/TaskStream.tsx`:
+  - Light theme container styling
+  - Integration with useOptimistic hook
 
-### Concurrent Edit Detection
+### Optimistic Updates
 
-- [X] T050 [Infrastructure] Implement `useConcurrentUpdate()` hook in `frontend/lib/hooks/use-concurrent-update.ts` with 30-second polling using Page Visibility API to pause when tab hidden
-- [X] T051 [Infrastructure] Add ETag header support to task API methods in ApiClient for conditional requests
-- [X] T052 [ui-interaction-designer] Create UpdateIndicator component in `frontend/components/dashboard/UpdateIndicator.tsx` showing amber badge "Updated elsewhere" when ETag mismatch detected
+- [X] T036 [US3] Update `frontend/lib/hooks/use-optimistic-task.ts`:
+  - Configure React 19 `useOptimistic` for task mutations
+  - Handle rollback on server error
+  - Set `_optimistic: true` flag on pending tasks
+- [X] T037 [US3] Create inline error component at `frontend/components/dashboard/InlineError.tsx`:
+  - Red text below affected item
+  - Retry button with ghost styling
+- [X] T038 [US3] Update `frontend/lib/hooks/use-draft-recovery.ts`:
+  - Save form state to localStorage on 401
+  - Restore draft after re-authentication with modal prompt
 
-**Checkpoint**: Task creation, update, completion, deletion all show instant UI feedback <100ms, errors display inline with retry buttons, concurrent updates show visual indicator
+### API Integration
 
----
+- [X] T039 [US3] Update `frontend/lib/api/tasks.ts`:
+  - Ensure all endpoints use `/api/{user_id}/tasks` path
+  - Extract user_id from JWT via server action
+- [X] T040 [US3] Audit `frontend/lib/api/client.ts` for user-scoped path construction
 
-## Phase 6: User Story 6 - User-Scoped Data Access (Priority: P1)
-
-**Goal**: All API requests automatically scope to authenticated user ID, prevent cross-user data access with 403 errors
-
-**Independent Test**: Sign in as two different users in separate browsers, verify each user only sees their own tasks, attempt URL manipulation to access another user's tasks and verify 403 Forbidden error
-
-### Implementation for User Story 6
-
-- [x] T053 [Infrastructure] Add user_id validation to all task API methods in ApiClient: extract user_id from JWT, verify against path parameter, throw error if mismatch
-- [x] T054 [Infrastructure] Update backend task endpoints in `backend/src/api/v1/tasks.py` to verify JWT user_id claim matches path user_id parameter (return 403 if mismatch)
-- [x] T055 [P] [Infrastructure] Add integration test in `backend/tests/integration/test_task_auth.py` verifying cross-user access returns 403
-- [x] T056 [P] [Infrastructure] Add frontend error handling in ApiClient for 403 errors with user-friendly message "Access denied"
-
-**Checkpoint**: User A cannot access User B's tasks via API or URL manipulation, 403 errors handled gracefully
+**Checkpoint**: US3 Complete - Optimistic updates working with instant feedback
 
 ---
 
-## Phase 7: User Story 4 - Refined Visual Experience (Priority: P2)
+## Phase 6: Visual Polish & Animations
 
-**Goal**: Apply Midnight Stone aesthetic with glassmorphism, Inter/Playfair Display typography, staggered animations, and smooth transitions
+**Purpose**: Light-mode glassmorphism effects and celebratory animations
+**Agent**: `ui-ux-futuristic-designer`
 
-**Independent Test**: Load dashboard on multiple browsers, verify deep slate backgrounds, amber accents, glassmorphism effects, typography hierarchy, smooth hover transitions
+### Light-Mode Glassmorphism
 
-### Implementation for User Story 4
+- [X] T041 [P] [US4] Update sidebar with subtle backdrop blur:
+  - `backdrop-blur-sm bg-slate-50/95 border-slate-200`
+  - Maintain readability with high contrast text
+- [X] T042 [P] [US4] Add glass effect to metric cards on hover:
+  - `hover:shadow-md transition-shadow duration-200`
+- [X] T043 [P] [US4] Apply subtle glass borders to task cards:
+  - `border border-slate-200/80`
 
-- [x] T057 [P] [ui-interaction-designer] Add hover effects to all interactive elements (cards, buttons) with backdrop-blur increase and border glow (hover:border-amber-500/20)
-- [x] T058 [P] [ui-interaction-designer] Apply Playfair Display font to page headers in `frontend/src/app/(dashboard)/page.tsx` with font-serif and text-4xl classes
-- [x] T059 [P] [ui-interaction-designer] Apply Inter font to all body text and data elements with font-sans class
-- [x] T060 [ui-interaction-designer] Add cinematic page transitions using Framer Motion in dashboard layout with fade-in and slide-up animations (initial={{ opacity: 0, y: 20 }})
-- [x] T061 [P] [ui-interaction-designer] Customize shadcn/ui Button component in `frontend/src/components/ui/button.tsx` with increased border-radius (rounded-xl) and soft shadows (shadow-2xl)
-- [x] T062 [P] [ui-interaction-designer] Customize shadcn/ui Card component in `frontend/src/components/ui/card.tsx` with glassmorphism styles (bg-white/5, backdrop-blur-lg, border-white/10)
-- [x] T063 [ui-interaction-designer] Add View Transitions API polyfill in root layout for React 19 view transitions between sign-in and dashboard
+### Framer Motion Animations
 
-**Checkpoint**: Dashboard displays luxury-grade visual design with Midnight Stone palette, glassmorphism, typography hierarchy, smooth animations
+- [X] T044 [US4] Create "Celebratory Pop" animation for task completion:
+  - Blue-to-green transition on checkbox
+  - Scale pop effect `{ scale: [1, 1.2, 1] }`
+  - Spring physics `{ type: "spring", stiffness: 300, damping: 20 }`
+- [X] T045 [US4] Implement staggered entrance for task list:
+  - 50ms offset between items
+  - Fade-in with `{ opacity: [0, 1], y: [10, 0] }`
+- [X] T046 [P] [US4] Add smooth transitions to sidebar collapse/expand
+- [X] T047 [P] [US4] Add hover animations to buttons and interactive elements
+
+### Typography Refinement
+
+- [X] T048 [US4] Ensure Playfair Display applied to:
+  - Page titles ("My Tasks")
+  - Section headers
+  - Task titles in list
+- [X] T049 [US4] Ensure Inter applied to:
+  - Body text, buttons, inputs
+  - Metadata (dates, counts)
+  - Navigation items
+
+**Checkpoint**: US4 Complete - Visual polish with light glassmorphism and animations
 
 ---
 
-## Phase 8: User Story 5 - Mobile-First Navigation (Priority: P2)
+## Phase 7: User Story 5 - Mobile-First Navigation (Priority: P2)
 
-**Goal**: Sticky bottom navigation on mobile (320px-428px), collapsible glass sidebar on desktop, smooth transitions
+**Goal**: Mobile users have accessible bottom navigation; desktop users have collapsible sidebar
+**Agent**: `ui-interaction-designer`
 
-**Independent Test**: Access dashboard on mobile device, verify bottom nav is sticky and accessible within thumb reach, verify sidebar collapses on desktop with smooth animation
+**Independent Test**: Access dashboard on mobile, verify sticky bottom nav; on desktop, verify collapsible sidebar
 
-### Implementation for User Story 5
+- [X] T050 [US5] Update `frontend/components/layout/MobileNav.tsx`:
+  - Sticky bottom navigation with light theme
+  - Icon buttons for Dashboard, Create Task, Settings
+  - Active state with blue accent
+- [X] T051 [US5] Update `frontend/components/layout/Sidebar.tsx`:
+  - Collapsible state with smooth animation
+  - Collapse toggle button
+  - Responsive hide on mobile (hidden below md breakpoint)
+- [X] T052 [US5] Add responsive breakpoints in `frontend/app/(dashboard)/layout.tsx`:
+  - Show sidebar on `md:` and above
+  - Show MobileNav on mobile only
 
-- [x] T064 [ui-structure-architect] Create Sidebar component in `frontend/src/components/layout/Sidebar.tsx` with glassmorphism styling and collapsible state management
-- [x] T065 [P] [ui-structure-architect] Create Topbar component in `frontend/src/components/layout/Topbar.tsx` with user menu and notifications placeholder
-- [x] T066 [P] [ui-structure-architect] Create MobileNav component in `frontend/src/components/layout/MobileNav.tsx` with sticky bottom positioning (fixed bottom-0) and icon navigation
-- [x] T067 [ui-structure-architect] Create dashboard layout in `frontend/src/app/(dashboard)/layout.tsx` with Sidebar (desktop), Topbar, MobileNav (mobile), and responsive breakpoints
-- [x] T068 [ui-interaction-designer] Add collapsible animation to Sidebar using Framer Motion with slide-in/out transitions (x: [-280, 0])
-- [x] T069 [ui-interaction-designer] Add responsive breakpoints in dashboard layout: show Sidebar on md+, show MobileNav below md
-- [x] T070 [P] [ui-interaction-designer] Style MobileNav with glassmorphism (bg-stone-900/95, backdrop-blur-lg) and amber active state indicators
-
-**Checkpoint**: Mobile users see sticky bottom nav, desktop users see collapsible sidebar, smooth transitions between states
+**Checkpoint**: US5 Complete - Mobile and desktop navigation working
 
 ---
 
-## Phase 9: Polish & Cross-Cutting Concerns
+## Phase 8: User Story 6 - User-Scoped Data Access (Priority: P1)
 
-**Purpose**: Improvements that affect multiple user stories
+**Goal**: All API requests automatically scoped to authenticated user's ID
+**Agent**: `ui-structure-architect`
 
-- [X] T071 [P] [Infrastructure] Add performance monitoring with Web Vitals tracking in `frontend/app/layout.tsx` to measure CLS, LCP, FID
-- [X] T072 [P] [Infrastructure] Add Lighthouse CI configuration in `frontend/.lighthouserc.json` with CLS = 0px budget and performance thresholds
-- [X] T073 [P] [ui-structure-architect] Optimize font loading in root layout using `next/font` with preload and display: swap for zero layout shift
-- [X] T074 [P] [Infrastructure] Add error boundary component in `frontend/components/ErrorBoundary.tsx` with fallback UI for unhandled errors
-- [X] T075 [P] [Infrastructure] Add environment variable validation in `frontend/lib/utils/env.ts` to check NEXT_PUBLIC_API_URL on startup
-- [X] T076 [Infrastructure] Run quickstart.md validation by following all setup steps and verifying dashboard loads successfully (Manual validation pending)
-- [X] T077 [P] [ui-interaction-designer] Add accessibility improvements: ARIA labels to all interactive elements, keyboard navigation support, focus visible styles
-- [X] T078 [P] [Infrastructure] Add frontend integration tests in `frontend/tests/integration/api-client.test.ts` for ApiClient JWT injection and error handling
-- [X] T079 [P] [Infrastructure] Add component tests in `frontend/tests/components/TaskStream.test.tsx` for optimistic update behavior with React Testing Library (Authentication error handling implemented)
-- [ ] T080 [P] [Infrastructure] Add E2E test in `frontend/tests/e2e/dashboard.spec.ts` with Playwright for complete user journey (sign-in → create task → toggle → delete)
+**Independent Test**: Sign in as two different users, verify each only sees their own tasks
 
-**Checkpoint**: All polish tasks complete, performance benchmarks met, tests passing, quickstart validated
+- [X] T053 [US6] Audit `frontend/lib/api/client.ts`:
+  - Verify Authorization Bearer header injection
+  - Verify user_id path interpolation
+- [X] T054 [US6] Verify `frontend/lib/auth/jwt-utils.ts` extracts user_id correctly
+- [X] T055 [US6] Test unauthorized access handling:
+  - 401 → redirect to /login
+  - 403 → display forbidden error
+
+**Checkpoint**: US6 Complete - User data isolation verified
+
+---
+
+## Phase 9: Security & Verification
+
+**Purpose**: Confirm HttpOnly cookie security and API contract adherence
+**Agent**: `ui-structure-architect`
+
+- [X] T056 Verify HttpOnly cookie configuration in `frontend/lib/auth/better-auth.ts`
+- [X] T057 Audit all `fetch` calls for `credentials: 'include'` setting
+- [X] T058 Verify CORS configuration allows frontend origin
+- [X] T059 Confirm BETTER_AUTH_SECRET not exposed in client bundle (check build output)
+- [X] T060 Run quickstart.md validation checklist
+
+**Checkpoint**: Security verified - ready for deployment
 
 ---
 
@@ -229,174 +309,70 @@
 
 ### Phase Dependencies
 
-- **Setup (Phase 1)**: No dependencies - can start immediately
-- **Foundational (Phase 2)**: Depends on Setup completion (T001-T010) - BLOCKS all user stories
-- **User Story 1 (Phase 3)**: Depends on Foundational completion (T011-T022)
-- **User Story 2 (Phase 4)**: Depends on Foundational completion (T011-T022)
-- **User Story 3 (Phase 5)**: Depends on Foundational completion (T011-T022) AND User Story 2 (T030-T036) for MetricsGrid integration
-- **User Story 6 (Phase 6)**: Depends on Foundational completion (T011-T022) - can run in parallel with US1-US3
-- **User Story 4 (Phase 7)**: Depends on US1, US2, US3 completion (visual polish applies to existing components)
-- **User Story 5 (Phase 8)**: Depends on US1 completion (requires dashboard layout structure)
-- **Polish (Phase 9)**: Depends on all desired user stories being complete
+```
+Phase 1 (Routes) ──────────┐
+                           ├──→ Phase 3 (US1: Auth)
+Phase 2 (Design System) ───┘
+                           ├──→ Phase 4 (US2: Metrics)
+                           │
+                           ├──→ Phase 5 (US3: Tasks)
+                           │
+                           └──→ Phase 8 (US6: Scoping)
 
-### User Story Dependencies
-
-- **User Story 1 (P1)**: Can start after Foundational (Phase 2) - No dependencies on other stories
-- **User Story 2 (P1)**: Can start after Foundational (Phase 2) - Independent from US1
-- **User Story 3 (P1)**: Can start after Foundational (Phase 2) - Independent from US1/US2
-- **User Story 6 (P1)**: Can start after Foundational (Phase 2) - Independent from US1-US3
-- **User Story 4 (P2)**: Requires US1-US3 completion (applies visual polish to existing components)
-- **User Story 5 (P2)**: Requires US1 completion (needs dashboard layout structure)
-
-### Critical Path
-
-1. Setup (T001-T010)
-2. Foundational (T011-T022) ← **CRITICAL BLOCKER**
-3. User Story 1 (T023-T029) → Authentication functional
-4. User Story 2 (T030-T036) → Metrics displayed
-5. User Story 3 (T037-T052) → Optimistic CRUD functional
-6. User Story 6 (T053-T056) → Security validated
-7. User Story 4 (T057-T063) → Visual polish applied
-8. User Story 5 (T064-T070) → Mobile navigation complete
-9. Polish (T071-T080) → Production ready
-
-### Parallel Opportunities
-
-**Phase 1 (Setup)**: T001-T007 (frontend) can run in parallel with T008-T010 (backend)
-
-**Phase 2 (Foundational)**:
-- T011-T015 (ApiClient) sequential
-- T016-T018 (Better Auth) can run in parallel with T011-T015
-- T019-T020 (Type definitions) can run in parallel with T011-T018
-- T021-T022 (Backend metrics) can run in parallel with T011-T020
-
-**After Foundational completes**:
-- US1 (T023-T029), US2 (T030-T036), US6 (T053-T056) can ALL run in parallel
-- US3 (T037-T052) depends on US2 completion but can overlap partially
-
-**Phase 7 (Visual Polish)**: T057-T063 all marked [P] can run in parallel
-
-**Phase 9 (Polish)**: T071-T080 all marked [P] can run in parallel
-
----
-
-## Parallel Example: Foundational Phase
-
-```bash
-# Launch API Client foundation (sequential due to dependencies):
-Task T011: "Create ApiClient class in frontend/src/lib/api/client.ts"
-Task T012: "Implement getUserIdFromJWT() in frontend/src/lib/auth/jwt-utils.ts"
-Task T013: "Add user_id path interpolation to ApiClient"
-Task T014: "Implement Authorization Bearer header injection"
-Task T015: "Add 401 error interceptor to ApiClient"
-
-# WHILE ABOVE RUNS, launch Better Auth in parallel:
-Task T016: "Configure Better Auth client in frontend/src/lib/auth/better-auth.ts"
-Task T017: "Create Better Auth API route handler"
-Task T018: "Implement Next.js middleware for route protection"
-
-# WHILE BOTH RUN, launch Type Definitions in parallel:
-Task T019: "Copy TypeScript type definitions to frontend/src/lib/api/types.ts"
-Task T020: "Create task API methods in frontend/src/lib/api/tasks.ts"
-
-# WHILE ALL RUN, launch Backend Metrics in parallel:
-Task T021: "Implement get_metrics() in backend/src/services/task_service.py"
-Task T022: "Create GET /api/{user_id}/tasks/metrics endpoint"
+Phase 6 (Polish) ← depends on Phase 3-5
+Phase 7 (Mobile) ← depends on Phase 2
+Phase 9 (Security) ← depends on all phases
 ```
 
----
+### Parallel Opportunities by Phase
 
-## Agent Categorization Summary
-
-### [ui-structure-architect] Tasks (19 tasks)
-- Next.js 16 initialization and App Router setup
-- Tailwind CSS v4 configuration with Midnight Stone tokens
-- Route group structure creation
-- Component scaffolding (MetricsGrid, TaskStream, TaskItem, Sidebar, Topbar, MobileNav)
-- Layout components and Suspense boundaries
-- Font optimization and responsive breakpoints
-
-### [ui-interaction-designer] Tasks (22 tasks)
-- Glassmorphism styling (cards, buttons, forms)
-- Framer Motion animations (staggered lists, spring physics, transitions)
-- AnimatedCheckbox and LuxuryButton atomic components
-- Hover effects and visual feedback
-- Typography application (Inter, Playfair Display)
-- Draft recovery modal
-- Inline error displays
-- Accessibility improvements
-
-### [Infrastructure] Tasks (39 tasks)
-- ApiClient implementation with JWT injection
-- Better Auth integration and session management
-- Type definitions and API method signatures
-- Backend schema modifications (priority field)
-- Backend metrics endpoint implementation
-- Optimistic update hooks (useOptimisticTask, useDraftRecovery, useConcurrentUpdate)
-- Error handling and validation
-- Testing (integration, component, E2E)
-- Performance monitoring and environment validation
+**Phase 1**: T001, T002, T003 can run in parallel
+**Phase 2**: T010-T012 sequential; T013-T015 can parallelize; T016-T019 can parallelize
+**Phase 3-5**: Tasks within each phase follow model → service → component order
+**Phase 6**: T041-T043 can parallelize; T046-T047 can parallelize
 
 ---
 
 ## Implementation Strategy
 
-### MVP First (User Stories 1, 2, 3, 6 Only)
+### MVP First (Phases 1-3)
 
-1. Complete Phase 1: Setup (T001-T010)
-2. Complete Phase 2: Foundational (T011-T022) **← CRITICAL BLOCKER**
-3. Complete Phase 3: User Story 1 (T023-T029) → Authentication works
-4. Complete Phase 4: User Story 2 (T030-T036) → Metrics displayed
-5. Complete Phase 5: User Story 3 (T037-T052) → Optimistic CRUD functional
-6. Complete Phase 6: User Story 6 (T053-T056) → Security validated
-7. **STOP and VALIDATE**: Test all P1 user stories independently
-8. Deploy/demo MVP with core functionality
+1. Complete Phase 1: Route Restructuring
+2. Complete Phase 2: Design System Migration
+3. Complete Phase 3: User Story 1 (Authentication)
+4. **STOP and VALIDATE**: Test login/signup flow with light theme
+5. Deploy/demo if ready
 
 ### Incremental Delivery
 
-1. Foundation (T001-T022) → API Client + Auth ready
-2. Add US1 (T023-T029) → Test independently → Users can sign in ✅
-3. Add US2 (T030-T036) → Test independently → Metrics dashboard live ✅
-4. Add US3 (T037-T052) → Test independently → Optimistic task management works ✅
-5. Add US6 (T053-T056) → Test independently → Multi-user security validated ✅
-6. Add US4 (T057-T063) → Test independently → Luxury visual design applied ✅
-7. Add US5 (T064-T070) → Test independently → Mobile navigation complete ✅
-8. Polish (T071-T080) → Production ready ✅
-
-### Parallel Team Strategy
-
-With 3 specialized agents after Foundational completes:
-
-**Agent 1 (ui-structure-architect)**:
-- US1: Sign-in page, auth layout, root layout (T023, T025, T026)
-- US2: MetricsGrid, MetricCard, Suspense setup (T030, T031, T033, T036)
-- US5: Sidebar, Topbar, MobileNav, dashboard layout (T064-T067, T069)
-
-**Agent 2 (ui-interaction-designer)**:
-- US1: Sign-in form styling, draft recovery modal (T024, T028)
-- US2: MetricCard animations, EmptyState (T034, T035)
-- US3: AnimatedCheckbox, LuxuryButton, InlineError, animations (T040, T041, T047, T049)
-- US4: All visual polish tasks (T057-T063)
-- US5: Sidebar animations, MobileNav styling (T068, T070)
-
-**Agent 3 (Infrastructure)**:
-- US1: Draft recovery hook (T027, T029)
-- US3: useOptimisticTask hook, optimistic CRUD logic, concurrent updates (T042-T046, T048, T050-T052)
-- US6: User scoping validation, tests (T053-T056)
-- Polish: All infrastructure tasks (T071-T080)
-
-Stories complete and integrate independently.
+1. Phase 1-2 → Foundation ready (light theme, new routes)
+2. Add Phase 3 (US1) → Auth working → Deploy/Demo (MVP!)
+3. Add Phase 4 (US2) → Metrics visible → Deploy/Demo
+4. Add Phase 5 (US3) → Task management working → Deploy/Demo
+5. Add Phase 6 → Visual polish complete → Deploy/Demo
+6. Add Phase 7 (US5) → Mobile ready → Deploy/Demo
+7. Add Phase 8-9 → Security verified → Production ready
 
 ---
 
-## Notes
+## Summary
 
-- [P] tasks = different files, no dependencies, can run in parallel
-- [Story] label maps task to specific user story for traceability
-- [Agent] label categorizes task for specialized agent workflows
-- Each user story is independently completable and testable
-- Commit after each task or logical group
-- Stop at any checkpoint to validate story independently
-- Foundational phase (T011-T022) is the **critical blocker** - no user story work can begin until complete
-- All P1 user stories (US1, US2, US3, US6) deliver core MVP functionality
-- All P2 user stories (US4, US5) add polish and mobile support
+**Total Tasks**: 60
+**By User Story**:
+- US1 (Auth): 9 tasks
+- US2 (Metrics): 4 tasks
+- US3 (Tasks): 8 tasks
+- US4 (Visual): 9 tasks
+- US5 (Mobile): 3 tasks
+- US6 (Scoping): 3 tasks
+- Infrastructure: 24 tasks
+
+**MVP Scope**: Phases 1-3 (23 tasks)
+**Full Implementation**: All phases (60 tasks)
+
+**Key Changes from Previous Version**:
+1. Route migration: `(auth)/sign-in` → standalone `/login` and `/signup`
+2. Design system: "Midnight Stone" dark → "Clean Light Mode"
+3. Branding: "Command Center" → "TaskFlow", "Mission Control" → "My Tasks"
+4. Route protection: Middleware → Client-side AuthGuard
+5. Accent color: Amber → Tech Blue (#2563eb)

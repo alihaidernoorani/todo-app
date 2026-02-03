@@ -5,14 +5,14 @@
  * Features:
  * - Helpful onboarding message
  * - Call-to-action button to create first task
- * - Glassmorphism card design
+ * - Clean light mode card design
  * - Animated icon
  *
  * Design:
  * - Centered layout with generous whitespace
- * - Amber accent for CTA button
+ * - Blue accent for CTA button
  * - Friendly, encouraging copy
- * - Animated rocket icon for visual interest
+ * - Animated checkmark icon for visual interest
  *
  * Usage:
  * ```tsx
@@ -43,7 +43,7 @@ export function EmptyState({ onCreateTask }: EmptyStateProps) {
       transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
       className="flex items-center justify-center min-h-[400px] p-8"
     >
-      <div className="glass-card border-ghost-amber max-w-md text-center">
+      <div className="bg-white rounded-lg border border-slate-200 max-w-md text-center p-8 shadow-sm">
         {/* Animated Icon */}
         <motion.div
           initial={{ y: -10 }}
@@ -56,9 +56,9 @@ export function EmptyState({ onCreateTask }: EmptyStateProps) {
           }}
           className="mb-6 flex justify-center"
         >
-          <div className="w-20 h-20 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center">
+          <div className="w-20 h-20 rounded-2xl bg-blue-100 border border-blue-200 flex items-center justify-center">
             <svg
-              className="w-10 h-10 text-amber-400"
+              className="w-10 h-10 text-blue-600"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -74,12 +74,12 @@ export function EmptyState({ onCreateTask }: EmptyStateProps) {
         </motion.div>
 
         {/* Heading */}
-        <h2 className="heading-futuristic text-2xl mb-3">
-          Your Command Center Awaits
+        <h2 className="text-2xl font-bold text-slate-900 mb-3 font-serif">
+          Welcome to TaskFlow
         </h2>
 
         {/* Description */}
-        <p className="text-gray-400 mb-6 text-sm leading-relaxed">
+        <p className="text-slate-600 mb-6 text-sm leading-relaxed">
           No tasks found. Start organizing your work by creating your first task.
           Track progress, set priorities, and stay in control.
         </p>
@@ -88,7 +88,7 @@ export function EmptyState({ onCreateTask }: EmptyStateProps) {
         {onCreateTask && (
           <button
             onClick={onCreateTask}
-            className="px-6 py-3 rounded-lg bg-amber-500 hover:bg-amber-600 text-stone-950 font-semibold transition-all duration-200 tactile-button glow-amber-subtle inline-flex items-center gap-2"
+            className="px-6 py-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold transition-all duration-200 inline-flex items-center gap-2"
           >
             <svg
               className="w-5 h-5"
@@ -108,7 +108,7 @@ export function EmptyState({ onCreateTask }: EmptyStateProps) {
         )}
 
         {/* Help Text */}
-        <p className="mt-6 text-xs text-gray-500">
+        <p className="mt-6 text-xs text-slate-500">
           Tasks you create will appear here with real-time metrics
         </p>
       </div>

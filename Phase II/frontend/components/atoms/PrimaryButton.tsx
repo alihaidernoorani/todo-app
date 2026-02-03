@@ -1,30 +1,30 @@
 /**
- * Luxury Button Component
+ * T016-T017: PrimaryButton Component - Clean Light Mode
  *
- * Premium button with glassmorphism and tactile effects.
+ * Professional button component with light theme styling.
  * Features:
- * - Glassmorphism background (bg-white/5)
- * - Hover effects (bg-white/10, border glow)
- * - Tactile press animation
+ * - Clean Light Mode design (blue-600 primary, white secondary)
+ * - Smooth transitions and hover effects
  * - Multiple variants (primary, secondary, danger, ghost)
  * - Icon support
  * - Loading states
+ * - Accessible focus states
  *
- * Design:
- * - Primary: Amber background with dark text
- * - Secondary: Glassmorphism with white text
+ * Design (Clean Light Mode):
+ * - Primary: Blue background (#2563eb) with white text
+ * - Secondary: White background with slate border
  * - Danger: Red accent for destructive actions
- * - Ghost: Transparent with border only
+ * - Ghost: Transparent with hover background
  *
  * Usage:
  * ```tsx
- * <LuxuryButton variant="primary" onClick={handleSave}>
+ * <PrimaryButton variant="primary" onClick={handleSave}>
  *   Save Task
- * </LuxuryButton>
+ * </PrimaryButton>
  *
- * <LuxuryButton variant="danger" icon={<Trash2 />} onClick={handleDelete}>
+ * <PrimaryButton variant="danger" icon={<Trash2 />} onClick={handleDelete}>
  *   Delete
- * </LuxuryButton>
+ * </PrimaryButton>
  * ```
  */
 
@@ -32,7 +32,7 @@
 
 import { ReactNode, ButtonHTMLAttributes } from "react"
 
-interface LuxuryButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+interface PrimaryButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   /**
    * Button variant
    */
@@ -66,13 +66,13 @@ interface LuxuryButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantClasses = {
   primary:
-    "bg-amber-500 hover:bg-amber-600 text-stone-950 font-semibold glow-amber-subtle",
+    "bg-blue-600 hover:bg-blue-700 text-white font-medium shadow-sm hover:shadow-md",
   secondary:
-    "bg-white/5 hover:bg-white/10 text-gray-100 border border-white/10 hover:border-white/20",
+    "bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 hover:border-slate-400 shadow-sm",
   danger:
-    "bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/30 hover:border-red-500/50",
+    "bg-red-600 hover:bg-red-700 text-white font-medium shadow-sm hover:shadow-md",
   ghost:
-    "bg-transparent hover:bg-white/5 text-gray-300 border border-transparent hover:border-white/10",
+    "bg-transparent hover:bg-slate-100 text-slate-600 hover:text-slate-900",
 }
 
 const sizeClasses = {
@@ -81,7 +81,7 @@ const sizeClasses = {
   lg: "px-6 py-3 text-lg",
 }
 
-export function LuxuryButton({
+export function PrimaryButton({
   variant = "secondary",
   icon,
   isLoading = false,
@@ -91,17 +91,17 @@ export function LuxuryButton({
   className = "",
   disabled,
   ...props
-}: LuxuryButtonProps) {
+}: PrimaryButtonProps) {
   const variantClass = variantClasses[variant]
   const sizeClass = sizeClasses[size]
 
   return (
     <button
       className={`
-        inline-flex items-center justify-center gap-2 rounded-xl
-        transition-all duration-200 tactile-button shadow-2xl
+        inline-flex items-center justify-center gap-2 rounded-lg
+        transition-all duration-200
         disabled:opacity-50 disabled:cursor-not-allowed
-        focus-visible-ring
+        focus-ring
         ${variantClass}
         ${sizeClass}
         ${fullWidth ? "w-full" : ""}
@@ -151,15 +151,15 @@ export function IconButton({
   variant = "ghost",
   size = "md",
   ...props
-}: Omit<LuxuryButtonProps, "children"> & { ariaLabel: string }) {
+}: Omit<PrimaryButtonProps, "children"> & { ariaLabel: string }) {
   return (
     <button
       aria-label={ariaLabel}
       className={`
-        inline-flex items-center justify-center rounded-xl
-        transition-all duration-200 tactile-button shadow-2xl
+        inline-flex items-center justify-center rounded-lg
+        transition-all duration-200
         disabled:opacity-50 disabled:cursor-not-allowed
-        focus-visible-ring
+        focus-ring
         ${variantClasses[variant]}
         ${size === "sm" ? "w-8 h-8" : size === "md" ? "w-9 h-9" : "w-10 h-10"}
       `}

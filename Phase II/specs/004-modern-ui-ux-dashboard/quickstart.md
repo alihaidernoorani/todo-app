@@ -1,8 +1,9 @@
-# Modern UI/UX Dashboard Quickstart
+# TaskFlow Dashboard Quickstart
 
 **Feature**: 004-modern-ui-ux-dashboard
-**Date**: 2026-01-25
-**Quick Setup**: Get the luxury dashboard running in <5 minutes
+**Date**: 2026-01-25 | **Revised**: 2026-02-02
+**Quick Setup**: Get the professional dashboard running in <5 minutes
+**Design System**: Clean Light Mode (white/slate backgrounds, blue accents)
 
 ## Prerequisites
 
@@ -76,13 +77,14 @@ Visit **http://localhost:3000** in your browser.
 
 ### 4. Test Authentication
 
-1. Navigate to **http://localhost:3000** (automatically redirects to `/sign-in`)
+1. Navigate to **http://localhost:3000** (automatically redirects to `/login`)
 2. Enter test credentials:
    - Email: `user@example.com` (or your test user)
    - Password: `password123` (or your test password)
 3. Click **Sign In**
-4. **On success**: Redirect to `/dashboard` with JWT stored in HttpOnly cookie
+4. **On success**: Redirect to `/(dashboard)` with JWT stored in HttpOnly cookie
 5. **On failure**: Check console for error messages
+6. **New user?**: Click "Sign up" link to navigate to `/signup`
 
 **Verify authentication**:
 - Open DevTools → Application → Cookies → `http://localhost:3000`
@@ -133,20 +135,22 @@ Visit **http://localhost:3000** in your browser.
 frontend/
 ├── src/
 │   ├── app/                     # Next.js 16 App Router
-│   │   ├── (auth)/sign-in/      # Authentication pages
+│   │   ├── login/               # Public login page
+│   │   ├── signup/              # Public signup page
 │   │   ├── (dashboard)/         # Protected dashboard routes
 │   │   ├── layout.tsx           # Root layout (fonts, providers)
-│   │   └── globals.css          # Tailwind + design tokens
+│   │   └── globals.css          # Tailwind + Clean Light Mode tokens
 │   │
 │   ├── components/              # React components
 │   │   ├── ui/                  # shadcn/ui primitives
-│   │   ├── layout/              # Sidebar, Topbar, MobileNav
+│   │   ├── auth/                # LoginForm, SignupForm, AuthGuard
+│   │   ├── layout/              # Sidebar, Topbar (TaskFlow branding), MobileNav
 │   │   ├── dashboard/           # MetricsGrid, TaskStream, TaskForm
-│   │   └── atoms/               # ShimmerSkeleton, LuxuryButton, AnimatedCheckbox
+│   │   └── atoms/               # ShimmerSkeleton, PrimaryButton, AnimatedCheckbox
 │   │
 │   └── lib/                     # Utilities and business logic
 │       ├── api/                 # ApiClient, task methods, types
-│       ├── auth/                # Better Auth client, JWT utils
+│       ├── auth/                # Better Auth client, Server Action (getUserId), useSession
 │       ├── hooks/               # useOptimistic, useDraftRecovery
 │       └── utils/               # Helper functions
 │
@@ -154,7 +158,7 @@ frontend/
 ├── tests/                       # Vitest + React Testing Library
 ├── .env.local                   # Environment variables (gitignored)
 ├── next.config.mjs              # Next.js configuration
-├── tailwind.config.ts           # Midnight Stone design tokens
+├── tailwind.config.ts           # Clean Light Mode design tokens
 └── package.json                 # Dependencies
 ```
 
@@ -169,40 +173,47 @@ frontend/
 - **Fonts**: Inter (UI/data) + Playfair Display (headers)
 - **Testing**: Vitest + React Testing Library + Playwright (E2E)
 
-### Design System: Midnight Stone
+### Design System: Clean Light Mode
 
 **Color Palette**:
 ```typescript
 // tailwind.config.ts
 {
   colors: {
-    stone: {
-      950: '#0c0a09',  // Deep slate background
-      900: '#1c1917',  // Secondary background
-      800: '#292524',  // Card background
-      700: '#44403c',  // Border color
+    // Backgrounds
+    white: '#ffffff',        // Main content areas, cards
+    slate: {
+      50: '#f8fafc',         // Sidebar, page background
+      100: '#f1f5f9',        // Hover states, input backgrounds
+      200: '#e2e8f0',        // Borders
+      300: '#cbd5e1',        // Input borders
+      400: '#94a3b8',        // Muted text, placeholders
+      600: '#475569',        // Secondary text
+      900: '#0f172a',        // Primary text
     },
-    amber: {
-      500: '#f59e0b',  // Primary accent (CTAs, highlights)
-      600: '#d97706',  // Hover state
+    blue: {
+      50: '#eff6ff',         // Selected items, highlights
+      500: '#3b82f6',        // Focus rings
+      600: '#2563eb',        // Primary accent (CTAs, buttons)
+      700: '#1d4ed8',        // Hover states
     }
   }
 }
 ```
 
-**Glassmorphism**:
+**Card Styling**:
 ```css
-.glass {
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
+.card {
+  background: white;
+  border: 1px solid #e2e8f0;  /* slate-200 */
+  border-radius: 0.5rem;      /* rounded-lg */
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);  /* shadow-sm */
 }
 ```
 
 **Typography**:
-- **Headers**: Playfair Display (serif, elegant)
-- **Body/UI**: Inter (sans-serif, highly readable)
+- **Headers**: Playfair Display (serif, elegant) - "My Tasks", page titles
+- **Body/UI**: Inter (sans-serif, highly readable) - all other text
 
 ---
 
@@ -211,19 +222,21 @@ frontend/
 ### Manual Testing Checklist
 
 #### Authentication Flow
-- [ ] Unauthenticated access to `/dashboard` redirects to `/sign-in`
-- [ ] Sign-in with valid credentials redirects to `/dashboard`
-- [ ] Sign-in with invalid credentials shows error message
+- [ ] Unauthenticated access to `/(dashboard)` redirects to `/login`
+- [ ] Login with valid credentials redirects to `/(dashboard)`
+- [ ] Login with invalid credentials shows inline error message
+- [ ] New user signup at `/signup` creates account and redirects to `/(dashboard)`
 - [ ] JWT stored in HttpOnly cookie (check DevTools → Cookies)
 - [ ] JWT NOT accessible via `document.cookie` in console (security check)
-- [ ] Sign-out clears cookie and redirects to `/sign-in`
+- [ ] Sign-out clears cookie and redirects to `/login`
 
 #### Dashboard Loading
 - [ ] Metrics cards show shimmer skeletons during load
-- [ ] Metrics populate with correct counts after load
+- [ ] Metrics populate with correct counts ("Total Tasks", "Completed", etc.)
 - [ ] Task list shows shimmer skeletons during load
 - [ ] Task list populates with user's tasks
-- [ ] Empty state shows when user has no tasks
+- [ ] Empty state shows: "No tasks yet. Create your first task to get started."
+- [ ] Page title shows "My Tasks" (Playfair Display font)
 
 #### Optimistic Updates
 - [ ] Create task: Appears immediately (<100ms perceived latency)
@@ -232,17 +245,19 @@ frontend/
 - [ ] Delete task: Fades out immediately
 - [ ] Network failure: Inline error shows with "Retry" button
 
-#### Visual Design
-- [ ] Midnight Stone palette applied (deep slate + amber accents)
-- [ ] Glassmorphism effects on sidebar and cards
+#### Visual Design (Clean Light Mode)
+- [ ] White/slate background palette applied (`bg-white`, `bg-slate-50`)
+- [ ] Blue accent color on buttons and interactive elements (`blue-600`)
+- [ ] Clean card styling with subtle shadows (`shadow-sm`)
 - [ ] Smooth animations (staggered list, spring checkboxes)
 - [ ] Responsive layout (desktop sidebar, mobile bottom nav)
 - [ ] Zero layout shift during load (CLS = 0px)
+- [ ] "TaskFlow" branding visible in sidebar
 
 #### Session Expiry & Draft Recovery
-- [ ] Clear cookies → Navigate to protected route → Redirect to sign-in
+- [ ] Clear cookies → Navigate to protected route → Redirect to `/login`
 - [ ] Start creating task → Clear cookies → Draft saved to localStorage
-- [ ] Sign in again → "Restore unsaved work?" modal appears
+- [ ] Login again → "Restore unsaved work?" modal appears
 - [ ] Click "Restore" → Form pre-filled with draft
 - [ ] Click "Discard" → Draft deleted, form empty
 
@@ -283,10 +298,10 @@ npm run clean
 
 ## Troubleshooting
 
-### Issue: "auth-token cookie not set after sign-in"
+### Issue: "auth-token cookie not set after login"
 
 **Symptoms**:
-- Sign-in succeeds but redirects back to sign-in page
+- Login succeeds but redirects back to login page
 - No `auth-token` cookie in DevTools
 
 **Solution**:
@@ -318,21 +333,22 @@ npm run clean
 
 **Solution**:
 1. Verify JWT `user_id` claim matches path parameter in API requests
-2. Check `getUserIdFromJWT()` function extracts correct user ID
+2. Check `getUserId()` Server Action returns correct user ID
 3. Ensure JWT not expired (check `exp` claim)
+4. Verify ApiClient is initialized before making requests
 
 ---
 
-### Issue: Glassmorphism effects not rendering
+### Issue: Styling not applying correctly
 
 **Symptoms**:
-- Sidebar and cards appear flat (no blur effect)
-- Console warning: "backdrop-filter not supported"
+- Components missing expected styling (borders, shadows, colors)
+- Console shows Tailwind class warnings
 
 **Solution**:
-- Verify browser supports CSS `backdrop-filter` (Chrome 76+, Firefox 103+, Safari 9+)
-- If using older browser: Fallback styles should apply (solid background)
-- Check Tailwind config includes `backdrop-blur` utilities
+- Verify Tailwind config includes all required color tokens (slate, blue)
+- Check `globals.css` imports Tailwind layers correctly
+- Clear Next.js cache: `rm -rf .next && npm run dev`
 
 ---
 

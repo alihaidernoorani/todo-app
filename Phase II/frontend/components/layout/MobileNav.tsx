@@ -1,11 +1,11 @@
 /**
- * T066: MobileNav Component
+ * T015: MobileNav Component - Clean Light Mode
  *
  * Sticky bottom navigation for mobile devices.
  * Features:
  * - Fixed bottom positioning (within thumb reach)
- * - Glassmorphism styling (bg-stone-900/95, backdrop-blur-lg)
- * - Amber active state indicators
+ * - Clean light theme styling (bg-white, border-slate-200)
+ * - Blue active state indicators (replaces amber)
  * - Icon-only navigation for space efficiency
  * - Touch-optimized tap targets (min 44px)
  *
@@ -37,13 +37,9 @@ export function MobileNav() {
     <nav
       className="
         md:hidden fixed bottom-0 left-0 right-0 z-50
-        glass-dark border-t border-ghost-amber
+        bg-white border-t border-slate-200
         safe-area-inset-bottom
       "
-      style={{
-        backgroundColor: 'rgba(28, 25, 23, 0.95)',
-        backdropFilter: 'blur(16px)',
-      }}
     >
       <div className="flex items-center justify-around h-16 px-4">
         {navItems.map((item) => {
@@ -58,8 +54,8 @@ export function MobileNav() {
                 rounded-lg transition-all duration-200
                 ${
                   isActive
-                    ? 'text-amber-400'
-                    : 'text-gray-400 hover:text-gray-300'
+                    ? 'text-blue-600'
+                    : 'text-slate-500 hover:text-slate-700'
                 }
               `}
               aria-label={item.label}
@@ -75,7 +71,7 @@ export function MobileNav() {
               <span
                 className={`
                   text-xs font-medium
-                  ${isActive ? 'text-amber-400' : 'text-gray-500'}
+                  ${isActive ? 'text-blue-600' : 'text-slate-500'}
                 `}
               >
                 {item.label}
@@ -86,7 +82,7 @@ export function MobileNav() {
                   className="
                     absolute bottom-0 left-1/2 -translate-x-1/2
                     w-1 h-1 rounded-full
-                    bg-amber-400 shadow-neon-amber
+                    bg-blue-600
                   "
                 />
               )}

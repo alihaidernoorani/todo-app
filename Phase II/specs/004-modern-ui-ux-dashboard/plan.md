@@ -1,11 +1,388 @@
 # Implementation Plan: Modern UI/UX Dashboard
 
-**Branch**: `004-modern-ui-ux-dashboard` | **Date**: 2026-01-25 | **Spec**: [spec.md](./spec.md)
+**Branch**: `004-modern-ui-ux-dashboard` | **Date**: 2026-01-25 | **Revised**: 2026-02-02 | **Spec**: [spec.md](./spec.md)
 **Input**: Feature specification from `/specs/004-modern-ui-ux-dashboard/spec.md`
 
 ## Summary
 
-Build a luxury-grade Next.js 16+ dashboard featuring the "Midnight Stone" glassmorphism aesthetic, React 19 optimistic updates, and Better Auth JWT authentication. The dashboard provides real-time task analytics, instant UI feedback via `useOptimistic`, and seamless integration with the existing FastAPI backend through a centralized `ApiClient` utility. Key innovations include HttpOnly cookie-based token storage for XSS protection, sub-100ms perceived latency through optimistic mutations, and zero layout shift (0px CLS) via strategic Suspense boundaries.
+Build a professional-grade Next.js 16+ dashboard featuring the **"Clean Light Mode"** design system with a crisp white/slate palette and blue accents. The application is rebranded as **"TaskFlow"** for clarity and professionalism. The dashboard provides real-time task analytics, instant UI feedback via React 19 `useOptimistic`, and seamless integration with the existing FastAPI backend through a centralized `ApiClient` utility. Key innovations include HttpOnly cookie-based token storage for XSS protection, sub-100ms perceived latency through optimistic mutations, zero layout shift (0px CLS) via strategic Suspense boundaries, and **client-side route protection** with public `/login` and `/signup` pages.
+
+**Critical Architecture Decisions** (from spec clarification 2026-02-02):
+- **JWT Access**: Client-side JavaScript MUST NEVER directly decode JWT payload
+- **user_id Extraction**: Obtained exclusively via Next.js Server Action (server-side cookie read + JWT decode)
+- **API Paths**: Backend requires `/api/{user_id}/tasks` paths; client constructs these using user_id from Server Action
+- **ApiClient Role**: Handles fetch, credentials, error handling, 401 redirects, AND user_id path interpolation (using Server Action-provided user_id)
+
+## Revision Summary (2026-02-02)
+
+**Architectural Changes**:
+1. **Authentication Flow**: Added public `/login` and `/signup` pages with Better Auth client forms; implemented client-side route protection in `DashboardLayout`; legacy `/auth/*` routes redirect to `/login`
+2. **Visual Theme**: Replaced "Midnight Stone" dark theme with "Clean Light Mode" light palette
+3. **Rebranding**: Changed application name from "Command Center" to "TaskFlow"
+4. **UI Headers**: Updated terminology (e.g., "Mission Control" → "My Tasks")
+5. **User ID Flow (CRITICAL)**: Server Action extracts user_id from HttpOnly cookie server-side; client receives user_id for API path construction; client NEVER decodes JWT directly
+
+---
+
+## Server-Side User ID Extraction Architecture
+
+**Problem**: Backend API requires `/api/{user_id}/tasks` paths, but JWT is stored in HttpOnly cookies (inaccessible to client-side JavaScript).
+
+**Solution**: Next.js Server Action extracts user_id server-side and passes it to client components.
+
+### Data Flow
+
+```text
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              BROWSER (CLIENT)                                │
+├─────────────────────────────────────────────────────────────────────────────┤
+│   1. Dashboard Page Loads                                                    │
+│   2. Client Component calls Server Action: getUserId()                       │
+├──────────────────────────────── SERVER BOUNDARY ────────────────────────────┤
+│                              NEXT.JS SERVER                                  │
+│   3. Server Action reads HttpOnly cookie: cookies().get('auth-token')        │
+│   4. Server Action decodes JWT (server-side only): jwtDecode(token)          │
+│   5. Server Action returns user_id string to client                          │
+├──────────────────────────────── SERVER BOUNDARY ────────────────────────────┤
+│                              BROWSER (CLIENT)                                │
+│   6. Client receives user_id (string, not JWT payload)                       │
+│   7. ApiClient constructs path: `/api/${userId}/tasks`                       │
+│   8. ApiClient makes fetch request with credentials: 'include'               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                              FASTAPI BACKEND                                 │
+│   9. Backend receives request at /api/{user_id}/tasks                        │
+│  10. Backend extracts JWT from Authorization header                          │
+│  11. Backend validates: JWT.user_id === path.user_id (403 if mismatch)       │
+│  12. Backend returns user-scoped data                                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Server Action Implementation
+
+**File**: `frontend/src/lib/auth/actions.ts`
+
+```typescript
+'use server'
+
+import { cookies } from 'next/headers'
+import { jwtDecode } from 'jwt-decode'
+
+interface JWTPayload {
+  user_id: string
+  email: string
+  exp: number
+}
+
+export async function getUserId(): Promise<string | null> {
+  const cookieStore = await cookies()
+  const authToken = cookieStore.get('auth-token')
+
+  if (!authToken?.value) {
+    return null
+  }
+
+  try {
+    const decoded = jwtDecode<JWTPayload>(authToken.value)
+    if (decoded.exp * 1000 < Date.now()) {
+      return null
+    }
+    return decoded.user_id
+  } catch {
+    return null
+  }
+}
+```
+
+### ApiClient Responsibilities
+
+| Responsibility | Implementation |
+|----------------|----------------|
+| Obtain user_id | Call `getUserId()` Server Action on init |
+| Construct API paths | Interpolate user_id: `/api/${userId}/tasks` |
+| Include credentials | `fetch(..., { credentials: 'include' })` |
+| Handle 401 | Dispatch `session-expired` event, trigger draft save |
+| Error handling | Parse error responses, throw typed errors |
+
+### Security Properties
+
+- **JWT never in client bundle**: HttpOnly cookie; client only sees user_id string
+- **No client-side JWT decode**: Server Action performs decode on server
+- **Path validation**: Backend verifies JWT.user_id matches path user_id
+- **XSS protection**: Even if attacker has XSS, they cannot steal JWT
+
+---
+
+## Design System: "Clean Light Mode"
+
+### Color Palette
+
+**Background Colors**:
+| Token | Tailwind Class | Hex | Usage |
+|-------|---------------|-----|-------|
+| `bg-primary` | `bg-white` | `#ffffff` | Main content areas, cards |
+| `bg-secondary` | `bg-slate-50` | `#f8fafc` | Sidebar, page background |
+| `bg-tertiary` | `bg-slate-100` | `#f1f5f9` | Hover states, input backgrounds |
+
+**Text Colors**:
+| Token | Tailwind Class | Hex | Usage |
+|-------|---------------|-----|-------|
+| `text-primary` | `text-slate-900` | `#0f172a` | Headings, primary content |
+| `text-secondary` | `text-slate-600` | `#475569` | Body text, descriptions |
+| `text-muted` | `text-slate-400` | `#94a3b8` | Placeholders, disabled text |
+
+**Accent Colors**:
+| Token | Tailwind Class | Hex | Usage |
+|-------|---------------|-----|-------|
+| `accent-primary` | `bg-blue-600` | `#2563eb` | Primary buttons, active states |
+| `accent-hover` | `bg-blue-700` | `#1d4ed8` | Button hover states |
+| `accent-light` | `bg-blue-50` | `#eff6ff` | Selected items, highlights |
+| `accent-ring` | `ring-blue-500` | `#3b82f6` | Focus rings |
+
+**Semantic Colors**:
+| Token | Tailwind Class | Usage |
+|-------|---------------|-------|
+| `success` | `text-green-600` / `bg-green-50` | Completed tasks, success messages |
+| `warning` | `text-amber-600` / `bg-amber-50` | Medium priority, warnings |
+| `error` | `text-red-600` / `bg-red-50` | High priority, error states |
+| `info` | `text-blue-600` / `bg-blue-50` | Low priority, informational |
+
+### Typography
+
+**Font Families** (unchanged from original):
+- **Headings**: `Playfair Display` (serif) - Page titles, section headers
+- **Body/UI**: `Inter` (sans-serif) - All other text, buttons, inputs
+
+**Font Scale**:
+| Element | Size | Weight | Class |
+|---------|------|--------|-------|
+| Page Title | 32px | 700 | `text-3xl font-bold font-serif` |
+| Section Header | 24px | 600 | `text-2xl font-semibold` |
+| Card Title | 18px | 600 | `text-lg font-semibold` |
+| Body Text | 14px | 400 | `text-sm` |
+| Small/Caption | 12px | 400 | `text-xs text-slate-500` |
+
+### Component Styling
+
+**Cards**:
+```css
+.card {
+  @apply bg-white rounded-lg border border-slate-200 shadow-sm;
+}
+.card:hover {
+  @apply shadow-md;
+}
+```
+
+**Buttons**:
+```css
+.btn-primary {
+  @apply bg-blue-600 text-white rounded-lg px-4 py-2 font-medium;
+  @apply hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2;
+}
+.btn-secondary {
+  @apply bg-white text-slate-700 border border-slate-300 rounded-lg px-4 py-2;
+  @apply hover:bg-slate-50 focus:ring-2 focus:ring-blue-500;
+}
+.btn-ghost {
+  @apply text-slate-600 px-4 py-2 rounded-lg;
+  @apply hover:bg-slate-100;
+}
+```
+
+**Form Inputs**:
+```css
+.input {
+  @apply w-full px-3 py-2 border border-slate-300 rounded-lg;
+  @apply bg-white text-slate-900 placeholder:text-slate-400;
+  @apply focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none;
+}
+.input-error {
+  @apply border-red-500 focus:border-red-500 focus:ring-red-500/20;
+}
+```
+
+**Sidebar**:
+```css
+.sidebar {
+  @apply bg-slate-50 border-r border-slate-200 w-64;
+}
+.sidebar-item {
+  @apply px-4 py-2 text-slate-600 rounded-lg mx-2;
+  @apply hover:bg-slate-100 hover:text-slate-900;
+}
+.sidebar-item-active {
+  @apply bg-blue-50 text-blue-700 font-medium;
+}
+```
+
+### Spacing & Layout
+
+**Container**:
+- Max width: `max-w-7xl`
+- Padding: `px-4 sm:px-6 lg:px-8`
+
+**Card Grid**:
+- Gap: `gap-4` or `gap-6`
+- Responsive: `grid-cols-1 md:grid-cols-2 lg:grid-cols-4`
+
+**Shadows**:
+| Usage | Class |
+|-------|-------|
+| Cards (default) | `shadow-sm` |
+| Cards (hover) | `shadow-md` |
+| Dropdowns/Modals | `shadow-lg` |
+| Elevated elements | `shadow-xl` |
+
+### Animation Patterns
+
+**Transitions** (subtle, professional):
+- Duration: `duration-150` or `duration-200`
+- Easing: `ease-in-out`
+- Properties: `transition-colors`, `transition-shadow`, `transition-all`
+
+**Framer Motion** (where needed):
+- Spring physics for checkboxes: `{ type: "spring", stiffness: 300, damping: 20 }`
+- Fade-in for lists: `{ opacity: [0, 1], y: [10, 0] }`
+- Stagger: `0.05s` delay between items
+
+---
+
+## Authentication Architecture (Revised)
+
+### Route Structure
+
+**Public Routes** (no auth required):
+- `/login` - Login form page
+- `/signup` - Registration form page
+- `/api/auth/*` - Better Auth API endpoints
+
+**Protected Routes** (auth required):
+- `/(dashboard)/*` - All dashboard routes
+
+### Client-Side Route Protection
+
+**Implementation Strategy**: Use a client-side `AuthGuard` component in the dashboard layout
+
+```text
+(dashboard)/layout.tsx
+├── AuthGuard (Client Component)
+│   ├── Check session via Better Auth useSession hook
+│   ├── If loading: Show skeleton/spinner
+│   ├── If unauthenticated: redirect('/login')
+│   └── If authenticated: render children
+└── DashboardShell
+    ├── Sidebar
+    ├── Topbar ("TaskFlow" branding)
+    └── {children}
+```
+
+**AuthGuard Component Behavior**:
+```typescript
+'use client'
+
+export function AuthGuard({ children }: { children: React.ReactNode }) {
+  const { session, status } = useSession()  // Better Auth hook
+  const router = useRouter()
+
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.push('/login')
+    }
+  }, [status, router])
+
+  if (status === 'loading') {
+    return <DashboardSkeleton />
+  }
+
+  if (status === 'unauthenticated') {
+    return null  // Will redirect
+  }
+
+  return <>{children}</>
+}
+```
+
+### Login Page Design
+
+**Route**: `/login`
+
+**Layout**: Centered card on light gray background
+
+**Components**:
+- TaskFlow logo/name (top)
+- Email input with validation
+- Password input with show/hide toggle
+- "Sign In" primary button
+- "Forgot password?" link (optional)
+- "Don't have an account? Sign up" link to `/signup`
+- Error message display (inline)
+
+**States**:
+| State | Visual |
+|-------|--------|
+| Default | Clean form, blue "Sign In" button |
+| Loading | Button shows spinner, inputs disabled |
+| Error | Red border on invalid fields, error message below |
+| Success | Redirect to `/(dashboard)` |
+
+### Signup Page Design
+
+**Route**: `/signup`
+
+**Layout**: Same as login (centered card)
+
+**Components**:
+- TaskFlow logo/name (top)
+- Name input
+- Email input with validation
+- Password input with requirements hint
+- Confirm password input
+- "Create Account" primary button
+- "Already have an account? Sign in" link to `/login`
+- Error message display (inline)
+
+**Validation Rules**:
+- Email: Valid format
+- Password: Minimum 8 characters
+- Confirm password: Must match
+
+---
+
+## Rebranding: Command Center → TaskFlow
+
+### Terminology Updates
+
+| Original | Revised |
+|----------|---------|
+| Command Center | TaskFlow |
+| Mission Control | My Tasks |
+| Control Panel | Dashboard |
+| Operatives | N/A (removed) |
+| Intel | Insights (optional) |
+
+### UI Text Changes
+
+**Topbar**:
+- Logo/Name: "TaskFlow"
+- Page title: "My Tasks" (main dashboard), "Settings" (settings page)
+
+**Sidebar Navigation**:
+- "Dashboard" or "My Tasks"
+- "Create Task" or "+ New Task"
+- "Settings"
+- "Sign Out"
+
+**Empty States**:
+- "No tasks yet. Create your first task to get started."
+
+**Welcome Message**:
+- "Welcome back, {name}"
+
+**Metric Cards**:
+- "Total Tasks"
+- "Completed"
+- "In Progress"
+- "Overdue"
 
 ## Technical Context
 
@@ -71,8 +448,8 @@ Build a luxury-grade Next.js 16+ dashboard featuring the "Midnight Stone" glassm
 ### ✅ III. Secure by Design
 - **Status**: COMPLIANT (Backend already implements)
 - **Evidence**: Backend enforces JWT auth via Better Auth; user_id path scoping prevents cross-user access
-- **Frontend Responsibility**: Store JWT in HttpOnly cookies, include in Authorization headers
-- **Note**: Frontend ApiClient must extract user_id from JWT for path construction
+- **Frontend Responsibility**: Store JWT in HttpOnly cookies; obtain user_id via Server Action (not client-side decode)
+- **Note**: Server Action reads HttpOnly cookie server-side, decodes JWT, returns user_id to client for API path construction
 
 ### ✅ IV. Zero Manual Coding
 - **Status**: COMPLIANT
@@ -114,41 +491,46 @@ specs/004-modern-ui-ux-dashboard/
 frontend/                      # NEW - Created by this feature
 ├── src/
 │   ├── app/                  # Next.js 16 App Router
-│   │   ├── (auth)/
-│   │   │   ├── sign-in/
-│   │   │   │   └── page.tsx         # Better Auth sign-in page
-│   │   │   └── layout.tsx           # Auth layout (no sidebar)
+│   │   ├── login/
+│   │   │   └── page.tsx             # Public login page (Better Auth form)
+│   │   ├── signup/
+│   │   │   └── page.tsx             # Public signup page (Better Auth form)
 │   │   ├── (dashboard)/
-│   │   │   ├── layout.tsx           # Dashboard layout (sidebar + topbar)
-│   │   │   └── page.tsx             # Main dashboard view
+│   │   │   ├── layout.tsx           # Dashboard layout with client-side auth protection
+│   │   │   └── page.tsx             # Main dashboard view ("My Tasks")
 │   │   ├── api/
 │   │   │   └── auth/
 │   │   │       └── [...better-auth]/route.ts  # Better Auth API routes
 │   │   ├── layout.tsx               # Root layout (fonts, providers)
-│   │   └── globals.css              # Tailwind imports + design tokens
+│   │   └── globals.css              # Tailwind imports + Clean Light Mode tokens
 │   ├── components/
 │   │   ├── ui/                      # shadcn/ui primitives (Button, Card, etc.)
+│   │   ├── auth/
+│   │   │   ├── LoginForm.tsx        # Email/password login with Better Auth
+│   │   │   ├── SignupForm.tsx       # Registration form with validation
+│   │   │   └── AuthGuard.tsx        # Client-side route protection component
 │   │   ├── layout/
-│   │   │   ├── Sidebar.tsx          # Glass sidebar (desktop)
-│   │   │   ├── Topbar.tsx           # Top navigation bar
+│   │   │   ├── Sidebar.tsx          # Light theme sidebar (desktop)
+│   │   │   ├── Topbar.tsx           # Top navigation with "TaskFlow" branding
 │   │   │   └── MobileNav.tsx        # Bottom nav (mobile)
 │   │   ├── dashboard/
-│   │   │   ├── MetricsGrid.tsx      # Analytics cards
+│   │   │   ├── MetricsGrid.tsx      # Analytics cards ("My Tasks" overview)
 │   │   │   ├── TaskStream.tsx       # Main task feed with optimistic updates
 │   │   │   ├── TaskItem.tsx         # Individual task row
 │   │   │   └── TaskForm.tsx         # Create/edit task form
 │   │   └── atoms/
-│   │       ├── ShimmerSkeleton.tsx  # Loading placeholders
-│   │       ├── LuxuryButton.tsx     # Styled button with glassmorphism
+│   │       ├── ShimmerSkeleton.tsx  # Loading placeholders (light theme)
+│   │       ├── PrimaryButton.tsx    # Styled button (blue accent)
 │   │       └── AnimatedCheckbox.tsx # Checkbox with spring animation
 │   ├── lib/
 │   │   ├── api/
-│   │   │   ├── client.ts            # ApiClient with JWT injection + path interpolation
+│   │   │   ├── client.ts            # ApiClient with user_id path interpolation (from Server Action)
 │   │   │   ├── tasks.ts             # Task API methods (create, list, update, delete, toggle)
 │   │   │   └── types.ts             # TypeScript types matching backend schemas
 │   │   ├── auth/
 │   │   │   ├── better-auth.ts       # Better Auth client configuration
-│   │   │   └── jwt-utils.ts         # JWT decode utilities (user_id extraction)
+│   │   │   ├── actions.ts           # Server Action: getUserId() - reads HttpOnly cookie server-side
+│   │   │   └── useSession.ts        # Client-side session hook for auth protection
 │   │   ├── hooks/
 │   │   │   ├── use-optimistic-task.ts   # useOptimistic wrapper for task mutations
 │   │   │   ├── use-draft-recovery.ts    # localStorage draft save/restore
@@ -156,7 +538,7 @@ frontend/                      # NEW - Created by this feature
 │   │   └── utils/
 │   │       └── cn.ts                # className utility (shadcn standard)
 │   └── styles/
-│       └── tailwind.config.ts       # Midnight Stone design tokens
+│       └── tailwind.config.ts       # Clean Light Mode design tokens
 ├── public/
 │   └── fonts/
 │       ├── Inter/                   # Inter variable font
@@ -216,13 +598,15 @@ backend/                      # EXISTING - Modified for priority field
    - **Question**: How should we protect dashboard routes and redirect unauthenticated users to sign-in?
    - **Why**: FR-014 requires redirect for unauthenticated access
 
-4. **JWT User ID Extraction in Client Components**
-   - **Question**: How can client-side code extract user_id from JWT stored in HttpOnly cookies?
-   - **Why**: FR-003 requires dynamic path construction `/api/{user_id}/tasks` but HttpOnly cookies are inaccessible to JavaScript
+4. **Server Action User ID Extraction Pattern** ✅ RESOLVED
+   - **Question**: How can client-side code obtain user_id when JWT is in HttpOnly cookies?
+   - **Answer**: Use Next.js Server Action to read cookie server-side, decode JWT, return user_id string to client
+   - **Why**: FR-003 requires path construction with user_id; Server Action pattern preserves HttpOnly security
 
 5. **Tailwind CSS v4 Design Token System**
    - **Question**: What is the syntax for defining custom design tokens in Tailwind v4 configuration?
-   - **Why**: FR-007, FR-008, FR-009 require Midnight Stone palette, glassmorphism utilities, custom fonts
+   - **Why**: FR-007, FR-008, FR-009 require "Clean Light Mode" palette, subtle styling utilities, custom fonts
+   - **REVISED**: Focus on light theme tokens (white/slate backgrounds, blue accents) instead of dark glassmorphism
 
 6. **Server Actions vs Client-Side API Calls**
    - **Question**: Should we use Next.js 19+ Server Actions or client-side fetch for task mutations?
@@ -445,11 +829,11 @@ App Shell (Server Component)
 2. useDraftRecovery hook saves current form state to localStorage
    → Key: `draft-task-${user_id}`
    ↓
-3. Redirect to /sign-in (FR-015)
+3. Redirect to /login (FR-015)
    ↓
 4. User Re-Authenticates
    ↓
-5. Redirect to /dashboard
+5. Redirect to /(dashboard)
    ↓
 6. useDraftRecovery detects stored draft
    ↓
@@ -491,9 +875,9 @@ npm run dev
 Visit http://localhost:3000
 
 ## 4. Test Authentication
-1. Navigate to http://localhost:3000/sign-in
+1. Navigate to http://localhost:3000/login
 2. Enter credentials (Better Auth provider)
-3. On success, redirected to /dashboard
+3. On success, redirected to /(dashboard)
 4. JWT stored in HttpOnly cookie automatically
 
 ## 5. Test Optimistic Updates
@@ -533,7 +917,7 @@ Phase 2 (`/sp.tasks`) will generate dependency-ordered implementation tasks from
 
 1. **Frontend Project Initialization** (1-2 tasks)
    - Bootstrap Next.js 16 with App Router
-   - Configure Tailwind CSS v4 with Midnight Stone tokens
+   - Configure Tailwind CSS v4 with "Clean Light Mode" tokens
    - Install dependencies (Better Auth, shadcn/ui, Framer Motion)
 
 2. **Backend Schema Enhancement** (1 task)
@@ -548,16 +932,17 @@ Phase 2 (`/sp.tasks`) will generate dependency-ordered implementation tasks from
 4. **API Client Utility** (1-2 tasks)
    - Build ApiClient with JWT injection
    - Implement path interpolation for user_id
-   - Add error handling (401 → draft save + redirect)
+   - Add error handling (401 → draft save + redirect to `/login`)
 
-5. **Authentication Integration** (2-3 tasks)
+5. **Authentication Pages & Protection** (3-4 tasks)
    - Configure Better Auth client
-   - Implement sign-in page
-   - Add middleware for route protection
+   - Implement `/login` page with email/password form
+   - Implement `/signup` page with registration form
+   - Build `AuthGuard` component for client-side route protection
 
 6. **Dashboard Layout** (2-3 tasks)
-   - Build Sidebar, Topbar, MobileNav components
-   - Implement glassmorphism styling
+   - Build Sidebar with "TaskFlow" branding, Topbar ("My Tasks"), MobileNav
+   - Apply light theme styling (white/slate backgrounds, blue accents)
    - Add responsive breakpoints
 
 7. **Metrics Grid** (1-2 tasks)
@@ -573,9 +958,9 @@ Phase 2 (`/sp.tasks`) will generate dependency-ordered implementation tasks from
    - Add concurrent update detection
 
 9. **Visual Polish** (2-3 tasks)
-   - Framer Motion animations
+   - Framer Motion animations (subtle, professional)
    - AnimatedCheckbox with spring physics
-   - LuxuryButton component
+   - PrimaryButton component (blue accent styling)
    - Typography (Inter + Playfair Display)
 
 10. **Testing** (2-4 tasks)
@@ -596,7 +981,7 @@ Backend Priority Field → ApiClient → Authentication → Dashboard Layout →
 |------|--------|-------------|------------|
 | Better Auth + HttpOnly cookies incompatibility with Next.js 16 | HIGH | LOW | Phase 0 research will validate compatibility; fallback to session cookies if needed |
 | useOptimistic rollback complexity with nested state | MEDIUM | MEDIUM | Implement atomic task updates; keep optimistic state flat |
-| JWT user_id extraction with HttpOnly cookies | HIGH | MEDIUM | Use Server Actions to read cookies server-side and pass user_id to client components |
+| JWT user_id extraction with HttpOnly cookies | HIGH | LOW | ✅ MITIGATED: Server Action pattern implemented - `getUserId()` reads cookie server-side, returns user_id string to client |
 | Tailwind v4 breaking changes from v3 | MEDIUM | LOW | Review Tailwind v4 migration guide in Phase 0; most utility classes stable |
 | 0px CLS goal unachievable with dynamic content | MEDIUM | MEDIUM | Pre-allocate space with skeleton loaders; avoid layout shifts via fixed heights |
 | Concurrent edit detection performance overhead | LOW | LOW | Implement polling at 30s intervals; only fetch when tab is active |
@@ -619,7 +1004,7 @@ After implementation, the following validation steps confirm spec adherence:
 
 3. **Visual Regression** (SC-008):
    - Percy/Chromatic screenshots across browsers
-   - Verify glassmorphism rendering on Chrome, Firefox, Safari, Edge
+   - Verify "Clean Light Mode" theme renders correctly on Chrome, Firefox, Safari, Edge
 
 4. **Mobile Responsiveness** (SC-006):
    - Test on physical devices (320px to 428px width)

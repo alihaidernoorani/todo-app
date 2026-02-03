@@ -4,7 +4,7 @@
  * Displays aggregated task statistics in a responsive grid.
  * Features:
  * - Fetches data from backend /api/{user_id}/tasks/metrics endpoint
- * - Shows 4 metric cards: Total, Completed, Pending, High Priority
+ * - Shows 4 metric cards: Total, Completed, Pending, Overdue
  * - Responsive grid layout (1 col mobile → 2 col tablet → 4 col desktop)
  * - Error handling with retry button
  * - Empty state when total === 0
@@ -38,7 +38,7 @@ import {
   CheckCircle,
   Clock,
   ListTodo,
-  AlertCircle,
+  Calendar,
 } from "lucide-react"
 
 export function MetricsGrid() {
@@ -58,10 +58,10 @@ export function MetricsGrid() {
     } catch (err) {
       // Check if it's an authentication error
       if (err instanceof AuthenticationError) {
-        console.error("Not authenticated, redirecting to sign-in:", err)
-        // Redirect to sign-in with return URL
-        const signInUrl = `/sign-in?from=${encodeURIComponent(pathname)}`
-        router.push(signInUrl)
+        console.error("Not authenticated, redirecting to login:", err)
+        // Redirect to login with return URL
+        const loginUrl = `/login?from=${encodeURIComponent(pathname)}`
+        router.push(loginUrl)
         return
       }
 
@@ -79,17 +79,17 @@ export function MetricsGrid() {
   // Error state
   if (error) {
     return (
-      <div className="glass-card border-ghost-amber p-8 text-center">
+      <div className="bg-white rounded-lg border border-slate-200 p-8 text-center shadow-sm">
         <div className="mb-4">
-          <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-3" />
-          <h3 className="text-lg font-semibold text-gray-100 mb-2">
+          <Calendar className="w-12 h-12 text-red-500 mx-auto mb-3" />
+          <h3 className="text-lg font-semibold text-slate-900 mb-2">
             Failed to Load Metrics
           </h3>
-          <p className="text-sm text-gray-400">{error}</p>
+          <p className="text-sm text-slate-600">{error}</p>
         </div>
         <button
           onClick={fetchMetrics}
-          className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-stone-950 font-semibold transition-all duration-200 tactile-button"
+          className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold transition-all duration-200"
         >
           Retry
         </button>
@@ -128,20 +128,20 @@ export function MetricsGrid() {
         index={1}
       />
 
-      {/* Pending Tasks */}
+      {/* In Progress Tasks */}
       <MetricCard
         icon={<Clock />}
-        label="Pending"
+        label="In Progress"
         value={metrics.pending}
         color="amber"
         index={2}
       />
 
-      {/* High Priority Tasks */}
+      {/* Overdue Tasks */}
       <MetricCard
-        icon={<AlertCircle />}
-        label="High Priority"
-        value={metrics.high_priority}
+        icon={<Calendar />}
+        label="Overdue"
+        value={metrics.overdue || 0}
         color="red"
         index={3}
       />

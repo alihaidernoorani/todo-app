@@ -35,7 +35,7 @@ import { AuthenticationError } from "@/lib/api/errors"
 import { useOptimisticTask } from "@/lib/hooks/use-optimistic-task"
 import { TaskItem } from "./TaskItem"
 import { TaskForm } from "./TaskForm"
-import { LuxuryButton } from "@/components/atoms/LuxuryButton"
+import { PrimaryButton } from "@/components/atoms/PrimaryButton"
 import { EmptyState } from "./EmptyState"
 import { TaskItemSkeleton } from "@/components/atoms/ShimmerSkeleton"
 import type { TaskRead, TaskCreate, TaskUpdate } from "@/lib/api/types"
@@ -66,10 +66,10 @@ export function TaskStream() {
       } catch (error) {
         // Check if it's an authentication error
         if (error instanceof AuthenticationError) {
-          console.error("Not authenticated, redirecting to sign-in:", error)
-          // Redirect to sign-in with return URL
-          const signInUrl = `/sign-in?from=${encodeURIComponent(pathname)}`
-          router.push(signInUrl)
+          console.error("Not authenticated, redirecting to login:", error)
+          // Redirect to login with return URL
+          const loginUrl = `/login?from=${encodeURIComponent(pathname)}`
+          router.push(loginUrl)
           return
         }
 
@@ -125,13 +125,13 @@ export function TaskStream() {
       {/* Create Task Button */}
       {!showCreateForm && !editingTaskId && (
         <div className="flex justify-end">
-          <LuxuryButton
+          <PrimaryButton
             variant="primary"
             icon={<Plus className="w-4 h-4" />}
             onClick={() => setShowCreateForm(true)}
           >
             Create Task
-          </LuxuryButton>
+          </PrimaryButton>
         </div>
       )}
 

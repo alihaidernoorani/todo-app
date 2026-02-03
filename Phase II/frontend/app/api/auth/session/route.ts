@@ -8,7 +8,7 @@
 import { NextRequest } from 'next/server'
 import { getJWTPayload } from '@/lib/auth/jwt-utils'
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     const session = await getJWTPayload()
 

@@ -176,14 +176,14 @@ export function TaskItem({
         <div className="flex items-center gap-1">
           <PrimaryButton
             icon={<Edit3 className="w-4 h-4" />}
-            ariaLabel={`Edit task: ${task.title}`}
+            aria-label={`Edit task: ${task.title}`}
             onClick={onEdit}
             variant="ghost"
             size="sm"
           />
           <PrimaryButton
             icon={<Trash2 className="w-4 h-4" />}
-            ariaLabel={`Delete task: ${task.title}`}
+            aria-label={`Delete task: ${task.title}`}
             onClick={onDelete}
             variant="ghost"
             size="sm"

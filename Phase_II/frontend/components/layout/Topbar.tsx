@@ -1,5 +1,5 @@
 /**
- * T014: Topbar Component - TaskFlow (Clean Light Mode)
+ * T014, T070: Topbar Component - TaskFlow (Clean Light Mode)
  *
  * Top navigation bar for desktop layout.
  * Features:
@@ -8,6 +8,9 @@
  * - Notifications placeholder
  * - Clean light theme styling
  * - Responsive positioning (adjusts for Sidebar)
+ *
+ * T070 Update: This component is only used in dashboard layout.
+ * Landing page has separate LandingHeader component.
  *
  * Desktop only - hidden on mobile (< md breakpoint)
  */

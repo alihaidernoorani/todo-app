@@ -230,7 +230,7 @@ export function TaskForm({
 
         <PrimaryButton
           type="button"
-          variant="outline"
+          variant="ghost"
           onClick={onCancel}
           disabled={isSubmitting}
         >

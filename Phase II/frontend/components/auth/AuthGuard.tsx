@@ -20,7 +20,7 @@ interface AuthGuardProps {
  * endpoints must still validate JWTs server-side.
  */
 export function AuthGuard({ children }: AuthGuardProps) {
-  const { session, status } = useSession()
+  const { status } = useSession()
   const router = useRouter()
 
   useEffect(() => {

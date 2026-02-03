@@ -34,7 +34,7 @@
 import { motion } from "framer-motion"
 import { Edit3, Trash2 } from "lucide-react"
 import { AnimatedCheckbox } from "@/components/atoms/AnimatedCheckbox"
-import { PrimaryButton } from "@/components/atoms/PrimaryButton"
+import { IconButton } from "@/components/atoms/PrimaryButton"
 import { InlineError } from "./InlineError"
 import type { OptimisticTask } from "@/lib/api/types"
 
@@ -174,16 +174,16 @@ export function TaskItem({
 
         {/* Action Buttons */}
         <div className="flex items-center gap-1">
-          <PrimaryButton
+          <IconButton
             icon={<Edit3 className="w-4 h-4" />}
-            aria-label={`Edit task: ${task.title}`}
+            ariaLabel={`Edit task: ${task.title}`}
             onClick={onEdit}
             variant="ghost"
             size="sm"
           />
-          <PrimaryButton
+          <IconButton
             icon={<Trash2 className="w-4 h-4" />}
-            aria-label={`Delete task: ${task.title}`}
+            ariaLabel={`Delete task: ${task.title}`}
             onClick={onDelete}
             variant="ghost"
             size="sm"

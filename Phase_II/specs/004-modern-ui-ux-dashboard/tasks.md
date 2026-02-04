@@ -305,6 +305,63 @@
 
 ---
 
+## Phase 10: Public Landing Page & Auth Scoping
+
+**Purpose**: Add public frontpage and scope auth middleware to /dashboard/** only
+**Agent**: `ui-structure-architect`
+
+**Goal**: Create a public landing page at / with Login/Sign Up CTAs; ensure unauthenticated users can access / without redirect
+
+**Independent Test**: Visit / while logged out, verify landing page displays; visit /dashboard while logged out, verify redirect to /login
+
+### Public Landing Page
+
+- [X] T061 [US1] Create public landing page at `frontend/app/page.tsx`:
+  - Hero section with TaskFlow branding
+  - Feature highlights (Real-time metrics, Optimistic updates, Clean UI)
+  - Call-to-action buttons for "Sign Up" (→ /signup) and "Log In" (→ /login)
+  - Light theme styling with Clean Light Mode palette
+- [X] T062 [P] [US1] Create `LandingHero` component at `frontend/components/landing/LandingHero.tsx`:
+  - Large heading with Playfair Display
+  - Subtitle with Inter
+  - CTA buttons with blue accent
+- [X] T063 [P] [US1] Create `FeaturesSection` component at `frontend/components/landing/FeaturesSection.tsx`:
+  - Grid of feature cards
+  - Icons from Lucide
+  - Light glassmorphism styling
+- [X] T064 [P] [US1] Create `LandingLayout` component at `frontend/app/(landing)/layout.tsx` (optional):
+  - Minimal header with TaskFlow logo
+  - Footer with links
+  - No sidebar or auth protection
+
+### Auth Middleware Scoping
+
+- [X] T065 [US1] Update `frontend/app/(dashboard)/layout.tsx`:
+  - Ensure AuthGuard ONLY applies to (dashboard)/** routes
+  - Verify / (root) is NOT wrapped by AuthGuard
+- [X] T066 [US1] Audit route structure to confirm:
+  - `/` → public (no redirect)
+  - `/login` → public (no redirect)
+  - `/signup` → public (no redirect)
+  - `/dashboard/**` → protected (redirect to /login if unauthenticated)
+- [X] T067 [US1] Test auth scoping with manual navigation:
+  - Logged out: / shows landing page
+  - Logged out: /dashboard redirects to /login
+  - Logged in: / shows landing page with "Go to Dashboard" CTA
+  - Logged in: /dashboard shows dashboard
+
+### Landing Page Enhancements
+
+- [X] T068 [P] [US4] Add smooth scroll-to-features interaction on landing page
+- [X] T069 [P] [US4] Add Framer Motion fade-in animations for hero and feature sections
+- [X] T070 [US1] Update navigation in `frontend/components/layout/Topbar.tsx`:
+  - If on landing page: Show "TaskFlow" logo only
+  - If authenticated and on dashboard: Show full navigation
+
+**Checkpoint**: Public landing page live; auth protection scoped to /dashboard/** only
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
@@ -322,6 +379,7 @@ Phase 2 (Design System) ───┘
 Phase 6 (Polish) ← depends on Phase 3-5
 Phase 7 (Mobile) ← depends on Phase 2
 Phase 9 (Security) ← depends on all phases
+Phase 10 (Landing Page) ← depends on Phase 1-2 (can parallelize with Phase 3+)
 ```
 
 ### Parallel Opportunities by Phase
@@ -357,18 +415,18 @@ Phase 9 (Security) ← depends on all phases
 
 ## Summary
 
-**Total Tasks**: 60
+**Total Tasks**: 70
 **By User Story**:
-- US1 (Auth): 9 tasks
+- US1 (Auth + Landing): 19 tasks
 - US2 (Metrics): 4 tasks
 - US3 (Tasks): 8 tasks
-- US4 (Visual): 9 tasks
+- US4 (Visual): 11 tasks
 - US5 (Mobile): 3 tasks
 - US6 (Scoping): 3 tasks
-- Infrastructure: 24 tasks
+- Infrastructure: 22 tasks
 
 **MVP Scope**: Phases 1-3 (23 tasks)
-**Full Implementation**: All phases (60 tasks)
+**Full Implementation with Landing Page**: All phases (70 tasks)
 
 **Key Changes from Previous Version**:
 1. Route migration: `(auth)/sign-in` → standalone `/login` and `/signup`

@@ -16,6 +16,7 @@ out/
 .env
 .env.local
 .env*.local
+# Note: .env.production can be committed if it contains NO secrets (only public URLs)
 
 # IDE
 .vscode/

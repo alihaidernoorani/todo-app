@@ -4,6 +4,7 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, status
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import OperationalError
 
@@ -26,6 +27,27 @@ app = FastAPI(
     description="CRUD API for Task items with path-based user context and data isolation",
     version="2.0.0",
     lifespan=lifespan,
+)
+
+# Configure CORS for production deployment
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",  # Local development
+        "https://todo-app-mu-two-48.vercel.app",  # Production frontend
+        "https://*.vercel.app",  # All Vercel preview deployments
+    ],
+    allow_credentials=True,  # Allow HttpOnly cookies
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
+    allow_headers=[
+        "Content-Type",
+        "Authorization",
+        "If-Match",
+        "If-None-Match",
+        "ETag",
+    ],
+    expose_headers=["ETag", "Last-Modified"],  # Expose ETag for concurrent update detection
+    max_age=600,  # Cache preflight requests for 10 minutes
 )
 
 

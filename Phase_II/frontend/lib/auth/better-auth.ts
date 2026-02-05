@@ -121,9 +121,11 @@ function createAuth(): ReturnType<typeof betterAuth> | null {
       // JWT Plugin for API authentication
       plugins: [
         jwt({
-          expirationTime: "1h",
-          issuer,
-          audience,
+          jwt: {
+            expirationTime: "1h",
+            issuer,
+            audience,
+          }
         }),
       ],
     })

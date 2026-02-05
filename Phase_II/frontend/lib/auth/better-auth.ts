@@ -119,14 +119,13 @@ function createAuth(): ReturnType<typeof betterAuth> | null {
       secret: process.env.BETTER_AUTH_SECRET || "development-secret-change-in-production",
 
       // JWT Plugin for API authentication
-      // Temporarily disabled to test initialization
-      // plugins: [
-      //   jwt({
-      //     expirationTime: "1h",
-      //     issuer,
-      //     audience,
-      //   }),
-      // ],
+      plugins: [
+        jwt({
+          expirationTime: "1h",
+          issuer,
+          audience,
+        }),
+      ],
     })
 
     console.log("[Better Auth] Initialized successfully")

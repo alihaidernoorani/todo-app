@@ -1,12 +1,16 @@
 /**
  * Auth Utility Functions
  *
- * Handles session token extraction and user_id retrieval from HttpOnly cookies.
- * Since HttpOnly cookies cannot be accessed directly from client-side JavaScript,
- * this module uses Next.js Server Actions to read cookies server-side.
+ * Handles JWT token generation and user_id retrieval for API authentication.
  *
- * Better Auth stores sessions in the database - the session_token cookie
- * is a reference to the session, not a JWT.
+ * Two types of tokens:
+ * 1. Session tokens (HttpOnly cookies) - for web session management
+ * 2. JWT tokens - for backend API authentication with Bearer headers
+ *
+ * This module provides Server Actions to:
+ * - Extract user_id from session cookies
+ * - Generate JWT tokens for API calls
+ * - Validate authentication state
  */
 
 'use server'
@@ -118,23 +122,20 @@ export async function isAuthenticated(): Promise<boolean> {
 }
 
 /**
- * Get the raw session token from HttpOnly cookie
+ * Generate a JWT token for API authentication
  *
- * Used by ApiClient to inject Authorization Bearer header for backend API requests.
- * This is a Server Action that can only be called from server-side code.
+ * This is a Server Action that:
+ * 1. Validates the user's session from HttpOnly cookie
+ * 2. Calls Better Auth's /api/auth/token endpoint to generate a JWT
+ * 3. Returns the JWT token for use in Authorization Bearer headers
  *
- * Note: For Better Auth, this returns the session token which the backend
- * can verify using the shared BETTER_AUTH_SECRET.
+ * The JWT contains user_id, email, and name claims and is signed with RS256.
+ * Backend APIs can verify it using the JWKS endpoint at /api/auth/jwks
  *
- * @returns Session token string or null if not authenticated
+ * @returns JWT token string or null if not authenticated
  */
 export async function getJWTToken(): Promise<string | null> {
   try {
-    const auth = getAuth()
-    if (!auth) {
-      return null
-    }
-
     const cookieStore = await cookies()
     const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)
 
@@ -142,20 +143,30 @@ export async function getJWTToken(): Promise<string | null> {
       return null
     }
 
-    // Verify the session is still valid before returning the token
-    const session = await auth.api.getSession({
+    // Call our custom JWT generation endpoint
+    // Using custom endpoint since Better Auth's /token endpoint is not available in this version
+    const baseURL = process.env.BETTER_AUTH_URL || 'http://localhost:3000'
+    const response = await fetch(`${baseURL}/api/generate-jwt`, {
+      method: 'POST',
       headers: {
         cookie: `${SESSION_COOKIE_NAME}=${sessionToken.value}`,
       },
     })
 
-    if (!session || !session.user) {
+    if (!response.ok) {
+      console.error('[jwt-utils] Token endpoint returned error:', response.status)
       return null
     }
 
-    return sessionToken.value
+    const result = await response.json()
+
+    if (!result || !result.token) {
+      return null
+    }
+
+    return result.token
   } catch (error) {
-    console.error('[jwt-utils] Failed to get session token:', error)
+    console.error('[jwt-utils] Failed to generate JWT token:', error)
     return null
   }
 }

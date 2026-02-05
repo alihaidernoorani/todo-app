@@ -41,7 +41,7 @@ class TaskRead(SQLModel):
     is_completed: bool
     priority: str
     created_at: datetime
-    user_id: UUID
+    user_id: str
 
 
 class TaskList(SQLModel):

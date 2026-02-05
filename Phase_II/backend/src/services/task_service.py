@@ -11,7 +11,7 @@ from src.schemas import TaskCreate, TaskList, TaskMetrics, TaskRead, TaskUpdate
 
 async def create_task(
     session: AsyncSession,
-    user_id: UUID,
+    user_id: str,
     task_in: TaskCreate,
 ) -> TaskRead:
     """Create a new task item for a user.
@@ -38,7 +38,7 @@ async def create_task(
 
 async def list_tasks(
     session: AsyncSession,
-    user_id: UUID,
+    user_id: str,
 ) -> TaskList:
     """List all tasks for a specific user.
 
@@ -61,7 +61,7 @@ async def list_tasks(
 async def get_task(
     session: AsyncSession,
     task_id: UUID,
-    user_id: UUID,
+    user_id: str,
 ) -> TaskRead | None:
     """Get a single task by ID with user isolation.
 
@@ -84,7 +84,7 @@ async def get_task(
 async def update_task(
     session: AsyncSession,
     task_id: UUID,
-    user_id: UUID,
+    user_id: str,
     task_in: TaskUpdate,
 ) -> TaskRead | None:
     """Update a task item with full replacement (PUT semantics).
@@ -119,7 +119,7 @@ async def update_task(
 async def toggle_task_complete(
     session: AsyncSession,
     task_id: UUID,
-    user_id: UUID,
+    user_id: str,
 ) -> TaskRead | None:
     """Toggle the is_completed status of a task.
 
@@ -149,7 +149,7 @@ async def toggle_task_complete(
 async def delete_task(
     session: AsyncSession,
     task_id: UUID,
-    user_id: UUID,
+    user_id: str,
 ) -> bool:
     """Delete a task item with user isolation.
 
@@ -174,7 +174,7 @@ async def delete_task(
 
 async def get_metrics(
     session: AsyncSession,
-    user_id: UUID,
+    user_id: str,
 ) -> TaskMetrics:
     """Get aggregated task statistics for a user.
 

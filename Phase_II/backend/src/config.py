@@ -28,21 +28,17 @@ class Settings(BaseSettings):
     debug: bool = Field(default=False, alias="DEBUG")
 
     # Authentication Configuration
-    better_auth_secret: str = Field(..., alias="BETTER_AUTH_SECRET", min_length=32)
+    # Base URL of Better Auth instance (required for JWKS endpoint)
+    better_auth_url: str = Field(
+        ...,
+        alias="BETTER_AUTH_URL",
+        description="Base URL of Better Auth instance (e.g., https://app.example.com)",
+    )
 
-    @field_validator("better_auth_secret")
-    @classmethod
-    def validate_secret_strength(cls, v: str) -> str:
-        """Validate that the shared secret meets security requirements.
-
-        The secret must be at least 32 characters (256 bits) for secure HS256 signing.
-        """
-        if len(v) < 32:
-            raise ValueError(
-                "BETTER_AUTH_SECRET must be at least 32 characters (256 bits) "
-                "for secure HS256 signing. Current length: {}".format(len(v))
-            )
-        return v
+    @property
+    def better_auth_jwks_url(self) -> str:
+        """Construct JWKS endpoint URL from base URL."""
+        return f"{self.better_auth_url}/.well-known/jwks.json"
 
 
 @lru_cache

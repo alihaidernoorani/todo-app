@@ -9,12 +9,12 @@ from pydantic import BaseModel, Field
 class JWTPayload(BaseModel):
     """JWT token payload structure expected from Better Auth.
 
-    Note: This assumes Better Auth is configured with:
-    - Algorithm: HS256 (requires customSign configuration)
-    - User ID claim: 'uid' (requires definePayload configuration)
+    Note: This expects Better Auth is configured with:
+    - Algorithm: RS256 (asymmetric, default for Better Auth)
+    - User ID claim: 'sub' (OIDC-standard subject claim, default for Better Auth)
     """
 
-    uid: str = Field(..., description="User unique identifier", min_length=1)
+    sub: str = Field(..., description="User unique identifier (OIDC standard subject)", min_length=1)
     exp: int = Field(..., description="Expiration timestamp (Unix epoch seconds)")
     iat: int = Field(..., description="Issued at timestamp (Unix epoch seconds)")
 
@@ -27,7 +27,7 @@ class JWTPayload(BaseModel):
     model_config = {
         "json_schema_extra": {
             "example": {
-                "uid": "clxyz123abc456def789",
+                "sub": "clxyz123abc456def789",
                 "exp": 1706274000,
                 "iat": 1706273100,
                 "iss": "https://example.com",
@@ -47,7 +47,7 @@ class AuthErrorCode(str, Enum):
     INVALID_TOKEN_SIGNATURE = "INVALID_TOKEN_SIGNATURE"
     TOKEN_EXPIRED = "TOKEN_EXPIRED"
     MALFORMED_TOKEN = "MALFORMED_TOKEN"
-    MISSING_UID_CLAIM = "MISSING_UID_CLAIM"
+    MISSING_SUB_CLAIM = "MISSING_SUB_CLAIM"
     FORBIDDEN_USER_ACCESS = "FORBIDDEN_USER_ACCESS"
 
 

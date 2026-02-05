@@ -1,5 +1,5 @@
 ---
-id: "0019"
+id: "0015"
 title: Clarify API Path User ID Pattern
 stage: spec
 date: 2026-02-02

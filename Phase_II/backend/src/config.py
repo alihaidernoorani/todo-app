@@ -35,6 +35,36 @@ class Settings(BaseSettings):
         description="Base URL of Better Auth instance (e.g., https://app.example.com)",
     )
 
+    # CORS Configuration
+    # List of allowed origins for cross-origin requests
+    allowed_origins: list[str] = Field(
+        default=["http://localhost:3000"],
+        alias="ALLOWED_ORIGINS",
+        description="Comma-separated list of allowed CORS origins",
+    )
+
+    @field_validator("allowed_origins", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, v: str | list[str]) -> list[str]:
+        """Parse comma-separated origins from environment variable.
+
+        Supports both comma-separated strings and lists. Strips whitespace
+        from each origin and filters out empty strings.
+
+        Args:
+            v: Either a comma-separated string or a list of origin URLs
+
+        Returns:
+            List of origin URLs with whitespace stripped
+
+        Example:
+            "http://localhost:3000,https://app.vercel.app" ->
+            ["http://localhost:3000", "https://app.vercel.app"]
+        """
+        if isinstance(v, str):
+            return [origin.strip() for origin in v.split(",") if origin.strip()]
+        return v
+
     @property
     def better_auth_jwks_url(self) -> str:
         """Construct JWKS endpoint URL from base URL."""

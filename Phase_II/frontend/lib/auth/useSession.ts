@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { authClient } from './better-auth-client'
 
 export interface Session {
   user: {
@@ -13,13 +14,10 @@ export interface Session {
 export type SessionStatus = 'loading' | 'authenticated' | 'unauthenticated'
 
 /**
- * Client-side session hook using Better Auth's session API
+ * Client-side session hook using Better Auth client library
  *
- * Calls /api/auth/session endpoint to check authentication status.
- * Better Auth's catch-all handler automatically validates the session cookie
- * and returns user data if authenticated.
- *
- * Note: This endpoint is handled by /api/auth/[...all]/route.ts catch-all.
+ * Uses Better Auth's client methods to retrieve session data.
+ * The client library handles all the internal API calls and cookie management.
  *
  * @returns {object} - Session state with user data and status
  */
@@ -30,22 +28,15 @@ export function useSession() {
   useEffect(() => {
     const checkSession = async () => {
       try {
-        // Call Better Auth's session endpoint
-        const response = await fetch('/api/auth/session', {
-          method: 'GET',
-          credentials: 'include', // Include cookies
-        })
+        // Use Better Auth client's getSession method
+        const { data, error } = await authClient.getSession()
 
-        if (response.ok) {
-          const data = await response.json()
-
-          if (data && data.user) {
-            setSession({ user: data.user })
-            setStatus('authenticated')
-          } else {
-            setSession({ user: null })
-            setStatus('unauthenticated')
-          }
+        if (error || !data) {
+          setSession({ user: null })
+          setStatus('unauthenticated')
+        } else if (data.user) {
+          setSession({ user: data.user })
+          setStatus('authenticated')
         } else {
           setSession({ user: null })
           setStatus('unauthenticated')

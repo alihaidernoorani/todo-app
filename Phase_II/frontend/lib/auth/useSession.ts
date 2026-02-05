@@ -25,7 +25,7 @@ export type SessionStatus = 'loading' | 'authenticated' | 'unauthenticated'
  * @returns {object} - Session state with user data and status
  */
 export function useSession() {
-  const { data: session, isPending, error } = authClient.useSession()
+  const { data: session, isPending } = authClient.useSession()
 
   const status: SessionStatus = isPending
     ? 'loading'

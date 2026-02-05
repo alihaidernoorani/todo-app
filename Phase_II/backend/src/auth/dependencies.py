@@ -2,8 +2,8 @@
 
 import logging
 
-from fastapi import Header, HTTPException, status
-from jose import ExpiredSignatureError, JWTError
+from fastapi import Depends, Header, HTTPException, status
+from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
 
 from .jwt_handler import decode_jwt, extract_bearer_token
 
@@ -20,7 +20,7 @@ async def get_current_user(authorization: str | None = Header(None)) -> str:
         authorization: Authorization header value (format: "Bearer <token>")
 
     Returns:
-        str: User ID extracted from JWT uid claim
+        str: User ID extracted from JWT user_id claim
 
     Raises:
         HTTPException (401): Authentication failed
@@ -34,11 +34,12 @@ async def get_current_user(authorization: str | None = Header(None)) -> str:
         # Extract token from Authorization header
         token = extract_bearer_token(authorization)
 
-        # Decode and validate JWT
-        payload = decode_jwt(token)
+        # Decode and validate JWT using JWKS
+        payload = await decode_jwt(token)
 
-        # Extract user ID from user_id claim
-        user_id = payload["user_id"]
+        # Extract user ID from sub claim (standard JWT subject)
+        # Better Auth uses 'sub' per OIDC standard
+        user_id = payload["sub"]
 
         return user_id
 
@@ -58,25 +59,26 @@ async def get_current_user(authorization: str | None = Header(None)) -> str:
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    except JWTError:
+    except InvalidTokenError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token signature",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    except Exception:
-        # Catch-all for unexpected errors
+    except Exception as e:
+        # Catch-all for unexpected errors (including JWKS fetch failures)
+        logger.error("Unexpected error during authentication: %s", str(e))
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Malformed token",
+            detail="Authentication failed",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
 
 async def verify_user_access(
     user_id: str,
-    current_user_id: str = Header(None, alias="Authorization"),
+    current_user_id: str = Depends(get_current_user),
 ) -> str:
     """Verify authenticated user can access requested user's resources.
 
@@ -103,14 +105,11 @@ async def verify_user_access(
             # authenticated_user is guaranteed to equal user_id
             return {"user_id": authenticated_user, "tasks": []}
     """
-    # First, authenticate the user (get user ID from JWT)
-    authenticated_user = await get_current_user(current_user_id)
-
-    # Then, check if authenticated user matches the requested user_id
-    if authenticated_user != user_id:
+    # Check if authenticated user matches the requested user_id
+    if current_user_id != user_id:
         logger.warning(
             "Authorization failed: user %s attempted to access user %s's resources",
-            authenticated_user,
+            current_user_id,
             user_id,
         )
         raise HTTPException(
@@ -118,4 +117,4 @@ async def verify_user_access(
             detail="Access denied: cannot access another user's resources",
         )
 
-    return authenticated_user
+    return current_user_id

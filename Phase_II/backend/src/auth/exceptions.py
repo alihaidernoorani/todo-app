@@ -10,7 +10,7 @@ class AuthenticationError(Exception):
     - Invalid token signature
     - Expired token
     - Malformed token
-    - Missing uid claim
+    - Missing sub claim
     """
 
     pass
@@ -20,7 +20,7 @@ class AuthorizationError(Exception):
     """Exception raised when user authorization fails.
 
     This includes scenarios like:
-    - User attempting to access another user's resources (uid mismatch)
+    - User attempting to access another user's resources (sub claim mismatch)
     """
 
     pass

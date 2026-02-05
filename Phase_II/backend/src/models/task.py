@@ -20,4 +20,4 @@ class Task(SQLModel, table=True):
         default_factory=lambda: datetime.now(UTC),
         nullable=False,
     )
-    user_id: UUID = Field(nullable=False, index=True)
+    user_id: str = Field(nullable=False, index=True)

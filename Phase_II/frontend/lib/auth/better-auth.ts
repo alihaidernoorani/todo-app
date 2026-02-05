@@ -1,19 +1,24 @@
 /**
  * Better Auth Server Configuration
  *
- * This file configures Better Auth for session-based authentication with:
+ * This file configures Better Auth for hybrid authentication with:
  * - PostgreSQL database integration
  * - Email/password authentication
- * - HttpOnly cookie storage (XSS protection)
+ * - HttpOnly cookie storage for web sessions (XSS protection)
+ * - JWT tokens for API authentication (stateless)
  * - 15-minute session expiry
  *
  * Environment Variables Required:
- * - BETTER_AUTH_SECRET: 32-character random string (shared with backend)
+ * - BETTER_AUTH_SECRET: 32-character random string (used for session signing)
  * - BETTER_AUTH_URL: Base URL for auth endpoints (e.g., http://localhost:3000)
+ * - BETTER_AUTH_ISSUER: JWT issuer URL (defaults to BETTER_AUTH_URL)
+ * - BETTER_AUTH_AUDIENCE: JWT audience URL (e.g., http://localhost:8000)
  * - NEON_DATABASE_URL or DATABASE_URL: PostgreSQL connection string for auth tables
  */
 
 import { betterAuth } from "better-auth"
+import { jwt } from "better-auth/plugins"
+import { Pool } from "pg"
 
 /**
  * Check if we're in a build/static generation phase
@@ -49,11 +54,15 @@ let _initAttempted = false
 function createAuth(): ReturnType<typeof betterAuth> | null {
   // Avoid re-initialization
   if (_initAttempted) {
+    console.log("[Better Auth] Already attempted initialization, returning cached:", _auth ? "SUCCESS" : "NULL")
     return _auth
   }
   _initAttempted = true
 
   const databaseUrl = getDatabaseUrl()
+  console.log("[Better Auth] Starting initialization...")
+  console.log("[Better Auth] Database URL exists:", !!databaseUrl)
+  console.log("[Better Auth] Is build phase:", isBuildPhase())
 
   // Skip initialization during build or if no database URL
   if (isBuildPhase() || !databaseUrl) {
@@ -62,12 +71,23 @@ function createAuth(): ReturnType<typeof betterAuth> | null {
   }
 
   try {
+    console.log("[Better Auth] Creating betterAuth instance...")
+    const baseURL = process.env.BETTER_AUTH_URL || "http://localhost:3000"
+    const issuer = process.env.BETTER_AUTH_ISSUER || baseURL
+    const audience = process.env.BETTER_AUTH_AUDIENCE || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+
     _auth = betterAuth({
       // Database configuration for storing users and sessions
-      database: {
-        provider: "pg", // PostgreSQL
-        url: databaseUrl,
-      },
+      // Better Auth requires a Pool instance, not a config object
+      database: new Pool({
+        connectionString: databaseUrl,
+        max: 10, // Maximum pool size
+        idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
+        connectionTimeoutMillis: 10000, // Wait 10 seconds for connection
+        ssl: {
+          rejectUnauthorized: false, // Neon requires SSL but we don't verify cert
+        },
+      }),
 
       // Email and password authentication
       emailAndPassword: {
@@ -75,7 +95,7 @@ function createAuth(): ReturnType<typeof betterAuth> | null {
         requireEmailVerification: false, // Set to true for email verification flow
       },
 
-      // Session configuration
+      // Session configuration (for cookie-based web auth)
       session: {
         expiresIn: 60 * 15, // 15 minutes (900 seconds)
         updateAge: 60 * 5, // Update session every 5 minutes
@@ -93,10 +113,20 @@ function createAuth(): ReturnType<typeof betterAuth> | null {
       },
 
       // Base URL for auth endpoints
-      baseURL: process.env.BETTER_AUTH_URL || "http://localhost:3000",
+      baseURL,
 
-      // Secret for signing sessions (MUST match backend BETTER_AUTH_SECRET)
+      // Secret for signing sessions
       secret: process.env.BETTER_AUTH_SECRET || "development-secret-change-in-production",
+
+      // JWT Plugin for API authentication
+      // Temporarily disabled to test initialization
+      // plugins: [
+      //   jwt({
+      //     expirationTime: "1h",
+      //     issuer,
+      //     audience,
+      //   }),
+      // ],
     })
 
     console.log("[Better Auth] Initialized successfully")

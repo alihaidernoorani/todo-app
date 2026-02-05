@@ -5,21 +5,27 @@
 
 ## Summary
 
-Implement stateless JWT authentication and authorization for the FastAPI backend using Better Auth shared secret verification. The system will validate JWT tokens from `Authorization: Bearer <token>` headers using HS256 algorithm, extract user identity from the `uid` claim, and enforce user-scoped access by comparing `uid` against `{user_id}` path parameters. Authentication failures return HTTP 401, authorization failures return HTTP 403. The architecture provides reusable FastAPI dependencies for consistent security enforcement across all protected endpoints.
+Implement stateless JWT authentication and authorization for the FastAPI backend using Better Auth RS256 verification with JWKS. The system will validate JWT tokens from `Authorization: Bearer <token>` headers using RS256 algorithm with public keys retrieved from Better Auth's JWKS endpoint, extract user identity from the OIDC-standard `sub` claim, and enforce user-scoped access by comparing `sub` against `{user_id}` path parameters. Authentication failures return HTTP 401, authorization failures return HTTP 403. The architecture provides reusable FastAPI dependencies for consistent security enforcement across all protected endpoints.
 
 ## Technical Context
 
 **Language/Version**: Python 3.13+
-**Primary Dependencies**: FastAPI, python-jose (JWT library), python-dotenv (environment variables), pydantic (validation)
+**Primary Dependencies**:
+- FastAPI (web framework)
+- PyJWT>=2.8.0 with cryptography>=41.0.0 (JWT library with RS256 and JWKS support)
+- pydantic-settings (environment variable validation)
+- httpx (for JWKS endpoint retrieval)
+- pydantic (validation)
 **Storage**: N/A (stateless verification, no database lookups for user status)
 **Testing**: pytest, pytest-asyncio, httpx (FastAPI test client)
 **Target Platform**: Linux/Docker containers, ASGI servers (uvicorn/gunicorn)
 **Project Type**: Web (backend only for this feature)
-**Performance Goals**: <50ms token validation overhead per request
+**Performance Goals**: <50ms token validation overhead per request (excluding initial JWKS fetch which is cached)
 **Constraints**:
 - 100% stateless (no session storage, cookies, or server-side state)
-- HS256 symmetric algorithm only (shared secret with Better Auth)
+- RS256 asymmetric algorithm with JWKS public key retrieval (Better Auth default)
 - No database lookups during authentication/authorization
+- Backend must be able to reach Better Auth JWKS endpoint
 **Scale/Scope**: Supports unlimited concurrent authenticated users (stateless design)
 
 ## Constitution Check
@@ -40,9 +46,10 @@ Implement stateless JWT authentication and authorization for the FastAPI backend
 
 **III. Secure by Design**
 - ✅ **PASS**: Every protected endpoint will require JWT validation via FastAPI dependencies
-- ✅ **PASS**: JWT verification uses shared secret (BETTER_AUTH_SECRET) with HS256 algorithm
+- ✅ **PASS**: JWT verification uses RS256 asymmetric algorithm with JWKS public keys (no shared secrets)
+- ✅ **PASS**: Public keys retrieved from Better Auth JWKS endpoint (supports key rotation)
 - ✅ **PASS**: Token expiry enforced via `exp` claim validation
-- ✅ **PASS**: Failed authentication returns 401, failed authorization returns 403 (FR-006, FR-007)
+- ✅ **PASS**: Failed authentication returns 401, failed authorization returns 403 (FR-007, FR-008)
 - ⚠️ **NOTE**: Refresh token flow is out of scope per spec (handled by Better Auth frontend)
 
 **IV. Zero Manual Coding**
@@ -92,11 +99,11 @@ backend/
 │   ├── auth/
 │   │   ├── __init__.py
 │   │   ├── dependencies.py    # FastAPI authentication/authorization dependencies
-│   │   ├── jwt_handler.py     # JWT validation, parsing, claim extraction
+│   │   ├── jwt_handler.py     # JWT validation, parsing, claim extraction, JWKS retrieval
 │   │   └── exceptions.py      # Custom authentication exception classes
 │   ├── models/
 │   │   └── auth.py            # Pydantic models for JWT payload, error responses
-│   └── config.py              # Environment variable configuration (BETTER_AUTH_SECRET)
+│   └── config.py              # Environment variable configuration (BETTER_AUTH_URL, JWKS endpoint)
 ├── tests/
 │   ├── contract/
 │   │   └── test_auth_contract.py  # Contract tests for authentication behavior
@@ -105,7 +112,7 @@ backend/
 │   └── unit/
 │       ├── test_jwt_handler.py      # Unit tests for JWT validation logic
 │       └── test_auth_dependencies.py # Unit tests for FastAPI dependencies
-└── .env.example         # Example environment variables (BETTER_AUTH_SECRET template)
+└── .env.example         # Example environment variables (BETTER_AUTH_URL, JWKS endpoint)
 ```
 
 **Structure Decision**: Web application (Option 2) - Backend-only feature. Code resides exclusively in `/backend/` directory per Multi-Tier Isolation principle. The `auth/` module provides reusable security components that will be imported by other backend features (task management, user management) when protecting their endpoints.
@@ -122,43 +129,47 @@ No violations requiring justification. The one acceptable exception (no database
 
 ## Research Tasks
 
-### Task 1: Python JWT Library Evaluation
+### Task 1: Python JWT Library Evaluation for RS256 + JWKS
 
-**Objective**: Select the optimal JWT library for HS256 validation in Python 3.13+
+**Objective**: Select the optimal JWT library for RS256 validation with JWKS support in Python 3.13+
 
 **Research Questions**:
-- Which Python JWT libraries support HS256 algorithm?
-- What are the performance characteristics of each library?
+- Which Python JWT libraries support RS256 algorithm with JWKS retrieval?
+- What are the performance characteristics of each library for asymmetric verification?
 - Which library has the most active maintenance and security track record?
 - Which library integrates best with FastAPI and Pydantic?
+- How do libraries handle JWKS caching to minimize network overhead?
 
 **Options to Evaluate**:
+- `PyJWT` with `cryptography` - Industry standard, explicit RS256 support, JWKS via PyJWKClient
 - `python-jose[cryptography]` - Popular with FastAPI community, cryptography backend
-- `PyJWT` - Industry standard, maintained by jpadilla
-- `authlib` - Comprehensive auth library by lepture
+- `authlib` - Comprehensive auth library by lepture with built-in JWKS support
 
 **Decision Criteria**:
+- RS256 and JWKS support out of the box
 - Security audit history and CVE response time
-- Performance (<50ms validation requirement)
+- Performance (<50ms validation requirement with JWKS caching)
 - Type hints and Python 3.13 compatibility
 - FastAPI integration examples and community support
 
 ### Task 2: Better Auth JWT Claim Structure Research
 
-**Objective**: Understand the exact JWT payload structure generated by Better Auth
+**Objective**: Verify the exact JWT payload structure generated by Better Auth with RS256
 
 **Research Questions**:
-- What claims does Better Auth include in JWT tokens by default?
-- What is the exact key name for user ID (`uid`, `sub`, `user_id`)?
+- What claims does Better Auth include in JWT tokens by default with RS256?
+- Confirm user ID claim uses OIDC-standard `sub` (not custom `uid`)
 - What additional claims are included (`exp`, `iat`, `iss`, `aud`)?
-- What is the JWT header structure (algorithm, token type)?
+- What is the JWT header structure (algorithm: RS256, kid for key identification)?
+- Where is the JWKS endpoint exposed by Better Auth (typically `/.well-known/jwks.json`)?
 
 **Information Sources**:
 - Better Auth documentation via MCP search
 - Better Auth GitHub repository examples
 - Better Auth JWT plugin configuration reference
+- OIDC specification for standard claims
 
-**Required Output**: Documented JWT payload schema for validation
+**Required Output**: Documented JWT payload schema with `sub` claim for validation
 
 ### Task 3: FastAPI Dependency Best Practices
 
@@ -177,22 +188,24 @@ No violations requiring justification. The one acceptable exception (no database
 
 **Required Output**: Dependency design pattern with error handling strategy
 
-### Task 4: HS256 Security Best Practices
+### Task 4: RS256 + JWKS Security Best Practices
 
-**Objective**: Ensure secure implementation of HS256 signature verification
+**Objective**: Ensure secure implementation of RS256 signature verification with JWKS
 
 **Research Questions**:
-- What is the minimum recommended secret length for HS256?
-- How to securely load secrets from environment variables?
-- What timing attack mitigations are needed for signature comparison?
-- What validation steps must occur before trusting JWT claims?
+- What validation steps must occur before trusting JWT claims with RS256?
+- How to securely retrieve and cache JWKS keys to prevent DoS?
+- What JWKS key rotation best practices should be followed?
+- How to handle JWKS endpoint failures gracefully?
+- What timing attack considerations exist for RS256 (less critical than HS256)?
 
 **Information Sources**:
 - OWASP JWT security cheatsheet
 - RFC 7519 (JSON Web Token) specification
-- Python JWT library security documentation
+- RFC 7517 (JSON Web Key) specification
+- Python JWT library security documentation for RS256/JWKS
 
-**Required Output**: Security checklist for JWT validation implementation
+**Required Output**: Security checklist for RS256 JWT validation implementation with JWKS
 
 ---
 
@@ -202,23 +215,34 @@ No violations requiring justification. The one acceptable exception (no database
 
 ### JWT Token Payload Structure
 
-**Source**: Better Auth JWT plugin output (to be verified via research)
+**Source**: Better Auth JWT plugin output with RS256 (OIDC-compliant)
 
 ```python
 # Expected JWT payload structure from Better Auth
 {
-    "uid": "string",           # User unique identifier (primary claim for authorization)
+    "sub": "string",           # User unique identifier (OIDC-standard subject claim)
     "exp": int,                # Expiration timestamp (Unix epoch seconds)
     "iat": int,                # Issued at timestamp (Unix epoch seconds)
+    "iss": "string",           # Issuer (Better Auth URL)
     # Additional claims TBD based on Better Auth configuration
 }
 ```
 
+**JWT Header Structure**:
+```python
+{
+    "alg": "RS256",            # Algorithm (asymmetric)
+    "typ": "JWT",              # Token type
+    "kid": "string"            # Key ID for JWKS lookup
+}
+```
+
 **Validation Requirements**:
-- `uid` must be present and non-empty string
+- `sub` must be present and non-empty string (OIDC-standard user ID claim)
 - `exp` must be present and greater than current timestamp
 - `iat` must be present and less than or equal to current timestamp
-- Signature must verify using BETTER_AUTH_SECRET with HS256 algorithm
+- Signature must verify using public key from JWKS endpoint matching `kid` header
+- `kid` in header must match a key in the JWKS endpoint response
 
 ### Authentication Error Response Schema
 
@@ -233,22 +257,26 @@ No violations requiring justification. The one acceptable exception (no database
 **Error Codes**:
 - `MISSING_TOKEN`: Authorization header not provided
 - `INVALID_HEADER_FORMAT`: Authorization header not in "Bearer <token>" format
-- `INVALID_TOKEN_SIGNATURE`: JWT signature verification failed
+- `INVALID_TOKEN_SIGNATURE`: JWT signature verification failed (RS256 public key mismatch)
 - `TOKEN_EXPIRED`: JWT exp claim is in the past
 - `MALFORMED_TOKEN`: JWT parsing failed (invalid structure)
-- `MISSING_UID_CLAIM`: JWT payload missing required uid claim
+- `MISSING_SUB_CLAIM`: JWT payload missing required sub claim (OIDC user ID)
+- `JWKS_FETCH_FAILED`: Unable to retrieve public keys from Better Auth JWKS endpoint
+- `INVALID_KID`: JWT header kid does not match any key in JWKS
 - `FORBIDDEN_USER_ACCESS`: Authenticated user attempting to access different user's resources
 
 ### Configuration Schema
 
 ```python
 # Environment variables required for authentication
-BETTER_AUTH_SECRET: str      # Shared secret for HS256 verification (REQUIRED)
+BETTER_AUTH_URL: str              # Base URL of Better Auth instance (REQUIRED)
+BETTER_AUTH_JWKS_URL: str         # Full JWKS endpoint URL (typically ${BETTER_AUTH_URL}/.well-known/jwks.json)
 ```
 
 **Startup Validation**:
-- Application must fail to start if BETTER_AUTH_SECRET is missing or empty
-- Secret must be at least 32 characters (256 bits) for HS256 security
+- Application must fail to start if BETTER_AUTH_URL is missing or empty
+- Application must validate JWKS endpoint is reachable during startup
+- JWKS endpoint must return valid JSON Web Key Set structure
 
 ## API Contracts
 
@@ -260,7 +288,7 @@ BETTER_AUTH_SECRET: str      # Shared secret for HS256 verification (REQUIRED)
 - HTTP Header: `Authorization: Bearer <jwt_token>`
 
 **Output**:
-- **Success**: Returns authenticated user ID (string) extracted from JWT `uid` claim
+- **Success**: Returns authenticated user ID (string) extracted from JWT `sub` claim (OIDC standard)
 - **Failure**: Raises HTTPException with appropriate 401 status code and error detail
 
 **Error Scenarios**:
@@ -268,10 +296,12 @@ BETTER_AUTH_SECRET: str      # Shared secret for HS256 verification (REQUIRED)
 |----------|-------------|------------|---------------|
 | Missing Authorization header | 401 | MISSING_TOKEN | "Missing authentication token" |
 | Invalid header format (not "Bearer <token>") | 401 | INVALID_HEADER_FORMAT | "Invalid authorization header format" |
-| Invalid signature | 401 | INVALID_TOKEN_SIGNATURE | "Invalid token signature" |
+| Invalid signature (RS256 verification failed) | 401 | INVALID_TOKEN_SIGNATURE | "Invalid token signature" |
 | Expired token | 401 | TOKEN_EXPIRED | "Token expired" |
 | Malformed token | 401 | MALFORMED_TOKEN | "Malformed token" |
-| Missing uid claim | 401 | MISSING_UID_CLAIM | "Invalid token: missing or malformed user ID claim" |
+| Missing sub claim | 401 | MISSING_SUB_CLAIM | "Invalid token: missing or malformed user ID claim" |
+| JWKS fetch failed | 401 | JWKS_FETCH_FAILED | "Unable to verify token: authentication service unavailable" |
+| Invalid kid in header | 401 | INVALID_KID | "Invalid token: unknown signing key" |
 
 ### Authorization Dependency Contract
 
@@ -309,22 +339,24 @@ async def get_user_tasks(
 
 ### Decision 1: JWT Library Selection
 
-**Decision**: Use `python-jose[cryptography]`
+**Decision**: Use `PyJWT>=2.8.0` with `cryptography>=41.0.0`
 
 **Rationale**:
-- Officially recommended by FastAPI documentation
-- Comprehensive JWT support with cryptography backend
-- Active maintenance and security updates
-- Excellent FastAPI integration examples
+- Industry-standard library with excellent RS256 and JWKS support
+- Built-in `PyJWKClient` for JWKS endpoint retrieval and caching
+- Active maintenance and rapid security updates
+- Explicit RS256 algorithm support with cryptography backend
 - Type hint support for Python 3.13+
+- Better performance for asymmetric cryptography compared to python-jose
 
 **Alternatives Considered**:
-- `PyJWT`: Industry standard but less FastAPI-specific examples
+- `python-jose[cryptography]`: Recommended by FastAPI docs but less robust JWKS support
 - `authlib`: More comprehensive but heavier dependency (includes OAuth, OpenID)
 
 **Implementation Impact**:
-- Dependency: `python-jose[cryptography]>=3.3.0`
-- Import path: `from jose import jwt, JWTError`
+- Dependencies: `PyJWT>=2.8.0`, `cryptography>=41.0.0`
+- Import path: `import jwt` (from PyJWT), `from jwt import PyJWKClient`
+- JWKS caching handled automatically by PyJWKClient
 
 ### Decision 2: Dependency Error Handling Pattern
 
@@ -386,7 +418,7 @@ async def verify_user_access(
 **Rationale**:
 - Type-safe configuration with validation
 - Automatic parsing of environment variables
-- Fail-fast on missing required secrets (SC-007 requirement)
+- Fail-fast on missing required configuration (SC-007 requirement)
 - Integrates with FastAPI/Pydantic ecosystem
 
 **Alternatives Considered**:
@@ -396,16 +428,42 @@ async def verify_user_access(
 **Implementation Impact**:
 ```python
 from pydantic_settings import BaseSettings
+from pydantic import HttpUrl
 
 class Settings(BaseSettings):
-    BETTER_AUTH_SECRET: str  # Required field - raises error if missing
+    BETTER_AUTH_URL: HttpUrl  # Required field - raises error if missing or invalid URL
+
+    @property
+    def BETTER_AUTH_JWKS_URL(self) -> str:
+        """Construct JWKS endpoint URL from base URL"""
+        return f"{self.BETTER_AUTH_URL}/.well-known/jwks.json"
 
     class Config:
         env_file = ".env"
-        min_anystr_length = 32  # Enforce minimum secret length
 
-settings = Settings()  # Fails on import if BETTER_AUTH_SECRET invalid
+settings = Settings()  # Fails on import if BETTER_AUTH_URL invalid
 ```
+
+### Decision 5: JWT Algorithm Strategy
+
+**Decision**: Use RS256 with JWKS (Better Auth default)
+
+**Rationale**:
+- Asymmetric cryptography: private key stays with Better Auth, public key for verification
+- No shared secrets between services (improved security posture)
+- Supports key rotation without backend redeployment
+- Industry standard for distributed authentication systems
+- Better Auth default configuration (zero custom setup needed)
+- OIDC-compliant (interoperable with other identity providers)
+
+**Alternatives Considered**:
+- HS256 with shared secret: Simpler but requires secret sharing, no key rotation support
+
+**Implementation Impact**:
+- Backend retrieves public keys from Better Auth JWKS endpoint
+- PyJWKClient handles JWKS caching and automatic refresh
+- No shared secret management required
+- Supports multiple signing keys (key rotation scenarios)
 
 ## Testing Strategy
 

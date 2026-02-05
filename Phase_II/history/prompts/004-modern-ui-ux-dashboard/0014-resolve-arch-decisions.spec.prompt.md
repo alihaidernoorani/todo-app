@@ -1,5 +1,5 @@
 ---
-id: 0018
+id: 0014
 title: resolve-arch-decisions
 stage: spec
 date: 2026-02-02

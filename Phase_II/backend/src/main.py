@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import OperationalError
 
 from src.api.v1.router import router as v1_router
+from src.config import get_settings
 from src.database import create_db_and_tables
 from src.exceptions import DatabaseError, NotFoundError, ValidationError
 
@@ -29,15 +30,15 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Load settings for environment-driven configuration
+settings = get_settings()
+
 # Configure CORS for production deployment
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",  # Local development
-        "https://todo-app-mu-two-48.vercel.app",  # Production frontend
-        "https://*.vercel.app",  # All Vercel preview deployments
-    ],
-    allow_credentials=True,  # Allow HttpOnly cookies
+    allow_origins=settings.allowed_origins,  # From ALLOWED_ORIGINS environment variable
+    allow_origin_regex=r"https://.*\.vercel\.app",  # Vercel preview deployments (*.vercel.app)
+    allow_credentials=True,  # Allow HttpOnly cookies and Authorization headers
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
     allow_headers=[
         "Content-Type",

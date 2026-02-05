@@ -1,5 +1,5 @@
 ---
-id: "0016"
+id: "0012"
 title: "Revise Frontend Architecture Clean Light Mode"
 stage: plan
 date: 2026-02-02

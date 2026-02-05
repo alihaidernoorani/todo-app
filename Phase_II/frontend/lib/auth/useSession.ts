@@ -19,6 +19,8 @@ export type SessionStatus = 'loading' | 'authenticated' | 'unauthenticated'
  * Better Auth's catch-all handler automatically validates the session cookie
  * and returns user data if authenticated.
  *
+ * Note: This endpoint is handled by /api/auth/[...all]/route.ts catch-all.
+ *
  * @returns {object} - Session state with user data and status
  */
 export function useSession() {

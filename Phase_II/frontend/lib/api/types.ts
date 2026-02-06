@@ -316,7 +316,7 @@ export interface ValidationErrorResponse {
 
 /**
  * JWT payload structure from Better Auth
- * Decoded from the auth-token HttpOnly cookie
+ * Extracted from Better Auth session data
  *
  * @example
  * ```typescript

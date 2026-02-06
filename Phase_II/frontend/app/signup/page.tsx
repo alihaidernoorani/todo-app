@@ -1,4 +1,10 @@
 import { SignupForm } from '@/components/auth/SignupForm'
+import type { Metadata } from 'next'
+
+export const metadata: Metadata = {
+  title: 'Sign Up - TaskFlow',
+  description: 'Create your TaskFlow account',
+}
 
 export default function SignupPage() {
   return (

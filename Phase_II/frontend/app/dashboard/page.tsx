@@ -1,7 +1,7 @@
 /**
  * Dashboard Page
  *
- * Main command center for task management.
+ * Main TaskFlow dashboard for task management.
  * Features:
  * - Real-time task metrics grid
  * - Task stream with CRUD operations
@@ -21,11 +21,17 @@
 "use client"
 
 import { Suspense } from "react"
+import type { Metadata } from "next"
 import { MetricsGrid } from "@/components/dashboard/MetricsGrid"
 import { TaskStream } from "@/components/dashboard/TaskStream"
 import { MetricsGridSkeleton } from "@/components/atoms/ShimmerSkeleton"
 import { PageTransition } from "@/components/layout/PageTransition"
 import { useSession } from "@/lib/auth/useSession"
+
+export const metadata: Metadata = {
+  title: 'My Tasks - TaskFlow',
+  description: 'Task management dashboard',
+}
 
 export default function DashboardPage() {
   const { session, status } = useSession()

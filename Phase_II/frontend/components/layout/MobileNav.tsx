@@ -27,7 +27,8 @@ interface NavItem {
 const navItems: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard', icon: <Home className="w-6 h-6" /> },
   { label: 'Tasks', href: '/dashboard', icon: <ListTodo className="w-6 h-6" /> },
-  { label: 'Settings', href: '/settings', icon: <Settings className="w-6 h-6" /> },
+  // TODO: Unhide when settings functionality implemented
+  // { label: 'Settings', href: '/settings', icon: <Settings className="w-6 h-6" /> },
 ]
 
 export function MobileNav() {

@@ -23,6 +23,14 @@
 - Q: What is the canonical design system name? → A: Clean Light Mode (all other names deprecated)
 - Q: What is the canonical button component name? → A: PrimaryButton
 
+### Session 2026-02-06
+
+- Q: Should the sidebar collapse button act as a toggle (collapse/expand)? → A: Toggle button - single button that collapses and expands (icon changes state)
+- Q: Should the settings button be removed completely or hidden until settings are implemented? → A: Hide until implemented - use CSS/conditional render to hide
+- Q: What should the browser tab title and auth window title be instead of "Command Center"? → A: TaskFlow
+- Q: Should the Add Task button open a modal form or directly create a task from an input field? → A: Modal form - clicking Add Task opens a modal with full form fields
+- Q: Should user-facing errors show a friendly message instead of generic server errors? → A: User-friendly messages - translate technical errors to clear explanations
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Authenticated Dashboard Access (Priority: P1)
@@ -71,7 +79,7 @@ As a user managing tasks, I need to create, update, and complete tasks with imme
 
 **Acceptance Scenarios**:
 
-1. **Given** I am viewing my task list, **When** I create a new task, **Then** it appears immediately in the list with a pending indicator before server confirmation
+1. **Given** I am viewing my task list, **When** I click the Add Task button, **Then** a modal form opens with fields for title, description, priority, and due date; submitting the form creates the task and it appears immediately in the list with a pending indicator before server confirmation
 2. **Given** I toggle a task as complete, **When** I click the checkbox, **Then** the task updates visually with a smooth animation before the API call completes
 3. **Given** a task creation fails on the server, **When** the error is received, **Then** the optimistically added task is rolled back and an inline error message appears below the task input with a retry button
 4. **Given** I am creating multiple tasks rapidly, **When** I submit them in quick succession, **Then** each appears instantly without blocking on previous requests
@@ -110,7 +118,7 @@ As a mobile user, I need intuitive navigation that is accessible and doesn't obs
 1. **Given** I am on mobile, **When** I scroll the dashboard, **Then** the bottom navigation bar remains fixed and accessible
 2. **Given** I am on mobile, **When** I tap a navigation item, **Then** the view transitions smoothly without page refresh
 3. **Given** I am on desktop, **When** I view the dashboard, **Then** I see a collapsible glass sidebar with Clean Light Mode styling instead of bottom navigation
-4. **Given** the sidebar is collapsed on desktop, **When** I click the expand toggle, **Then** it animates smoothly into view
+4. **Given** the sidebar is collapsed on desktop, **When** I click the toggle button, **Then** it expands smoothly with animation; when expanded, clicking the same toggle button collapses it again (icon updates to reflect current state)
 
 ---
 
@@ -134,7 +142,8 @@ As a user accessing my tasks through the API, I need all requests to be automati
 ### Edge Cases
 
 - When a user's session expires while actively working: System saves unsaved work to localStorage, clears tokens, redirects to /login, and restores draft after re-authentication
-- How does the system handle network failures during optimistic task updates?
+- When the settings button is hidden: Navigation layout remains consistent with placeholder space reserved for future settings implementation
+- When network failures occur during optimistic task updates: System displays user-friendly message "Unable to save your task. Check your connection and try again." with retry button, rolling back the optimistic update
 - What happens when a user navigates directly to a protected route without being authenticated?
 - How does the dashboard behave when task data exceeds expected volumes (e.g., 1000+ tasks)?
 - What happens when Better Auth service is temporarily unavailable?
@@ -154,18 +163,22 @@ As a user accessing my tasks through the API, I need all requests to be automati
 - **FR-004**: System MUST display task metrics in top-row dashboard cards showing total tasks, completed tasks, pending tasks, overdue tasks, and priority breakdowns (High, Medium, Low)
 - **FR-004a**: System MUST allow users to assign priority levels (High, Medium, or Low) to tasks during creation and editing
 - **FR-005**: System MUST implement optimistic UI updates for task creation, updates, and completion using React 19's useOptimistic hook
+- **FR-005a**: System MUST display a modal form when the Add Task button is clicked, containing input fields for title, description, priority (High/Medium/Low), and due date
 - **FR-006**: System MUST display shimmer skeleton loaders during initial data loading and streaming SSR
 - **FR-007**: System MUST apply the Clean Light Mode color palette with clean white backgrounds (#ffffff) and slate secondary colors (#f8fafc) with blue accents (#2563eb)
 - **FR-008**: System MUST use subtle glassmorphism styling with backdrop-blur, semi-transparent backgrounds (bg-slate-50/95), and 1px translucent borders (border-slate-200/80)
 - **FR-009**: System MUST use Inter font for UI elements and data, and Playfair Display (or similar serif) for page headers
+- **FR-009a**: System MUST set the browser tab title and authentication window title to "TaskFlow" across all pages
 - **FR-010**: System MUST customize shadcn/ui primitives with increased border-radius (rounded-xl) and soft shadows (shadow-sm) using PrimaryButton as the canonical button component
 - **FR-011**: System MUST implement staggered list animations and spring transitions using Framer Motion
 - **FR-012**: System MUST provide sticky bottom navigation on mobile devices
-- **FR-013**: System MUST provide a collapsible glass sidebar on desktop devices
+- **FR-013**: System MUST provide a collapsible glass sidebar on desktop devices with a toggle button that collapses and expands the sidebar (icon changes state to indicate current action)
+- **FR-013a**: System MUST conditionally hide the settings button in navigation until settings functionality is implemented (using CSS display or conditional rendering)
 - **FR-014**: System MUST redirect unauthenticated users to the sign-in page when accessing protected routes
 - **FR-015**: System MUST handle session expiration by saving any unsaved work to localStorage as a draft, clearing client-side tokens, and redirecting to sign-in
 - **FR-015a**: System MUST restore draft work from localStorage after successful re-authentication and prompt the user to review or discard the draft
-- **FR-016**: System MUST display user-friendly error messages when optimistic updates fail, rolling back UI changes and showing inline error text below the affected item with a retry action button
+- **FR-016**: System MUST display user-friendly error messages when optimistic updates fail, translating technical server errors into clear explanations, rolling back UI changes, and showing inline error text below the affected item with a retry action button
+- **FR-016a**: System MUST translate all technical server errors (500, 503, network failures, etc.) into user-friendly messages that explain what went wrong and suggest next steps
 - **FR-017**: System MUST display an empty state with helpful messaging when a user has no tasks
 - **FR-018**: System MUST prevent access to other users' data by validating JWT user ID against requested user ID in API paths
 - **FR-019**: System MUST implement last-write-wins conflict resolution for concurrent edits to the same task from multiple devices

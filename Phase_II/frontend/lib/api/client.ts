@@ -11,6 +11,40 @@
 
 import { getJWTToken } from '../auth/jwt-utils'
 
+/**
+ * Map HTTP error responses to user-friendly messages
+ * @param error - Error object or status code
+ * @returns User-friendly error message
+ */
+function mapErrorToFriendlyMessage(error: any): string {
+  // Check for specific status codes
+  if (error.status === 500 || error.message?.includes('500')) {
+    return "Something went wrong on our end. Please try again."
+  }
+  if (error.status === 503 || error.message?.includes('503')) {
+    return "Service temporarily unavailable. Please try again in a moment."
+  }
+  if (error.status === 401 || error.message?.includes('401') || error.message?.includes('Session expired')) {
+    return "Your session has expired. Please sign in again."
+  }
+  if (error.status === 403 || error.message?.includes('403') || error.message?.includes('Access denied')) {
+    return "You don't have permission to perform this action."
+  }
+
+  // Check for network errors
+  if (!navigator.onLine || error.message?.includes('network') || error.message?.includes('fetch')) {
+    return "Unable to connect. Check your internet connection and try again."
+  }
+
+  // Check for timeout errors
+  if (error.message?.includes('timeout')) {
+    return "Request timed out. Please try again."
+  }
+
+  // Default fallback
+  return error.message || "An unexpected error occurred. Please try again."
+}
+
 export class ApiClient {
   private baseURL: string
 
@@ -86,12 +120,16 @@ export class ApiClient {
         const event = new CustomEvent('session-expired')
         window.dispatchEvent(event)
 
-        throw new Error('Session expired. Please sign in again.')
+        const error = new Error(mapErrorToFriendlyMessage({ status: 401 }))
+        ;(error as any).status = 401
+        throw error
       }
 
       // Handle 403 Forbidden (user_id mismatch)
       if (response.status === 403) {
-        throw new Error('Access denied. You do not have permission to access this resource.')
+        const error = new Error(mapErrorToFriendlyMessage({ status: 403 }))
+        ;(error as any).status = 403
+        throw error
       }
 
       // Handle 412 Precondition Failed (ETag mismatch for conditional requests)
@@ -102,8 +140,12 @@ export class ApiClient {
       // Handle other error responses
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        const errorMessage = errorData.detail || errorData.message || `HTTP ${response.status}`
-        throw new Error(errorMessage)
+        const technicalMessage = errorData.detail || errorData.message || `HTTP ${response.status}`
+        const friendlyMessage = mapErrorToFriendlyMessage({ status: response.status, message: technicalMessage })
+        const error = new Error(friendlyMessage)
+        ;(error as any).status = response.status
+        ;(error as any).technicalMessage = technicalMessage
+        throw error
       }
 
       // Parse JSON response
@@ -114,11 +156,22 @@ export class ApiClient {
 
       return { data: data as T, etag }
     } catch (error) {
-      // Re-throw with context
+      // Re-throw with user-friendly message if not already mapped
       if (error instanceof Error) {
-        throw error
+        // If error already has a friendly message (from status code handling), use it
+        if (error.message.includes("Something went wrong") ||
+            error.message.includes("Service temporarily") ||
+            error.message.includes("session has expired") ||
+            error.message.includes("don't have permission") ||
+            error.message.includes("Unable to connect")) {
+          throw error
+        }
+        // Otherwise, map it to a friendly message
+        const friendlyError = new Error(mapErrorToFriendlyMessage(error))
+        ;(friendlyError as any).originalError = error
+        throw friendlyError
       }
-      throw new Error('An unexpected error occurred')
+      throw new Error(mapErrorToFriendlyMessage({}))
     }
   }
 

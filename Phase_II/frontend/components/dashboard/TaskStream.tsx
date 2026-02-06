@@ -35,6 +35,7 @@ import { AuthenticationError } from "@/lib/api/errors"
 import { useOptimisticTask } from "@/lib/hooks/use-optimistic-task"
 import { TaskItem } from "./TaskItem"
 import { TaskForm } from "./TaskForm"
+import { TaskModal } from "./TaskModal"
 import { PrimaryButton } from "@/components/atoms/PrimaryButton"
 import { EmptyState } from "./EmptyState"
 import { TaskItemSkeleton } from "@/components/atoms/ShimmerSkeleton"
@@ -43,7 +44,7 @@ import type { TaskRead, TaskCreate, TaskUpdate } from "@/lib/api/types"
 export function TaskStream() {
   const [initialTasks, setInitialTasks] = useState<TaskRead[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [showCreateForm, setShowCreateForm] = useState(false)
+  const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
   const router = useRouter()
   const pathname = usePathname()
@@ -85,7 +86,7 @@ export function TaskStream() {
   // Handle create task
   const handleCreate = async (taskData: TaskCreate) => {
     await createTask(taskData)
-    setShowCreateForm(false)
+    // Modal will close automatically on success
   }
 
   // Handle update task
@@ -115,34 +116,32 @@ export function TaskStream() {
     )
   }
 
-  // Empty state (no tasks and no create form showing)
-  if (tasks.length === 0 && !showCreateForm) {
-    return <EmptyState onCreateTask={() => setShowCreateForm(true)} />
+  // Empty state (no tasks and no modal open)
+  if (tasks.length === 0 && !isModalOpen) {
+    return <EmptyState onCreateTask={() => setIsModalOpen(true)} />
   }
 
   return (
     <div className="space-y-4">
       {/* Create Task Button */}
-      {!showCreateForm && !editingTaskId && (
+      {!editingTaskId && (
         <div className="flex justify-end">
           <PrimaryButton
             variant="primary"
             icon={<Plus className="w-4 h-4" />}
-            onClick={() => setShowCreateForm(true)}
+            onClick={() => setIsModalOpen(true)}
           >
-            Create Task
+            Add Task
           </PrimaryButton>
         </div>
       )}
 
-      {/* Create Form */}
-      {showCreateForm && (
-        <TaskForm
-          mode="create"
-          onSubmit={handleCreate}
-          onCancel={() => setShowCreateForm(false)}
-        />
-      )}
+      {/* Task Modal */}
+      <TaskModal
+        open={isModalOpen}
+        onOpenChange={setIsModalOpen}
+        onSubmit={handleCreate}
+      />
 
       {/* Edit Form */}
       {editingTaskId && (
@@ -171,8 +170,8 @@ export function TaskStream() {
       </motion.div>
 
       {/* Empty State (all tasks deleted) */}
-      {tasks.length === 0 && !showCreateForm && (
-        <EmptyState onCreateTask={() => setShowCreateForm(true)} />
+      {tasks.length === 0 && !isModalOpen && (
+        <EmptyState onCreateTask={() => setIsModalOpen(true)} />
       )}
     </div>
   )

@@ -14,7 +14,7 @@
 
 'use client'
 
-import { Home, ListTodo, Settings } from 'lucide-react'
+import { Home, ListTodo } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 

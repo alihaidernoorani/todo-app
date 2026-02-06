@@ -16,7 +16,7 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Home, ListTodo, Settings, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Home, ListTodo, ChevronLeft, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 

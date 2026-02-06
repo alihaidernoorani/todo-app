@@ -25,8 +25,8 @@ const playfair = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  title: "Command Center - Modern Task Dashboard",
-  description: "High-performance luxury-grade task management dashboard with futuristic design",
+  title: "TaskFlow",
+  description: "High-performance luxury-grade task management dashboard with clean modern design",
 };
 
 export default function RootLayout({

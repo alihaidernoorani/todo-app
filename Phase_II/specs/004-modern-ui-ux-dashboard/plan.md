@@ -1,6 +1,6 @@
 # Implementation Plan: Modern UI/UX Dashboard
 
-**Branch**: `004-modern-ui-ux-dashboard` | **Date**: 2026-01-25 | **Revised**: 2026-02-02 | **Spec**: [spec.md](./spec.md)
+**Branch**: `004-modern-ui-ux-dashboard` | **Date**: 2026-01-25 | **Revised**: 2026-02-06 | **Spec**: [spec.md](./spec.md)
 **Input**: Feature specification from `/specs/004-modern-ui-ux-dashboard/spec.md`
 
 ## Summary
@@ -21,6 +21,54 @@ Build a professional-grade Next.js 16+ dashboard featuring the **"Clean Light Mo
 3. **Rebranding**: Changed application name from "Command Center" to "TaskFlow"
 4. **UI Headers**: Updated terminology (e.g., "Mission Control" → "My Tasks")
 5. **User ID Flow (CRITICAL)**: Server Action extracts user_id from HttpOnly cookie server-side; client receives user_id for API path construction; client NEVER decodes JWT directly
+
+## Revision Summary (2026-02-06) - UI Stabilization
+
+**Critical UI Fixes** (from spec clarification session 2026-02-06):
+
+1. **Sidebar Toggle Mechanism** (FR-013)
+   - **Issue**: Collapse button collapses sidebar but provides no way to expand it again
+   - **Solution**: Implement bidirectional toggle button where single button both collapses and expands
+   - **Implementation**: Icon updates to reflect current state (e.g., ChevronLeft when expanded, ChevronRight when collapsed)
+   - **Component**: `Sidebar.tsx` - add state management for collapsed/expanded, update toggle button handler
+
+2. **Settings Button Visibility** (FR-013a)
+   - **Issue**: Settings button exists but has no functional purpose
+   - **Solution**: Conditionally hide using CSS (`display: none`) or conditional rendering (`{isSettingsEnabled && <SettingsButton />}`)
+   - **Implementation**: Add feature flag or boolean check; preserve layout structure for future implementation
+   - **Component**: `Sidebar.tsx` and `MobileNav.tsx`
+
+3. **Application Branding** (FR-009a)
+   - **Issue**: Browser tab and auth window still show "Command Center" (outdated branding)
+   - **Solution**: Ensure all `<title>` tags and metadata consistently use "TaskFlow"
+   - **Implementation**:
+     - Root layout: `<title>TaskFlow</title>`
+     - Login page: `<title>Sign In - TaskFlow</title>`
+     - Signup page: `<title>Sign Up - TaskFlow</title>`
+     - Dashboard: `<title>My Tasks - TaskFlow</title>`
+   - **Files**: `app/layout.tsx`, `app/login/page.tsx`, `app/signup/page.tsx`, `app/(dashboard)/page.tsx`
+
+4. **Add Task Modal Flow** (FR-005a)
+   - **Issue**: Add Task button triggers server component error and does not create tasks
+   - **Solution**: Implement modal form pattern with full field set (title, description, priority, due date)
+   - **Implementation**:
+     - Create `TaskModal.tsx` client component with shadcn/ui Dialog
+     - Add state for modal open/close
+     - Form includes: title (required), description (optional), priority dropdown (High/Medium/Low), due date picker
+     - Submit triggers optimistic create with `useOptimistic`
+   - **Components**: `TaskModal.tsx` (new), `TaskStream.tsx` (trigger modal), `TaskForm.tsx` (form inside modal)
+
+5. **User-Friendly Error Messages** (FR-016, FR-016a)
+   - **Issue**: Generic server errors (500, 503) shown to users
+   - **Solution**: Translate technical errors into user-friendly messages
+   - **Implementation**:
+     - ApiClient error interceptor maps status codes to friendly messages:
+       - 500 → "Something went wrong on our end. Please try again."
+       - 503 → "Service temporarily unavailable. Please try again in a moment."
+       - Network error → "Unable to connect. Check your internet connection and try again."
+       - 401 → "Your session has expired. Please sign in again."
+       - 403 → "You don't have permission to perform this action."
+   - **Component**: `ApiClient.ts` (add error mapping), `InlineError.tsx` (display friendly message with retry button)
 
 ---
 

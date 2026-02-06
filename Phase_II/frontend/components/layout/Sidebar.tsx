@@ -29,7 +29,8 @@ interface NavItem {
 const navItems: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard', icon: <Home className="w-5 h-5" /> },
   { label: 'Tasks', href: '/dashboard', icon: <ListTodo className="w-5 h-5" /> },
-  { label: 'Settings', href: '/settings', icon: <Settings className="w-5 h-5" /> },
+  // TODO: Unhide when settings functionality implemented
+  // { label: 'Settings', href: '/settings', icon: <Settings className="w-5 h-5" /> },
 ]
 
 export function Sidebar() {
@@ -38,14 +39,14 @@ export function Sidebar() {
 
   return (
     <motion.aside
-      initial={{ x: 0 }}
-      animate={{ x: isCollapsed ? -280 : 0 }}
+      initial={{ width: 280 }}
+      animate={{ width: isCollapsed ? 64 : 280 }}
       transition={{
         type: 'spring',
         stiffness: 300,
         damping: 30,
       }}
-      className="hidden md:flex flex-col h-screen w-[280px] bg-slate-50/95 backdrop-blur-sm border-r border-slate-200 fixed left-0 top-0 z-40"
+      className="hidden md:flex flex-col h-screen bg-slate-50/95 backdrop-blur-sm border-r border-slate-200 fixed left-0 top-0 z-40"
     >
       {/* Logo and Brand */}
       <div className="p-6 border-b border-slate-200">

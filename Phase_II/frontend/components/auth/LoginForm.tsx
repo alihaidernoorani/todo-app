@@ -23,7 +23,7 @@ export function LoginForm() {
       <div className="auth-card">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-slate-900 mb-2 font-serif">
-            Access Command Center
+            Sign In to TaskFlow
           </h1>
           <p className="text-slate-600 text-sm">
             Loading authentication system...

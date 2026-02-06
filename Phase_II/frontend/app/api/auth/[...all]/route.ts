@@ -36,14 +36,26 @@ export const runtime = "nodejs" // Use Node.js runtime (not Edge) for database a
  */
 function createHandler(method: 'GET' | 'POST') {
   return async (request: NextRequest) => {
+    console.log(`[API Route] ${method} ${request.nextUrl.pathname}`)
+
     const auth = getAuth()
+    console.log('[API Route] Auth instance:', !!auth)
 
     if (!auth) {
+      console.error('[API Route] Auth not initialized!')
       return NextResponse.json(
         { error: "Auth not configured. Check database connection." },
         { status: 503 }
       )
     }
+
+    // Check if auth has the api object and JWT endpoints
+    console.log('[API Route] Auth has api:', !!auth.api)
+    const allEndpoints = Object.keys(auth.api || {})
+    console.log('[API Route] Total endpoints:', allEndpoints.length)
+    console.log('[API Route] JWT plugin check:')
+    console.log('[API Route]   - getToken:', allEndpoints.includes('getToken'))
+    console.log('[API Route]   - getJwks:', allEndpoints.includes('getJwks'))
 
     const handler = toNextJsHandler(auth)
 

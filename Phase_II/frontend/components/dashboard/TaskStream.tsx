@@ -31,7 +31,7 @@ import { useRouter, usePathname } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import { Plus } from "lucide-react"
 import { listTasks } from "@/lib/api/tasks"
-import { AuthenticationError } from "@/lib/api/errors"
+import { shouldRedirectToLogin } from "@/lib/api/errors"
 import { useOptimisticTask } from "@/lib/hooks/use-optimistic-task"
 import { TaskItem } from "./TaskItem"
 import { TaskForm } from "./TaskForm"
@@ -62,19 +62,29 @@ export function TaskStream() {
   useEffect(() => {
     const fetchTasks = async () => {
       try {
-        const { items } = await listTasks()
-        setInitialTasks(items)
-      } catch (error) {
-        // Check if it's an authentication error
-        if (error instanceof AuthenticationError) {
-          console.error("Not authenticated, redirecting to login:", error)
-          // Redirect to login with return URL
-          const loginUrl = `/login?from=${encodeURIComponent(pathname)}`
-          router.push(loginUrl)
+        const result = await listTasks()
+
+        // Handle API response failure
+        if (!result.success) {
+          console.error("Failed to fetch tasks:", result.error.message)
+
+          // Check if authentication failed - redirect to login
+          if (shouldRedirectToLogin(result.error.code)) {
+            const loginUrl = `/login?from=${encodeURIComponent(pathname)}`
+            router.push(loginUrl)
+            return
+          }
+
+          // For other errors, continue with empty task list
+          setInitialTasks([])
           return
         }
 
+        // Success - set tasks from response data
+        setInitialTasks(result.data.items)
+      } catch (error) {
         console.error("Failed to fetch tasks:", error)
+        setInitialTasks([])
       } finally {
         setIsLoading(false)
       }

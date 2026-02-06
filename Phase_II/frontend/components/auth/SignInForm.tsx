@@ -38,15 +38,19 @@ export function SignInForm() {
       }
 
       // Sign in with Better Auth
+      console.log('[SignIn] Attempting sign-in for:', email)
       const result = await authClient.signIn.email({
         email,
         password,
       })
+      console.log('[SignIn] Result:', JSON.stringify(result, null, 2))
 
       if (result.error) {
+        console.log('[SignIn] Error:', result.error)
         setError(result.error.message || 'Invalid credentials')
         setIsLoading(false)
       } else {
+        console.log('[SignIn] Success! Redirecting to:', returnUrl)
         // Success - redirect to return URL
         router.push(returnUrl)
         router.refresh() // Refresh to update server-side auth state

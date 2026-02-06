@@ -3,111 +3,116 @@
  *
  * Handles JWT token generation and user_id retrieval for API authentication.
  *
- * Two types of tokens:
- * 1. Session tokens (HttpOnly cookies) - for web session management
- * 2. JWT tokens - for backend API authentication with Bearer headers
- *
- * This module provides Server Actions to:
- * - Extract user_id from session cookies
- * - Generate JWT tokens for API calls
- * - Validate authentication state
+ * IMPORTANT: This module bypasses Better Auth's auth.api.* calls because
+ * they cause ETIMEDOUT errors in WSL2/certain environments. Instead, it:
+ * - Reads session cookies directly
+ * - Queries the database to validate sessions
+ * - Signs JWT tokens manually with jsonwebtoken
  */
 
 'use server'
 
 import { cookies } from 'next/headers'
-import { getAuth } from './better-auth'
+import jwt from 'jsonwebtoken'
+import { Pool } from 'pg'
 
 /**
  * Cookie name used by Better Auth
- * Format: ${prefix}.session_token where prefix defaults to "better-auth"
  */
 const SESSION_COOKIE_NAME = 'better-auth.session_token'
 
 /**
- * Extract user_id from Better Auth session
- *
- * This is a Server Action that runs on the server to access HttpOnly cookies
- * and validate the session against the database.
- * Client components can call this function to get the authenticated user's ID.
- *
- * @returns User ID string or null if not authenticated
+ * Shared database pool for direct session lookups
  */
-export async function getUserIdFromJWT(): Promise<string | null> {
+let _pool: Pool | null = null
+
+function getPool(): Pool | null {
+  if (_pool) return _pool
+
+  const url = process.env.NEON_DATABASE_URL || process.env.DATABASE_URL
+  if (!url) return null
+
+  _pool = new Pool({
+    connectionString: url,
+    max: 5,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
+    ssl: { rejectUnauthorized: false },
+  })
+
+  return _pool
+}
+
+/**
+ * Look up user from session token by querying the database directly.
+ * Bypasses auth.api.getSession() which causes ETIMEDOUT in WSL2.
+ */
+async function getUserFromSession(): Promise<{ id: string; email: string; name: string } | null> {
   try {
-    const auth = getAuth()
-    if (!auth) {
-      console.warn('[jwt-utils] Auth not initialized')
-      return null
-    }
-
-    // Read cookies from the request (server-side only)
     const cookieStore = await cookies()
-    const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)
+    const sessionCookie = cookieStore.get(SESSION_COOKIE_NAME)
 
-    if (!sessionToken || !sessionToken.value) {
+    if (!sessionCookie?.value) {
       return null
     }
 
-    // Use Better Auth to validate the session and get user info
-    const session = await auth.api.getSession({
-      headers: {
-        cookie: `${SESSION_COOKIE_NAME}=${sessionToken.value}`,
-      },
-    })
+    // Extract plain token from signed cookie (format: token.signature)
+    const plainToken = sessionCookie.value.split('.')[0]
 
-    if (!session || !session.user) {
+    const pool = getPool()
+    if (!pool) {
+      console.error('[jwt-utils] No database connection available')
       return null
     }
 
-    // Return user id from the session
-    return session.user.id || null
+    // Query session + user from database directly using plain token
+    const result = await pool.query(
+      `SELECT u.id, u.email, u.name
+       FROM "session" s
+       JOIN "user" u ON s."userId" = u.id
+       WHERE s.token = $1
+       AND s."expiresAt" > NOW()
+       LIMIT 1`,
+      [plainToken]
+    )
+
+    if (result.rows.length === 0) {
+      return null
+    }
+
+    return result.rows[0]
   } catch (error) {
-    // Invalid or expired session
-    console.error('[jwt-utils] Failed to get user from session:', error)
+    console.error('[jwt-utils] Failed to look up session:', error)
     return null
   }
 }
 
 /**
- * Get full session payload from Better Auth
+ * Extract user_id from session cookie
  *
- * Useful for debugging or extracting additional user claims
+ * Reads the session cookie and queries the database directly
+ * to find the authenticated user's ID.
  *
- * @returns Session with user info or null if not authenticated
+ * @returns User ID string or null if not authenticated
+ */
+export async function getUserIdFromJWT(): Promise<string | null> {
+  const user = await getUserFromSession()
+  return user?.id || null
+}
+
+/**
+ * Get user payload from session
+ *
+ * @returns User info or null if not authenticated
  */
 export async function getJWTPayload(): Promise<{ user_id: string; email?: string; name?: string } | null> {
-  try {
-    const auth = getAuth()
-    if (!auth) {
-      return null
-    }
+  const user = await getUserFromSession()
+  if (!user) return null
 
-    const cookieStore = await cookies()
-    const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)
-
-    if (!sessionToken || !sessionToken.value) {
-      return null
-    }
-
-    const session = await auth.api.getSession({
-      headers: {
-        cookie: `${SESSION_COOKIE_NAME}=${sessionToken.value}`,
-      },
-    })
-
-    if (!session || !session.user) {
-      return null
-    }
-
-    return {
-      user_id: session.user.id,
-      email: session.user.email,
-      name: session.user.name,
-    }
-  } catch (error) {
-    console.error('[jwt-utils] Failed to get session payload:', error)
-    return null
+  return {
+    user_id: user.id,
+    email: user.email,
+    name: user.name,
   }
 }
 
@@ -124,47 +129,49 @@ export async function isAuthenticated(): Promise<boolean> {
 /**
  * Generate a JWT token for API authentication
  *
- * This is a Server Action that:
- * 1. Validates the user's session from HttpOnly cookie
- * 2. Calls Better Auth's /api/auth/token endpoint to generate a JWT
- * 3. Returns the JWT token for use in Authorization Bearer headers
+ * Creates a signed JWT from the session cookie data.
+ * Bypasses auth.api.getToken() which causes ETIMEDOUT.
  *
- * The JWT contains user_id, email, and name claims and is signed with RS256.
- * Backend APIs can verify it using the JWKS endpoint at /api/auth/jwks
+ * The JWT contains:
+ * - sub: user_id
+ * - email: user email
+ * - Signed with HS256 using BETTER_AUTH_SECRET
  *
  * @returns JWT token string or null if not authenticated
  */
 export async function getJWTToken(): Promise<string | null> {
   try {
-    const cookieStore = await cookies()
-    const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)
-
-    if (!sessionToken || !sessionToken.value) {
+    const user = await getUserFromSession()
+    if (!user) {
       return null
     }
 
-    // Call our custom JWT generation endpoint
-    // Using custom endpoint since Better Auth's /token endpoint is not available in this version
-    const baseURL = process.env.BETTER_AUTH_URL || 'http://localhost:3000'
-    const response = await fetch(`${baseURL}/api/generate-jwt`, {
-      method: 'POST',
-      headers: {
-        cookie: `${SESSION_COOKIE_NAME}=${sessionToken.value}`,
+    const secret = process.env.BETTER_AUTH_SECRET
+    if (!secret) {
+      console.error('[jwt-utils] BETTER_AUTH_SECRET not set')
+      return null
+    }
+
+    const issuer = process.env.BETTER_AUTH_URL || 'http://localhost:3000'
+    const audience = process.env.BETTER_AUTH_AUDIENCE || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+
+    // Sign JWT manually
+    const token = jwt.sign(
+      {
+        sub: user.id,
+        email: user.email,
+        name: user.name,
       },
-    })
+      secret,
+      {
+        algorithm: 'HS256',
+        expiresIn: '1h',
+        issuer,
+        audience,
+      }
+    )
 
-    if (!response.ok) {
-      console.error('[jwt-utils] Token endpoint returned error:', response.status)
-      return null
-    }
-
-    const result = await response.json()
-
-    if (!result || !result.token) {
-      return null
-    }
-
-    return result.token
+    return token
   } catch (error) {
     console.error('[jwt-utils] Failed to generate JWT token:', error)
     return null

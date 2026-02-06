@@ -30,7 +30,7 @@
 import { useEffect, useState } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { getTaskMetrics } from "@/lib/api/tasks"
-import { AuthenticationError } from "@/lib/api/errors"
+import { shouldRedirectToLogin } from "@/lib/api/errors"
 import { MetricCard } from "./MetricCard"
 import { EmptyState } from "./EmptyState"
 import type { TaskMetrics } from "@/lib/api/types"
@@ -53,18 +53,26 @@ export function MetricsGrid() {
     setError(null)
 
     try {
-      const data = await getTaskMetrics()
-      setMetrics(data)
-    } catch (err) {
-      // Check if it's an authentication error
-      if (err instanceof AuthenticationError) {
-        console.error("Not authenticated, redirecting to login:", err)
-        // Redirect to login with return URL
-        const loginUrl = `/login?from=${encodeURIComponent(pathname)}`
-        router.push(loginUrl)
+      const result = await getTaskMetrics()
+
+      // Handle API response failure
+      if (!result.success) {
+        console.error("Failed to fetch metrics:", result.error.message)
+
+        // Check if authentication failed - redirect to login
+        if (shouldRedirectToLogin(result.error.code)) {
+          const loginUrl = `/login?from=${encodeURIComponent(pathname)}`
+          router.push(loginUrl)
+          return
+        }
+
+        setError(result.error.message)
         return
       }
 
+      // Success - set metrics from response data
+      setMetrics(result.data)
+    } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load metrics")
       console.error("Failed to fetch metrics:", err)
     } finally {

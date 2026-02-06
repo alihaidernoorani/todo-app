@@ -234,3 +234,230 @@ See [data-model.md](./data-model.md) for full schema details.
 3. Validate each user story independently
 4. Run full test suite before merge
 5. Proceed to authentication feature (Spec-2)
+
+---
+
+# Addendum: Frontend-Backend Alignment (2026-02-06)
+
+**Context**: Server action failures discovered during testing. Backend implementation is correct; frontend integration needs fixes based on clarifications added to spec.md (Session 2026-02-06).
+
+## Issue Summary
+
+**Problem**: "Add Task" button triggers 500 error. Backend logs show no POST request, indicating failure inside Next.js server action.
+
+**Root Causes** (identified via `/sp.clarify`):
+1. Server actions using `NEXT_PUBLIC_API_URL` (client-side variable) instead of `BACKEND_URL` (server-only)
+2. Environment variable not accessible in server context
+3. Potential JWT token retrieval issues from cookies
+
+**Backend Status**: ✅ All endpoints correctly implemented and tested
+**Frontend Status**: ⚠️ Requires alignment fixes
+
+## Frontend Alignment Plan
+
+### Phase 0: Current State Analysis
+
+**Files Requiring Changes**:
+- `frontend/lib/api/tasks.ts` - Line 47 uses `NEXT_PUBLIC_API_URL`
+- `frontend/lib/api/client.ts` - May have similar issue
+- `frontend/.env*` files - Need `BACKEND_URL` addition
+
+**Files Already Correct**:
+- `frontend/lib/auth/jwt-utils.ts` - Correctly uses `cookies()` from `next/headers`
+- `backend/src/api/v1/tasks.py` - All endpoints working correctly
+- `backend/src/api/v1/router.py` - Routing configured properly
+
+### Phase 1: Environment Variable Fix
+
+**Objective**: Replace `NEXT_PUBLIC_API_URL` with server-only `BACKEND_URL` in all server actions
+
+**Changes Required**:
+
+1. **Add BACKEND_URL to environment files**:
+```bash
+# frontend/.env.local
+BACKEND_URL=http://localhost:8000
+
+# frontend/.env.production
+BACKEND_URL=https://huggingface.co/spaces/alihaidernoorani/Todo_App
+```
+
+2. **Update `frontend/lib/api/tasks.ts` Line 47**:
+```typescript
+// BEFORE (incorrect - client-side variable):
+const baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+
+// AFTER (correct - server-only variable):
+const baseURL = process.env.BACKEND_URL || 'http://localhost:8000'
+```
+
+3. **Verify fallback handling**:
+```typescript
+// Add explicit check for missing BACKEND_URL
+if (!process.env.BACKEND_URL) {
+  throw new Error('BACKEND_URL environment variable is required for server actions')
+}
+```
+
+### Phase 2: Structured Error Responses
+
+**Objective**: Implement structured error returns per FR-026 and FR-027
+
+**Type Definitions** (`frontend/lib/api/types.ts`):
+```typescript
+// Add to existing types
+export interface ApiError {
+  success: false
+  error: {
+    code: string          // e.g., "BACKEND_UNAVAILABLE", "AUTH_FAILED"
+    message: string       // User-friendly message
+    status?: number       // HTTP status code
+  }
+}
+
+export interface ApiSuccess<T> {
+  success: true
+  data: T
+}
+
+export type ApiResponse<T> = ApiSuccess<T> | ApiError
+```
+
+**Update Server Action Returns** (`frontend/lib/api/tasks.ts`):
+```typescript
+// Modify makeAuthenticatedRequest to return ApiResponse<T>
+async function makeAuthenticatedRequest<T>(
+  path: string,
+  options: RequestInit = {}
+): Promise<ApiResponse<T>> {
+  try {
+    // ... existing code ...
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      return {
+        success: false,
+        error: {
+          code: mapStatusToErrorCode(response.status),
+          message: getUserFriendlyMessage(response.status, errorData),
+          status: response.status
+        }
+      }
+    }
+
+    const data = await response.json()
+    return { success: true, data }
+  } catch (error) {
+    return {
+      success: false,
+      error: {
+        code: 'BACKEND_UNAVAILABLE',
+        message: 'Unable to connect to the server. Please try again.',
+        status: 503
+      }
+    }
+  }
+}
+
+// Helper functions
+function mapStatusToErrorCode(status: number): string {
+  const codeMap: Record<number, string> = {
+    401: 'AUTH_FAILED',
+    403: 'ACCESS_DENIED',
+    404: 'NOT_FOUND',
+    422: 'VALIDATION_ERROR',
+    503: 'BACKEND_UNAVAILABLE'
+  }
+  return codeMap[status] || 'UNKNOWN_ERROR'
+}
+
+function getUserFriendlyMessage(status: number, errorData: any): string {
+  const messages: Record<number, string> = {
+    401: 'Your session has expired. Please sign in again.',
+    403: 'Access denied. You can only access your own tasks.',
+    404: 'Task not found or you don\'t have permission to access it.',
+    422: 'Invalid task data. Please check your input.',
+    503: 'Service temporarily unavailable. Please try again later.'
+  }
+  return errorData.detail || messages[status] || `Error: HTTP ${status}`
+}
+```
+
+### Phase 3: Frontend Component Updates
+
+**Update task components to handle ApiResponse**:
+```typescript
+// Example: CreateTaskButton component
+async function handleCreateTask(taskData: TaskCreate) {
+  const result = await createTask(taskData)
+
+  if (!result.success) {
+    // Display user-friendly error message
+    setError(result.error.message)
+
+    // Optionally retry for transient errors
+    if (result.error.code === 'BACKEND_UNAVAILABLE') {
+      setShowRetry(true)
+    }
+    return
+  }
+
+  // Success - update UI with result.data
+  addTaskToList(result.data)
+}
+```
+
+### Testing & Validation
+
+**Integration Tests**:
+1. Verify `BACKEND_URL` is accessible in server actions
+2. Test all CRUD operations end-to-end
+3. Verify error responses are structured correctly
+4. Confirm user-friendly messages display properly
+
+**Manual Testing Checklist**:
+- [ ] Environment variable `BACKEND_URL` set in `.env.local`
+- [ ] Server actions can access `process.env.BACKEND_URL`
+- [ ] "Add Task" button successfully creates task (no 500 error)
+- [ ] Task list loads immediately after creation
+- [ ] Toggle complete works without errors
+- [ ] Delete removes task from UI
+- [ ] Error messages are user-friendly (not raw HTTP errors)
+- [ ] Network tab shows correct backend URL in requests
+
+### Success Criteria (from Clarifications)
+
+All 5 clarifications must be validated:
+
+1. ✅ **BACKEND_URL server-only variable**: `process.env.BACKEND_URL` used in server actions
+2. ✅ **Consistent API URL usage**: All server actions use same `BACKEND_URL` variable
+3. ✅ **Cookie-based authentication**: JWT tokens read via `cookies()` from `next/headers`
+4. ✅ **Structured error responses**: All server actions return `ApiResponse<T>` type
+5. ✅ **Environment consistency**: `BACKEND_URL` defined in both `.env.local` and `.env.production`
+
+### Implementation Timeline
+
+| Phase | Task | Estimated Time |
+|-------|------|----------------|
+| 1 | Add BACKEND_URL to .env files | 5 minutes |
+| 1 | Update tasks.ts makeAuthenticatedRequest | 15 minutes |
+| 1 | Verify other files don't use NEXT_PUBLIC_API_URL | 10 minutes |
+| 2 | Add ApiResponse types | 10 minutes |
+| 2 | Update error handling in makeAuthenticatedRequest | 30 minutes |
+| 2 | Add error code mapping functions | 15 minutes |
+| 3 | Update task components to handle ApiResponse | 45 minutes |
+| 3 | Add error display UI | 30 minutes |
+| Testing | Integration tests | 60 minutes |
+| Testing | Manual validation | 30 minutes |
+| **Total** | | **~4 hours** |
+
+### PHR Reference
+
+This addendum is based on clarifications documented in:
+- **PHR**: `history/prompts/002-backend-database/0009-server-action-failure-clarification.spec.prompt.md`
+- **Clarifications**: `spec.md` Session 2026-02-06 (5 Q&A pairs)
+
+---
+
+**Addendum Status**: Ready for Implementation
+**Next Command**: `/sp.tasks` (to generate detailed task list incorporating addendum changes)

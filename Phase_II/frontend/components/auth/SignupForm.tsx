@@ -72,10 +72,10 @@ export function SignupForm() {
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-slate-900 mb-2 font-serif">
-          Create Command Center
+          Join TaskFlow
         </h1>
         <p className="text-slate-600 text-sm">
-          Join to unlock your productivity suite
+          Create your account to get started
         </p>
       </div>
 

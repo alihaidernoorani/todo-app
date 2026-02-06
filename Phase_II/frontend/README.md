@@ -79,10 +79,21 @@ npm install
 Copy `.env.local.example` to `.env.local` and configure:
 
 ```env
+# Server-side API URL (used in Server Actions and API routes)
+BACKEND_URL=http://localhost:8000
+
+# Client-side API URL (used in client components - less commonly needed)
 NEXT_PUBLIC_API_URL=http://localhost:8000
+
+# Better Auth configuration
 BETTER_AUTH_SECRET=<same-as-backend>
 BETTER_AUTH_URL=http://localhost:3000
 ```
+
+**Important**:
+- `BACKEND_URL` is used by server actions and API routes (server-side only)
+- `NEXT_PUBLIC_API_URL` is used by client components that need direct API access
+- Most server actions should use `BACKEND_URL` for security and consistency
 
 ### 3. Run Development Server
 

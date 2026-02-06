@@ -9,6 +9,8 @@
  * OpenAPI Spec: specs/004-modern-ui-ux-dashboard/contracts/task-api.yaml
  */
 
+import type { ErrorCode } from './errors'
+
 // ============================================================================
 // ENUMS
 // ============================================================================
@@ -488,8 +490,68 @@ export interface ApiClientConfig {
 }
 
 /**
- * API response wrapper for consistent error handling
+ * Structured error response for type-safe error handling
+ * Per FR-026 and FR-027 from spec clarifications
+ *
+ * @example
+ * ```typescript
+ * const error: ApiError = {
+ *   success: false,
+ *   error: {
+ *     code: "AUTH_FAILED",
+ *     message: "Your session has expired. Please sign in again.",
+ *     status: 401
+ *   }
+ * }
+ * ```
  */
-export type ApiResponse<T> =
-  | { success: true; data: T }
-  | { success: false; error: ErrorResponse | ValidationErrorResponse }
+export interface ApiError {
+  success: false
+  error: {
+    /** Error code for programmatic handling (e.g., "BACKEND_UNAVAILABLE", "AUTH_FAILED") */
+    code: ErrorCode
+
+    /** User-friendly error message for display */
+    message: string
+
+    /** HTTP status code (optional) */
+    status?: number
+  }
+}
+
+/**
+ * Successful API response wrapper
+ *
+ * @example
+ * ```typescript
+ * const success: ApiSuccess<TaskRead> = {
+ *   success: true,
+ *   data: { id: "...", title: "...", ... }
+ * }
+ * ```
+ */
+export interface ApiSuccess<T> {
+  success: true
+  data: T
+}
+
+/**
+ * API response wrapper for consistent error handling
+ * All server actions return this type for type-safe error handling
+ *
+ * @example
+ * ```typescript
+ * const result = await createTask(taskData)
+ * if (!result.success) {
+ *   // Handle error
+ *   console.error(result.error.message)
+ *   if (result.error.code === 'BACKEND_UNAVAILABLE') {
+ *     showRetryButton()
+ *   }
+ *   return
+ * }
+ * // Use data
+ * const task = result.data
+ * ```
+ */
+export type ApiResponse<T> = ApiSuccess<T> | ApiError

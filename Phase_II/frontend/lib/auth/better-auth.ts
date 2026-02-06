@@ -49,20 +49,20 @@ function getDatabaseUrl(): string {
  * This prevents database connection attempts during build time
  */
 let _auth: ReturnType<typeof betterAuth> | null = null
-let _initAttempted = false
+let _pool: Pool | null = null
 
 function createAuth(): ReturnType<typeof betterAuth> | null {
-  // Avoid re-initialization
-  if (_initAttempted) {
-    console.log("[Better Auth] Already attempted initialization, returning cached:", _auth ? "SUCCESS" : "NULL")
+  // Return cached auth instance if it exists
+  if (_auth) {
+    console.log("[Better Auth] Returning cached auth instance")
     return _auth
   }
-  _initAttempted = true
 
   const databaseUrl = getDatabaseUrl()
   console.log("[Better Auth] Starting initialization...")
   console.log("[Better Auth] Database URL exists:", !!databaseUrl)
   console.log("[Better Auth] Is build phase:", isBuildPhase())
+  console.log("[Better Auth] NODE_ENV:", process.env.NODE_ENV)
 
   // Skip initialization during build or if no database URL
   if (isBuildPhase() || !databaseUrl) {
@@ -76,10 +76,12 @@ function createAuth(): ReturnType<typeof betterAuth> | null {
     const issuer = process.env.BETTER_AUTH_ISSUER || baseURL
     const audience = process.env.BETTER_AUTH_AUDIENCE || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
-    _auth = betterAuth({
-      // Database configuration for storing users and sessions
-      // Better Auth requires a Pool instance, not a config object
-      database: new Pool({
+    console.log("[Better Auth] JWT Plugin Config:", { issuer, audience })
+
+    // Create Pool only once and reuse it
+    if (!_pool) {
+      console.log("[Better Auth] Creating new database Pool")
+      _pool = new Pool({
         connectionString: databaseUrl,
         max: 10, // Maximum pool size
         idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
@@ -87,7 +89,15 @@ function createAuth(): ReturnType<typeof betterAuth> | null {
         ssl: {
           rejectUnauthorized: false, // Neon requires SSL but we don't verify cert
         },
-      }),
+      })
+    } else {
+      console.log("[Better Auth] Reusing existing database Pool")
+    }
+
+    const authInstance = betterAuth({
+      // Database configuration for storing users and sessions
+      // Better Auth requires a Pool instance, not a config object
+      database: _pool,
 
       // Email and password authentication
       emailAndPassword: {
@@ -125,11 +135,32 @@ function createAuth(): ReturnType<typeof betterAuth> | null {
             expirationTime: "1h",
             issuer,
             audience,
+          },
+          jwks: {
+            keyPairConfig: {
+              alg: "RS256",           // Use RS256 instead of default EdDSA
+              modulusLength: 2048     // RSA key length
+            }
           }
         }),
       ],
     })
 
+    // Verify JWT plugin endpoints are registered
+    const endpoints = Object.keys(authInstance.api || {})
+    console.log("[Better Auth] Total endpoints registered:", endpoints.length)
+    console.log("[Better Auth] JWT endpoints check:")
+    console.log("  - getToken:", endpoints.includes('getToken'))
+    console.log("  - getJwks:", endpoints.includes('getJwks'))
+    console.log("  - signJWT:", endpoints.includes('signJWT'))
+    console.log("  - verifyJWT:", endpoints.includes('verifyJWT'))
+
+    if (!endpoints.includes('getToken')) {
+      console.error("[Better Auth] WARNING: JWT plugin endpoints NOT found! Only base endpoints registered.")
+      console.error("[Better Auth] Available endpoints:", endpoints)
+    }
+
+    _auth = authInstance
     console.log("[Better Auth] Initialized successfully")
     return _auth
   } catch (error) {
@@ -143,7 +174,7 @@ function createAuth(): ReturnType<typeof betterAuth> | null {
  * Creates the Better Auth instance on first access at runtime
  */
 export function getAuth(): ReturnType<typeof betterAuth> | null {
-  if (!_auth && !_initAttempted) {
+  if (!_auth) {
     return createAuth()
   }
   return _auth

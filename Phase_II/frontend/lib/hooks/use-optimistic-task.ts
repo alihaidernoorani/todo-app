@@ -146,7 +146,25 @@ export function useOptimisticTask(initialTasks: TaskRead[]) {
     })
 
     try {
-      const createdTask = await apiCreateTask(taskData)
+      const result = await apiCreateTask(taskData)
+
+      // Handle API response failure
+      if (!result.success) {
+        const errorMessage = result.error.message
+
+        startTransition(() => {
+          updateOptimisticTasks({
+            type: "ERROR",
+            taskId: tempId,
+            error: errorMessage,
+            retryFn,
+          })
+        })
+
+        throw new Error(errorMessage)
+      }
+
+      const createdTask = result.data
 
       // Replace optimistic task with real task
       startTransition(() => {
@@ -188,7 +206,27 @@ export function useOptimisticTask(initialTasks: TaskRead[]) {
     })
 
     try {
-      const updatedTask = await apiToggleComplete(taskId)
+      const result = await apiToggleComplete(taskId)
+
+      // Handle API response failure
+      if (!result.success) {
+        const errorMessage = result.error.message
+
+        // Rollback optimistic update
+        startTransition(() => {
+          updateOptimisticTasks({ type: "TOGGLE", taskId }) // Toggle back
+          updateOptimisticTasks({
+            type: "ERROR",
+            taskId,
+            error: errorMessage,
+            retryFn,
+          })
+        })
+
+        throw new Error(errorMessage)
+      }
+
+      const updatedTask = result.data
 
       // Reconcile with server response
       startTransition(() => {
@@ -232,7 +270,25 @@ export function useOptimisticTask(initialTasks: TaskRead[]) {
     })
 
     try {
-      const updatedTask = await apiUpdateTask(taskId, updates)
+      const result = await apiUpdateTask(taskId, updates)
+
+      // Handle API response failure
+      if (!result.success) {
+        const errorMessage = result.error.message
+
+        startTransition(() => {
+          updateOptimisticTasks({
+            type: "ERROR",
+            taskId,
+            error: errorMessage,
+            retryFn,
+          })
+        })
+
+        throw new Error(errorMessage)
+      }
+
+      const updatedTask = result.data
 
       // Reconcile with server response
       startTransition(() => {
@@ -277,7 +333,28 @@ export function useOptimisticTask(initialTasks: TaskRead[]) {
     })
 
     try {
-      await apiDeleteTask(taskId)
+      const result = await apiDeleteTask(taskId)
+
+      // Handle API response failure
+      if (!result.success) {
+        const errorMessage = result.error.message
+
+        // Rollback - restore task with error
+        startTransition(() => {
+          updateOptimisticTasks({
+            type: "CREATE",
+            task: {
+              ...originalTask,
+              _error: errorMessage,
+              _retryFn: retryFn,
+              _optimistic: false,
+            },
+          })
+        })
+
+        throw new Error(errorMessage)
+      }
+
       // Success - task stays deleted
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Failed to delete task"

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 export interface Session {
   user: {
@@ -13,20 +13,58 @@ export interface Session {
 export type SessionStatus = 'loading' | 'authenticated' | 'unauthenticated'
 
 /**
- * Simplified session hook
+ * Client-side session hook
  *
- * Due to Better Auth server configuration issues with the get-session endpoint,
- * we're temporarily disabling automatic session fetching.
+ * Fetches the current user session from Better Auth's session endpoint.
+ * Uses SWR-like pattern with automatic revalidation.
  *
- * Authentication still works via cookies - users can sign in and access protected routes.
- * Session display (user name) will be added once the server issue is resolved.
- *
- * @returns {object} - Session state (currently returns empty state to avoid errors)
+ * @returns {object} - Session state with user info and loading status
  */
 export function useSession() {
-  // Return empty session state - authentication still works via cookies
-  const [session] = useState<Session>({ user: null })
-  const [status] = useState<SessionStatus>('authenticated')
+  const [session, setSession] = useState<Session>({ user: null })
+  const [status, setStatus] = useState<SessionStatus>('loading')
+
+  useEffect(() => {
+    let mounted = true
+
+    async function fetchSession() {
+      try {
+        const response = await fetch('/api/auth/session', {
+          credentials: 'include', // Include cookies
+        })
+
+        if (!mounted) return
+
+        if (response.ok) {
+          const data = await response.json()
+
+          if (data.user) {
+            setSession({ user: data.user })
+            setStatus('authenticated')
+          } else {
+            setSession({ user: null })
+            setStatus('unauthenticated')
+          }
+        } else {
+          setSession({ user: null })
+          setStatus('unauthenticated')
+        }
+      } catch (error) {
+        console.error('[useSession] Failed to fetch session:', error)
+        if (mounted) {
+          setSession({ user: null })
+          setStatus('unauthenticated')
+        }
+      }
+    }
+
+    fetchSession()
+
+    // Cleanup function
+    return () => {
+      mounted = false
+    }
+  }, [])
 
   return { session, status }
 }

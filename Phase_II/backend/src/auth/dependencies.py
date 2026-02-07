@@ -1,120 +1,149 @@
-"""FastAPI dependencies for authentication and authorization."""
+"""
+FastAPI Authentication Dependencies
 
-import logging
+Reusable dependencies for session validation and user ID scoping.
+All authentication is delegated to Better Auth - no custom JWT parsing.
+"""
 
-from fastapi import Depends, Header, HTTPException, status
-from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
+from fastapi import Depends, HTTPException, Request, status
+from typing import Annotated
+from urllib.parse import unquote
 
-from .jwt_handler import decode_jwt, extract_bearer_token
+from ..config import get_settings, Settings
+from .session_validator import validate_session, ServiceUnavailableError, InvalidSessionError
+from .models import AuthenticatedUser
 
-logger = logging.getLogger(__name__)
 
+async def get_current_user(
+    request: Request,
+    settings: Annotated[Settings, Depends(get_settings)]
+) -> AuthenticatedUser:
+    """
+    FastAPI dependency to validate user session via Better Auth.
 
-async def get_current_user(authorization: str | None = Header(None)) -> str:
-    """Extract and validate JWT token from Authorization header.
-
-    This is the base authentication dependency. Use this for endpoints
-    that require authentication but not user-scoped authorization.
+    Extracts cookies from the incoming request and forwards them to Better Auth's
+    session endpoint for validation. No custom JWT parsing is performed.
 
     Args:
-        authorization: Authorization header value (format: "Bearer <token>")
+        request: FastAPI request containing cookies
+        settings: Application settings (injected)
 
     Returns:
-        str: User ID extracted from JWT user_id claim
+        AuthenticatedUser object with user_id, email, and name
 
     Raises:
-        HTTPException (401): Authentication failed
+        HTTPException(401): If session is invalid, expired, or missing
+        HTTPException(503): If Better Auth is unreachable
 
     Example:
-        @router.get("/api/me")
-        async def get_my_profile(current_user_id: str = Depends(get_current_user)):
-            return {"user_id": current_user_id}
+        @app.get("/protected")
+        async def protected_route(user: Annotated[AuthenticatedUser, Depends(get_current_user)]):
+            return {"user_id": user.user_id, "email": user.email}
     """
+
+    # Extract cookies from request
+    cookies = dict(request.cookies)
+
+    if not cookies:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing authentication credentials"
+        )
+
     try:
-        # Extract token from Authorization header
-        token = extract_bearer_token(authorization)
-
-        # Decode and validate JWT using JWKS
-        payload = await decode_jwt(token)
-
-        # Extract user ID from sub claim (standard JWT subject)
-        # Better Auth uses 'sub' per OIDC standard
-        user_id = payload["sub"]
-
-        return user_id
-
-    except ValueError as e:
-        # Handle missing token or invalid header format
-        error_message = str(e)
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=error_message,
-            headers={"WWW-Authenticate": "Bearer"},
+        # Call Better Auth session endpoint to validate session
+        user = await validate_session(
+            cookies=cookies,
+            better_auth_url=settings.session_endpoint_url
         )
 
-    except ExpiredSignatureError:
+        if user is None:
+            # Better Auth returned 401 - session is invalid
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired session"
+            )
+
+        return user
+
+    except ServiceUnavailableError as e:
+        # Better Auth is unreachable or returned server error
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token expired",
-            headers={"WWW-Authenticate": "Bearer"},
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Authentication service unavailable: {str(e)}"
         )
 
-    except InvalidTokenError:
+    except InvalidSessionError as e:
+        # Session format is invalid
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token signature",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    except Exception as e:
-        # Catch-all for unexpected errors (including JWKS fetch failures)
-        logger.error("Unexpected error during authentication: %s", str(e))
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication failed",
-            headers={"WWW-Authenticate": "Bearer"},
+            detail=f"Invalid session format: {str(e)}"
         )
 
 
-async def verify_user_access(
-    user_id: str,
-    current_user_id: str = Depends(get_current_user),
-) -> str:
-    """Verify authenticated user can access requested user's resources.
+async def get_current_user_with_path_validation(
+    request: Request,
+    settings: Annotated[Settings, Depends(get_settings)]
+) -> AuthenticatedUser:
+    """
+    FastAPI dependency for user ID scoping with path parameter validation.
 
-    This dependency combines authentication + authorization. Use this for
-    user-scoped endpoints (e.g., /users/{user_id}/tasks).
+    Validates session via Better Auth and ensures authenticated user_id matches
+    the {user_id} path parameter. This prevents horizontal privilege escalation.
 
     Args:
-        user_id: User ID from path parameter {user_id}
-        current_user_id: Will be populated by get_current_user dependency
+        request: FastAPI request containing cookies and path parameters
+        settings: Application settings (injected)
 
     Returns:
-        str: Authenticated user ID (guaranteed to match user_id)
+        AuthenticatedUser object with user_id, email, and name
 
     Raises:
-        HTTPException (401): Authentication failed (from get_current_user)
-        HTTPException (403): User attempting to access another user's resources
+        HTTPException(401): If session is invalid, expired, or missing
+        HTTPException(403): If authenticated user_id doesn't match path user_id
+        HTTPException(503): If Better Auth is unreachable
 
     Example:
-        @router.get("/api/users/{user_id}/tasks")
-        async def get_user_tasks(
-            user_id: str,
-            authenticated_user: str = Depends(verify_user_access)
+        # Router configured with: prefix="/{user_id}/tasks"
+        @router.get("")
+        async def list_tasks(
+            user: Annotated[AuthenticatedUser, Depends(get_current_user_with_path_validation)]
         ):
-            # authenticated_user is guaranteed to equal user_id
-            return {"user_id": authenticated_user, "tasks": []}
+            # user.user_id is guaranteed to match path user_id
+            return {"tasks": [...]}
     """
-    # Check if authenticated user matches the requested user_id
-    if current_user_id != user_id:
-        logger.warning(
-            "Authorization failed: user %s attempted to access user %s's resources",
-            current_user_id,
-            user_id,
-        )
+
+    # First authenticate the user
+    user = await get_current_user(request, settings)
+
+    # Extract user_id from path parameters
+    path_user_id = request.path_params.get("user_id")
+
+    if not path_user_id:
+        # If no user_id in path, just return authenticated user
+        return user
+
+    # URL-decode the path parameter before comparison
+    decoded_path_user_id = unquote(path_user_id)
+
+    # Validate that session user matches path user
+    if user.user_id != decoded_path_user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied: cannot access another user's resources",
+            detail="Access denied: cannot access another user's resources"
         )
 
-    return current_user_id
+    return user
+
+
+def require_user_id_match(user_id: str):
+    """
+    DEPRECATED: Use get_current_user_with_path_validation instead.
+
+    This factory function cannot be used with path parameters in FastAPI
+    due to parameter evaluation order issues.
+    """
+    raise NotImplementedError(
+        "Use get_current_user_with_path_validation dependency instead. "
+        "It automatically validates path user_id against session user_id."
+    )

@@ -57,16 +57,27 @@ export function MetricsGrid() {
 
       // Handle API response failure
       if (!result.success) {
-        console.error("Failed to fetch metrics:", result.error.message)
+        // TypeScript type narrowing: result is ApiError here
+        const apiError = result.error
+        console.error("Failed to fetch metrics:", {
+          code: apiError.code,
+          message: apiError.message,
+          status: apiError.status
+        })
 
         // Check if authentication failed - redirect to login
-        if (shouldRedirectToLogin(result.error.code)) {
+        if (shouldRedirectToLogin(apiError.code)) {
           const loginUrl = `/login?from=${encodeURIComponent(pathname)}`
           router.push(loginUrl)
           return
         }
 
-        setError(result.error.message)
+        // Extract error message safely
+        const errorMessage = typeof apiError.message === 'string'
+          ? apiError.message
+          : 'Failed to load metrics. Please try again.'
+
+        setError(errorMessage)
         return
       }
 

@@ -28,11 +28,19 @@ class Settings(BaseSettings):
     debug: bool = Field(default=False, alias="DEBUG")
 
     # Authentication Configuration
-    # Base URL of Better Auth instance (required for JWKS endpoint)
+    # Base URL of Better Auth instance
     better_auth_url: str = Field(
         ...,
         alias="BETTER_AUTH_URL",
         description="Base URL of Better Auth instance (e.g., https://app.example.com)",
+    )
+
+    # Better Auth session validation endpoint URL
+    # This is the endpoint the backend calls to validate user sessions
+    better_auth_session_url: Optional[str] = Field(
+        default=None,
+        alias="BETTER_AUTH_SESSION_URL",
+        description="Full URL to Better Auth session validation endpoint",
     )
 
     # CORS Configuration
@@ -66,9 +74,15 @@ class Settings(BaseSettings):
         return v
 
     @property
-    def better_auth_jwks_url(self) -> str:
-        """Construct JWKS endpoint URL from base URL."""
-        return f"{self.better_auth_url}/.well-known/jwks.json"
+    def session_endpoint_url(self) -> str:
+        """Get Better Auth session validation endpoint URL.
+
+        Uses explicit BETTER_AUTH_SESSION_URL if set, otherwise constructs
+        from BETTER_AUTH_URL with default path.
+        """
+        if self.better_auth_session_url:
+            return self.better_auth_session_url
+        return f"{self.better_auth_url}/api/auth/session"
 
 
 @lru_cache

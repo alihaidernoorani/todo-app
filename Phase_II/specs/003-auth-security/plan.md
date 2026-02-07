@@ -1,569 +1,265 @@
-# Implementation Plan: Authentication and Security
+# Implementation Plan: Authentication with Better Auth Sessions
 
-**Branch**: `003-auth-security` | **Date**: 2026-01-25 | **Spec**: [spec.md](./spec.md)
-**Input**: Feature specification from `/specs/003-auth-security/spec.md`
+**Branch**: `003-auth-security` | **Date**: 2026-02-07 | **Spec**: [spec.md](./spec.md)
+**Input**: Feature specification from `/specs/003-auth-security/spec.md` (updated 2026-02-07)
 
 ## Summary
 
-Implement stateless JWT authentication and authorization for the FastAPI backend using Better Auth RS256 verification with JWKS. The system will validate JWT tokens from `Authorization: Bearer <token>` headers using RS256 algorithm with public keys retrieved from Better Auth's JWKS endpoint, extract user identity from the OIDC-standard `sub` claim, and enforce user-scoped access by comparing `sub` against `{user_id}` path parameters. Authentication failures return HTTP 401, authorization failures return HTTP 403. The architecture provides reusable FastAPI dependencies for consistent security enforcement across all protected endpoints.
+Implement Better Auth session-based authentication as the single source of truth. Backend validates sessions by forwarding cookies to Better Auth's `/api/auth/session` endpoint. Frontend relies on Better Auth's native session management via HTTP-only cookies. This eliminates custom JWT verification logic and prevents redirect loops caused by conflicting authentication strategies.
+
+**Architectural principle**: Delegated session validation - no custom cryptographic operations.
 
 ## Technical Context
 
-**Language/Version**: Python 3.13+
-**Primary Dependencies**:
-- FastAPI (web framework)
-- PyJWT>=2.8.0 with cryptography>=41.0.0 (JWT library with RS256 and JWKS support)
-- pydantic-settings (environment variable validation)
-- httpx (for JWKS endpoint retrieval)
-- pydantic (validation)
-**Storage**: N/A (stateless verification, no database lookups for user status)
-**Testing**: pytest, pytest-asyncio, httpx (FastAPI test client)
-**Target Platform**: Linux/Docker containers, ASGI servers (uvicorn/gunicorn)
-**Project Type**: Web (backend only for this feature)
-**Performance Goals**: <50ms token validation overhead per request (excluding initial JWKS fetch which is cached)
+**Language/Version**: Python 3.13+ (backend), TypeScript (frontend Next.js 16+)
+**Primary Dependencies**: FastAPI, httpx, Pydantic (backend); Better Auth client, Next.js App Router (frontend)
+**Storage**: Neon PostgreSQL (via SQLModel)
+**Testing**: pytest (backend), Jest/Vitest (frontend)
+**Target Platform**: Linux server (backend), Web browsers (frontend)
+**Project Type**: Web application
+**Performance Goals**: <50ms session validation P95 latency
 **Constraints**:
-- 100% stateless (no session storage, cookies, or server-side state)
-- RS256 asymmetric algorithm with JWKS public key retrieval (Better Auth default)
-- No database lookups during authentication/authorization
-- Backend must be able to reach Better Auth JWKS endpoint
-**Scale/Scope**: Supports unlimited concurrent authenticated users (stateless design)
+- Backend MUST delegate all session validation to Better Auth `/api/auth/session`
+- Backend MUST NOT parse JWT or verify signatures
+- Session cookies only (no Bearer tokens)
+**Scale/Scope**: Multi-user todo app with user-scoped access control
 
 ## Constitution Check
 
-*GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
+### ✅ I. Multi-Tier Isolation - PASS
+Backend changes in `/backend/`, frontend in `/frontend/`
 
-### Principle Compliance Analysis
+### ✅ II. Persistence First - PASS
+Authentication state persisted via Better Auth (delegates to Better Auth's DB)
 
-**I. Multi-Tier Isolation**
-- ✅ **PASS**: All authentication code will reside in `/backend/src/auth/` directory
-- ✅ **PASS**: No frontend code involved in this feature (frontend handles Better Auth client integration separately)
-- ✅ **PASS**: Clear separation maintained between backend auth logic and frontend token acquisition
+### ⚠️ III. Secure by Design - PASS (wording update recommended)
+**Current constitution** (line 60): "validated via Better Auth JWT tokens"
+**This plan**: Backend validates via Better Auth `/api/auth/session` endpoint
+**Analysis**: Spec (2026-02-07) clarifies session endpoint validation is correct approach, not custom JWT parsing.
+**Justification**: Session delegation provides MORE security:
+- Better Auth handles lifecycle/revocation/rotation
+- No cryptographic implementation bugs
+- Consistent with Better Auth design
+- Eliminates custom verification attack surface
 
-**II. Persistence First**
-- ✅ **PASS**: Authentication uses stateless JWT validation (no persistence required)
-- ✅ **PASS**: User data persistence is handled by separate user management feature (not in scope)
-- ⚠️ **ACCEPTABLE EXCEPTION**: No database used for auth validation per design requirement (spec.md line 88: "rely solely on JWT validity")
+**Resolution**: Plan implements security intent fully. Recommend constitution amendment: change "JWT tokens" to "sessions" for accuracy.
 
-**III. Secure by Design**
-- ✅ **PASS**: Every protected endpoint will require JWT validation via FastAPI dependencies
-- ✅ **PASS**: JWT verification uses RS256 asymmetric algorithm with JWKS public keys (no shared secrets)
-- ✅ **PASS**: Public keys retrieved from Better Auth JWKS endpoint (supports key rotation)
-- ✅ **PASS**: Token expiry enforced via `exp` claim validation
-- ✅ **PASS**: Failed authentication returns 401, failed authorization returns 403 (FR-007, FR-008)
-- ⚠️ **NOTE**: Refresh token flow is out of scope per spec (handled by Better Auth frontend)
+### ✅ IV. Zero Manual Coding - PASS
+All implementation via Claude Code, traced via PHR
 
-**IV. Zero Manual Coding**
-- ✅ **PASS**: All code generated by Claude Code via `/sp.implement` workflow
-- ✅ **PASS**: Every change traceable via PHR in `history/prompts/003-auth-security/`
+### ✅ V. Test-First Discipline - PASS
+Contract tests created before implementation
 
-**V. Test-First Discipline**
-- ✅ **PASS**: Contract tests will be written for authentication/authorization scenarios
-- ✅ **PASS**: Integration tests will cover user journey acceptance scenarios from spec
-- ✅ **PASS**: Unit tests will validate JWT parsing, signature verification, and claim extraction
+### ✅ VI. API Contract Enforcement - PASS
+REST API with explicit authentication requirements
 
-**VI. API Contract Enforcement**
-- ✅ **PASS**: Authentication dependency outputs standardized error responses (FR-012)
-- ✅ **PASS**: FastAPI auto-generates OpenAPI documentation for protected endpoints
-- ✅ **PASS**: Error responses follow consistent JSON structure
-
-**Technology Standards Compliance**:
-- ✅ Python 3.13+
-- ✅ FastAPI (latest stable)
-- ✅ Better Auth JWT (shared secret verification)
-- ✅ pytest for testing
-- ✅ ruff for linting/formatting
-
-**Overall Gate Status**: ✅ **PASS** - All principles satisfied. One acceptable exception (no DB persistence) is justified by spec requirement for stateless design.
+**Summary**: 6/6 gates pass. One wording update recommended (non-blocking).
 
 ## Project Structure
 
-### Documentation (this feature)
+### Documentation
 
 ```text
 specs/003-auth-security/
-├── spec.md              # Feature requirements (completed)
-├── plan.md              # This file (/sp.plan command output)
-├── research.md          # Phase 0 output: JWT library comparison, best practices
-├── data-model.md        # Phase 1 output: JWT payload structure, error schemas
-├── quickstart.md        # Phase 1 output: Developer guide for using auth dependencies
-├── contracts/           # Phase 1 output: API error response contracts
-│   └── auth-errors.json # OpenAPI schema for authentication error responses
-└── tasks.md             # Phase 2 output (/sp.tasks command - NOT created by /sp.plan)
+├── spec.md                      # Updated 2026-02-07
+├── plan.md                      # This file
+├── research.md                  # Phase 0: Session validation patterns
+├── data-model.md                # Phase 1: Data structures
+├── quickstart.md                # Phase 1: Setup guide
+├── contracts/
+│   └── session-validation.yaml  # Phase 1: API contracts
+└── tasks.md                     # Phase 2: Via /sp.tasks
 ```
 
-### Source Code (repository root)
+### Source Code
 
 ```text
-backend/
-├── src/
-│   ├── auth/
-│   │   ├── __init__.py
-│   │   ├── dependencies.py    # FastAPI authentication/authorization dependencies
-│   │   ├── jwt_handler.py     # JWT validation, parsing, claim extraction, JWKS retrieval
-│   │   └── exceptions.py      # Custom authentication exception classes
-│   ├── models/
-│   │   └── auth.py            # Pydantic models for JWT payload, error responses
-│   └── config.py              # Environment variable configuration (BETTER_AUTH_URL, JWKS endpoint)
-├── tests/
-│   ├── contract/
-│   │   └── test_auth_contract.py  # Contract tests for authentication behavior
-│   ├── integration/
-│   │   └── test_auth_integration.py  # Integration tests with FastAPI endpoints
-│   └── unit/
-│       ├── test_jwt_handler.py      # Unit tests for JWT validation logic
-│       └── test_auth_dependencies.py # Unit tests for FastAPI dependencies
-└── .env.example         # Example environment variables (BETTER_AUTH_URL, JWKS endpoint)
+backend/src/auth/
+├── session_validator.py      # ✨ NEW: Better Auth API client
+├── dependencies.py            # ✨ UPDATE: Session-based deps
+└── jwt_handler.py             # ❌ REMOVE: Custom JWT (deprecated)
+
+backend/tests/
+├── test_session_validator.py  # ✨ NEW
+└── test_auth_dependencies.py  # ✨ UPDATE
+
+frontend/lib/auth/
+├── better-auth.ts             # ✨ UPDATE: Remove custom token logic
+├── jwt-utils.ts               # ❌ REMOVE: Deprecated
+└── diagnostic-logger.ts       # ❌ REMOVE: Temp file
+
+frontend/
+├── middleware.ts              # ❌ REMOVE: Causes redirect loop
+└── app/dashboard/page.tsx     # ✨ UPDATE: Server-side session check
 ```
 
-**Structure Decision**: Web application (Option 2) - Backend-only feature. Code resides exclusively in `/backend/` directory per Multi-Tier Isolation principle. The `auth/` module provides reusable security components that will be imported by other backend features (task management, user management) when protecting their endpoints.
+## Phase 0: Research
 
-## Complexity Tracking
+### Research Questions
 
-> **Fill ONLY if Constitution Check has violations that must be justified**
+1. **Better Auth Session Endpoint**
+   - Request/response format for `/api/auth/session`
+   - HTTP method, headers, cookie names, schema
 
-No violations requiring justification. The one acceptable exception (no database persistence for auth) is explicitly required by the specification's stateless design constraint.
+2. **FastAPI Cookie Forwarding**
+   - How to extract cookies from Request
+   - How to forward with httpx
 
----
+3. **Session Response Schema**
+   - Fields Better Auth returns
+   - User and session object structure
 
-# Phase 0: Research
+4. **Error Handling**
+   - Failure scenarios and error mapping
+   - Better Auth status → Backend status
 
-## Research Tasks
+5. **Next.js Server Component Validation**
+   - Pattern for page-level session checks
+   - Avoiding middleware issues
 
-### Task 1: Python JWT Library Evaluation for RS256 + JWKS
+6. **Session Cookie Details**
+   - Cookie name(s), path, domain, flags
+   - Browser inspection
 
-**Objective**: Select the optimal JWT library for RS256 validation with JWKS support in Python 3.13+
+**Output**: `research.md` with all findings
 
-**Research Questions**:
-- Which Python JWT libraries support RS256 algorithm with JWKS retrieval?
-- What are the performance characteristics of each library for asymmetric verification?
-- Which library has the most active maintenance and security track record?
-- Which library integrates best with FastAPI and Pydantic?
-- How do libraries handle JWKS caching to minimize network overhead?
+## Phase 1: Design
 
-**Options to Evaluate**:
-- `PyJWT` with `cryptography` - Industry standard, explicit RS256 support, JWKS via PyJWKClient
-- `python-jose[cryptography]` - Popular with FastAPI community, cryptography backend
-- `authlib` - Comprehensive auth library by lepture with built-in JWKS support
-
-**Decision Criteria**:
-- RS256 and JWKS support out of the box
-- Security audit history and CVE response time
-- Performance (<50ms validation requirement with JWKS caching)
-- Type hints and Python 3.13 compatibility
-- FastAPI integration examples and community support
-
-### Task 2: Better Auth JWT Claim Structure Research
-
-**Objective**: Verify the exact JWT payload structure generated by Better Auth with RS256
-
-**Research Questions**:
-- What claims does Better Auth include in JWT tokens by default with RS256?
-- Confirm user ID claim uses OIDC-standard `sub` (not custom `uid`)
-- What additional claims are included (`exp`, `iat`, `iss`, `aud`)?
-- What is the JWT header structure (algorithm: RS256, kid for key identification)?
-- Where is the JWKS endpoint exposed by Better Auth (typically `/.well-known/jwks.json`)?
-
-**Information Sources**:
-- Better Auth documentation via MCP search
-- Better Auth GitHub repository examples
-- Better Auth JWT plugin configuration reference
-- OIDC specification for standard claims
-
-**Required Output**: Documented JWT payload schema with `sub` claim for validation
-
-### Task 3: FastAPI Dependency Best Practices
-
-**Objective**: Design FastAPI dependencies that follow framework conventions
-
-**Research Questions**:
-- What is the recommended pattern for authentication dependencies in FastAPI?
-- How to handle dependency failures (raise exceptions vs return None)?
-- How to extract path parameters within dependencies for authorization?
-- How to provide consistent error responses from dependencies?
-
-**Information Sources**:
-- FastAPI official documentation (Security section)
-- FastAPI dependency injection patterns
-- OAuth2PasswordBearer vs custom dependency patterns
-
-**Required Output**: Dependency design pattern with error handling strategy
-
-### Task 4: RS256 + JWKS Security Best Practices
-
-**Objective**: Ensure secure implementation of RS256 signature verification with JWKS
-
-**Research Questions**:
-- What validation steps must occur before trusting JWT claims with RS256?
-- How to securely retrieve and cache JWKS keys to prevent DoS?
-- What JWKS key rotation best practices should be followed?
-- How to handle JWKS endpoint failures gracefully?
-- What timing attack considerations exist for RS256 (less critical than HS256)?
-
-**Information Sources**:
-- OWASP JWT security cheatsheet
-- RFC 7519 (JSON Web Token) specification
-- RFC 7517 (JSON Web Key) specification
-- Python JWT library security documentation for RS256/JWKS
-
-**Required Output**: Security checklist for RS256 JWT validation implementation with JWKS
-
----
-
-# Phase 1: Design & Contracts
-
-## Data Model
-
-### JWT Token Payload Structure
-
-**Source**: Better Auth JWT plugin output with RS256 (OIDC-compliant)
+### Data Models (`data-model.md`)
 
 ```python
-# Expected JWT payload structure from Better Auth
-{
-    "sub": "string",           # User unique identifier (OIDC-standard subject claim)
-    "exp": int,                # Expiration timestamp (Unix epoch seconds)
-    "iat": int,                # Issued at timestamp (Unix epoch seconds)
-    "iss": "string",           # Issuer (Better Auth URL)
-    # Additional claims TBD based on Better Auth configuration
-}
+class User(BaseModel):
+    id: str
+    email: str
+    name: Optional[str]
+
+class Session(BaseModel):
+    expiresAt: datetime
+
+class BetterAuthSessionResponse(BaseModel):
+    user: User
+    session: Session
+
+class AuthenticatedUser(BaseModel):
+    user_id: str
+    email: str
+    name: Optional[str]
+
+class SessionValidationError(BaseModel):
+    error_code: str
+    message: str
+    detail: Optional[str]
 ```
 
-**JWT Header Structure**:
-```python
-{
-    "alg": "RS256",            # Algorithm (asymmetric)
-    "typ": "JWT",              # Token type
-    "kid": "string"            # Key ID for JWKS lookup
-}
-```
-
-**Validation Requirements**:
-- `sub` must be present and non-empty string (OIDC-standard user ID claim)
-- `exp` must be present and greater than current timestamp
-- `iat` must be present and less than or equal to current timestamp
-- Signature must verify using public key from JWKS endpoint matching `kid` header
-- `kid` in header must match a key in the JWKS endpoint response
-
-### Authentication Error Response Schema
-
-```json
-{
-  "detail": "string",          // Human-readable error message
-  "error_code": "string",      // Machine-readable error identifier
-  "status_code": int           // HTTP status code (401 or 403)
-}
-```
-
-**Error Codes**:
-- `MISSING_TOKEN`: Authorization header not provided
-- `INVALID_HEADER_FORMAT`: Authorization header not in "Bearer <token>" format
-- `INVALID_TOKEN_SIGNATURE`: JWT signature verification failed (RS256 public key mismatch)
-- `TOKEN_EXPIRED`: JWT exp claim is in the past
-- `MALFORMED_TOKEN`: JWT parsing failed (invalid structure)
-- `MISSING_SUB_CLAIM`: JWT payload missing required sub claim (OIDC user ID)
-- `JWKS_FETCH_FAILED`: Unable to retrieve public keys from Better Auth JWKS endpoint
-- `INVALID_KID`: JWT header kid does not match any key in JWKS
-- `FORBIDDEN_USER_ACCESS`: Authenticated user attempting to access different user's resources
-
-### Configuration Schema
-
-```python
-# Environment variables required for authentication
-BETTER_AUTH_URL: str              # Base URL of Better Auth instance (REQUIRED)
-BETTER_AUTH_JWKS_URL: str         # Full JWKS endpoint URL (typically ${BETTER_AUTH_URL}/.well-known/jwks.json)
-```
-
-**Startup Validation**:
-- Application must fail to start if BETTER_AUTH_URL is missing or empty
-- Application must validate JWKS endpoint is reachable during startup
-- JWKS endpoint must return valid JSON Web Key Set structure
-
-## API Contracts
-
-### Authentication Dependency Contract
-
-**Dependency**: `get_current_user`
-
-**Input**:
-- HTTP Header: `Authorization: Bearer <jwt_token>`
-
-**Output**:
-- **Success**: Returns authenticated user ID (string) extracted from JWT `sub` claim (OIDC standard)
-- **Failure**: Raises HTTPException with appropriate 401 status code and error detail
-
-**Error Scenarios**:
-| Scenario | Status Code | Error Code | Error Message |
-|----------|-------------|------------|---------------|
-| Missing Authorization header | 401 | MISSING_TOKEN | "Missing authentication token" |
-| Invalid header format (not "Bearer <token>") | 401 | INVALID_HEADER_FORMAT | "Invalid authorization header format" |
-| Invalid signature (RS256 verification failed) | 401 | INVALID_TOKEN_SIGNATURE | "Invalid token signature" |
-| Expired token | 401 | TOKEN_EXPIRED | "Token expired" |
-| Malformed token | 401 | MALFORMED_TOKEN | "Malformed token" |
-| Missing sub claim | 401 | MISSING_SUB_CLAIM | "Invalid token: missing or malformed user ID claim" |
-| JWKS fetch failed | 401 | JWKS_FETCH_FAILED | "Unable to verify token: authentication service unavailable" |
-| Invalid kid in header | 401 | INVALID_KID | "Invalid token: unknown signing key" |
-
-### Authorization Dependency Contract
-
-**Dependency**: `verify_user_access`
-
-**Input**:
-- HTTP Header: `Authorization: Bearer <jwt_token>`
-- Path Parameter: `{user_id}` (string)
-
-**Output**:
-- **Success**: Returns authenticated user ID (string) if it matches `{user_id}` path parameter
-- **Authentication Failure**: Raises HTTPException with 401 status (same as `get_current_user`)
-- **Authorization Failure**: Raises HTTPException with 403 status if user ID mismatch
-
-**Error Scenarios**:
-| Scenario | Status Code | Error Code | Error Message |
-|----------|-------------|------------|---------------|
-| All authentication errors | 401 | (see above) | (see above) |
-| User ID mismatch | 403 | FORBIDDEN_USER_ACCESS | "Access denied: cannot access another user's resources" |
-
-**Usage Pattern**:
-```python
-# Example protected endpoint
-@router.get("/users/{user_id}/tasks")
-async def get_user_tasks(
-    user_id: str,
-    current_user_id: str = Depends(verify_user_access)
-):
-    # current_user_id is guaranteed to equal user_id
-    # Safe to proceed with business logic
-    pass
-```
-
-## Key Architectural Decisions
-
-### Decision 1: JWT Library Selection
-
-**Decision**: Use `PyJWT>=2.8.0` with `cryptography>=41.0.0`
-
-**Rationale**:
-- Industry-standard library with excellent RS256 and JWKS support
-- Built-in `PyJWKClient` for JWKS endpoint retrieval and caching
-- Active maintenance and rapid security updates
-- Explicit RS256 algorithm support with cryptography backend
-- Type hint support for Python 3.13+
-- Better performance for asymmetric cryptography compared to python-jose
-
-**Alternatives Considered**:
-- `python-jose[cryptography]`: Recommended by FastAPI docs but less robust JWKS support
-- `authlib`: More comprehensive but heavier dependency (includes OAuth, OpenID)
-
-**Implementation Impact**:
-- Dependencies: `PyJWT>=2.8.0`, `cryptography>=41.0.0`
-- Import path: `import jwt` (from PyJWT), `from jwt import PyJWKClient`
-- JWKS caching handled automatically by PyJWKClient
-
-### Decision 2: Dependency Error Handling Pattern
-
-**Decision**: Raise `HTTPException` from dependencies (not `return None`)
-
-**Rationale**:
-- FastAPI convention for authentication dependencies
-- Prevents endpoint handlers from having to check `if user is None`
-- Consistent error responses across all protected endpoints
-- Automatic OpenAPI documentation of authentication requirements
-
-**Alternatives Considered**:
-- Return `Optional[str]`: Requires every endpoint to handle None case (error-prone)
-- Custom exception types: Adds complexity without benefit (HTTPException sufficient)
-
-**Implementation Impact**:
-```python
-from fastapi import HTTPException, status
-
-def verify_token(token: str) -> str:
-    if not valid:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token expired",
-            headers={"WWW-Authenticate": "Bearer"}
-        )
-    return user_id
-```
-
-### Decision 3: User ID Path Parameter Extraction
-
-**Decision**: Accept `user_id: str` as explicit parameter to `verify_user_access` dependency
-
-**Rationale**:
-- Explicit is better than implicit (Zen of Python)
-- FastAPI automatically injects path parameters into dependencies
-- Clear contract: dependency requires user_id to perform authorization
-- Type-safe: user_id parameter validated by Pydantic
-
-**Alternatives Considered**:
-- Parse path from Request object: Fragile (assumes URL structure)
-- Use starlette.requests.Request.path_params: Less explicit, harder to test
-
-**Implementation Impact**:
-```python
-async def verify_user_access(
-    user_id: str,  # Automatically injected from path parameter {user_id}
-    current_user_id: str = Depends(get_current_user)
-) -> str:
-    if current_user_id != user_id:
-        raise HTTPException(status_code=403, ...)
-    return current_user_id
-```
-
-### Decision 4: Environment Variable Loading
-
-**Decision**: Use `pydantic-settings` for environment variable validation
-
-**Rationale**:
-- Type-safe configuration with validation
-- Automatic parsing of environment variables
-- Fail-fast on missing required configuration (SC-007 requirement)
-- Integrates with FastAPI/Pydantic ecosystem
-
-**Alternatives Considered**:
-- `python-dotenv` + manual validation: More boilerplate, less type-safe
-- `os.getenv()`: No validation, runtime errors instead of startup errors
-
-**Implementation Impact**:
-```python
-from pydantic_settings import BaseSettings
-from pydantic import HttpUrl
-
-class Settings(BaseSettings):
-    BETTER_AUTH_URL: HttpUrl  # Required field - raises error if missing or invalid URL
-
-    @property
-    def BETTER_AUTH_JWKS_URL(self) -> str:
-        """Construct JWKS endpoint URL from base URL"""
-        return f"{self.BETTER_AUTH_URL}/.well-known/jwks.json"
-
-    class Config:
-        env_file = ".env"
-
-settings = Settings()  # Fails on import if BETTER_AUTH_URL invalid
-```
-
-### Decision 5: JWT Algorithm Strategy
-
-**Decision**: Use RS256 with JWKS (Better Auth default)
-
-**Rationale**:
-- Asymmetric cryptography: private key stays with Better Auth, public key for verification
-- No shared secrets between services (improved security posture)
-- Supports key rotation without backend redeployment
-- Industry standard for distributed authentication systems
-- Better Auth default configuration (zero custom setup needed)
-- OIDC-compliant (interoperable with other identity providers)
-
-**Alternatives Considered**:
-- HS256 with shared secret: Simpler but requires secret sharing, no key rotation support
-
-**Implementation Impact**:
-- Backend retrieves public keys from Better Auth JWKS endpoint
-- PyJWKClient handles JWKS caching and automatic refresh
-- No shared secret management required
-- Supports multiple signing keys (key rotation scenarios)
-
-## Testing Strategy
-
-### Contract Tests
-
-**File**: `tests/contract/test_auth_contract.py`
-
-**Scenarios**:
-1. Valid token with correct user ID → 200 OK
-2. Valid token with mismatched user ID → 403 Forbidden
-3. Expired token → 401 Unauthorized
-4. Invalid signature → 401 Unauthorized
-5. Missing Authorization header → 401 Unauthorized
-6. Malformed Authorization header → 401 Unauthorized
-
-**Test Data**:
-- Generate valid JWT tokens using test secret
-- Generate expired tokens (exp in past)
-- Generate invalid signatures (wrong secret)
-- Generate malformed tokens (invalid JSON, missing claims)
-
-### Integration Tests
-
-**File**: `tests/integration/test_auth_integration.py`
-
-**Scenarios**:
-1. Protected endpoint rejects unauthenticated requests
-2. Protected endpoint accepts valid token with correct user ID
-3. User-scoped endpoint rejects valid token with different user ID
-4. Multiple concurrent requests with same token (stateless validation)
-5. Error response format matches contract specification
-
-**Setup**:
-- Create test FastAPI app with protected endpoints
-- Use `TestClient` from `fastapi.testclient`
-- Mock BETTER_AUTH_SECRET with test value
-
-### Unit Tests
-
-**File**: `tests/unit/test_jwt_handler.py`
-
-**Scenarios**:
-1. `decode_jwt()` validates signature correctly
-2. `decode_jwt()` rejects expired tokens
-3. `decode_jwt()` extracts uid claim correctly
-4. `decode_jwt()` raises appropriate exceptions for invalid tokens
-5. `extract_bearer_token()` parses Authorization header correctly
-6. `extract_bearer_token()` rejects malformed headers
-
-**File**: `tests/unit/test_auth_dependencies.py`
-
-**Scenarios**:
-1. `get_current_user()` dependency calls jwt_handler correctly
-2. `get_current_user()` raises HTTPException for invalid tokens
-3. `verify_user_access()` compares user IDs correctly
-4. `verify_user_access()` raises 403 for mismatched user IDs
-
-## Implementation Phases
-
-### Phase 0 Deliverables ✅
-
-- [x] `research.md` - JWT library evaluation, Better Auth claim structure, best practices
-- [x] Architecture decisions documented above
-
-### Phase 1 Deliverables ✅
-
-- [x] `data-model.md` - JWT payload schema, error response schema, configuration schema
-- [x] `contracts/auth-errors.json` - OpenAPI error response contracts
-- [x] `quickstart.md` - Developer guide for using authentication dependencies
-- [x] Agent context updated (technology stack additions)
-
-### Phase 2 Deliverables (via `/sp.tasks`)
-
-- [ ] `tasks.md` - Actionable, dependency-ordered implementation tasks
-- [ ] Task execution via `/sp.implement`
-
-## Security Considerations
-
-1. **Secret Management**:
-   - BETTER_AUTH_SECRET must never be committed to version control
-   - Use `.env` file for local development (add to `.gitignore`)
-   - Use environment variable injection for production deployment
-
-2. **Timing Attack Mitigation**:
-   - JWT libraries use constant-time comparison for signatures (handled by python-jose)
-   - No custom string comparison needed
-
-3. **Token Expiration**:
-   - Rely on Better Auth to set appropriate expiration times (15-30 minutes recommended)
-   - Backend enforces expiration via `exp` claim validation
-   - No grace period for expired tokens (strict validation)
-
-4. **Error Information Disclosure**:
-   - Return generic error messages to clients ("Invalid token signature")
-   - Log detailed error information server-side for debugging
-   - Never expose secret material or internal state in error responses
+### API Contracts (`contracts/session-validation.yaml`)
+
+**Dependencies**:
+1. `get_current_user(request: Request) -> AuthenticatedUser`
+   - Extract cookies, call Better Auth, validate, return user
+   - Errors: 401 (invalid), 503 (unavailable), 500 (unexpected)
+
+2. `require_user_id_match(user_id: str, current_user: AuthenticatedUser) -> AuthenticatedUser`
+   - Compare session user_id with path user_id
+   - Error: 403 (mismatch)
+
+### Quickstart (`quickstart.md`)
+
+- Environment variables
+- Start frontend/backend
+- Test authentication flow
+- Debugging tips
+
+## Phase 2: Implementation (Overview)
+
+**Backend (P0)**:
+1. Create session validator
+2. Implement FastAPI dependencies
+3. Update config
+4. Update protected endpoints
+5. Remove JWT handler
+6-7. Write tests
+
+**Frontend (P1)**:
+8. Remove middleware
+9. Update dashboard (server-side check)
+10. Clean up JWT utilities
+11. Update Better Auth config
+12. Update SignIn form
+13. Update API client
+14. Write tests
+
+**Validation (P2)**:
+15. E2E test
+16. Error handling validation
+17. Performance test
+18. Documentation
+
+**Note**: Detailed tasks via `/sp.tasks`
+
+## Decision Log
+
+### D1: Session Validation Approach
+**Chosen**: Forward cookies to Better Auth endpoint (not custom JWT parsing)
+**Rationale**: Spec requirement, eliminates custom crypto, Better Auth handles lifecycle
+
+### D2: Frontend Auth Strategy
+**Chosen**: Server-side checks in pages (not middleware)
+**Rationale**: Middleware caused redirect loop, page checks more explicit
+
+### D3: Error Response Format
+**Chosen**: Map Better Auth errors to standardized backend format
+**Rationale**: Spec FR-017, hide implementation details, consistent API
+
+### D4: HTTP Client
+**Chosen**: httpx (not requests)
+**Rationale**: Async support, better cookies, FastAPI compatible, spec mentions it
+
+### D5: Better Auth Downtime
+**Chosen**: Fail closed with 503 (not fail open or cache)
+**Rationale**: Security principle, spec edge case requires 503
+
+## Risk Analysis
+
+| Risk | P | I | Mitigation |
+|------|---|---|------------|
+| Better Auth unreachable | M | H | Retry logic, clear errors, health checks |
+| Cookie forwarding fails | M | H | Unit tests, debug logging |
+| Schema changes | L | M | Pydantic validation, version pinning |
+| User ID mismatch | L | H | Document format, validation tests |
+| Manual token handling remains | L | M | Remove utilities, audit imports |
+| Middleware removal breaks routes | L | M | Review all routes, test individually |
+| Latency > 50ms | M | M | Measure, optimize timeout |
+
+## Success Criteria
+
+From spec + user input:
+
+| Criterion | Validation |
+|-----------|------------|
+| Login → Dashboard redirect | Manual test, URL check |
+| No redirect loop | Manual test, page loads |
+| Dashboard loads with valid session | Manual test, content renders |
+| Unauthorized → Login redirect | Manual test, no session |
+| Backend calls Better Auth | Unit test, mock endpoint |
+| Session validation <50ms P95 | Performance test |
+| Reject 100% invalid sessions | Unit tests, all return 401 |
+| Prevent 100% cross-user access | Integration tests, all return 403 |
 
 ## Next Steps
 
-1. ✅ Phase 1 complete - Architecture designed, contracts defined
-2. 🔄 Run `/sp.tasks` to generate actionable implementation tasks
-3. 🔄 Run `/sp.implement` to execute tasks with TDD workflow
-4. 🔄 Validate against acceptance criteria from spec.md
+1. ✅ Phase 0 Planning: Complete (this file)
+2. 🔄 Phase 0 Research: Execute research tasks → `research.md`
+3. 🔄 Phase 1 Design: Create `data-model.md`, `contracts/`, `quickstart.md`
+4. 🔄 Phase 1 Context: Run `.specify/scripts/bash/update-agent-context.sh claude`
+5. ⏳ Phase 2 Tasks: Run `/sp.tasks`
+
+**Command to proceed**: Continue with research or `/sp.tasks` after Phase 1
+
+## Notes
+
+- Better Auth cookie: typically `better-auth.session_token`
+- CORS: Frontend origin must be allowed by backend
+- HTTP (dev) vs HTTPS (prod) affects cookie `Secure` flag
+- Session expiry: 7 days default, validate on every request (no caching)
+- Never log session cookies in production
+- Monitor latency to ensure <50ms P95 target

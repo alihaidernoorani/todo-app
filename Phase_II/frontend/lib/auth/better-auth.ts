@@ -1,24 +1,21 @@
 /**
  * Better Auth Server Configuration
  *
- * This file configures Better Auth for hybrid authentication with:
+ * This file configures Better Auth for session-based authentication with:
  * - PostgreSQL database integration
  * - Email/password authentication
  * - HttpOnly cookie storage for web sessions (XSS protection)
- * - JWT tokens for API authentication (stateless)
  * - 15-minute session expiry
  *
  * Environment Variables Required:
  * - BETTER_AUTH_SECRET: 32-character random string (used for session signing)
  * - BETTER_AUTH_URL: Base URL for auth endpoints (e.g., http://localhost:3000)
- * - BETTER_AUTH_ISSUER: JWT issuer URL (defaults to BETTER_AUTH_URL)
- * - BETTER_AUTH_AUDIENCE: JWT audience URL (e.g., http://localhost:8000)
  * - NEON_DATABASE_URL or DATABASE_URL: PostgreSQL connection string for auth tables
  */
 
 import { betterAuth } from "better-auth"
-import { jwt } from "better-auth/plugins"
-import { Pool } from "pg"
+import { nextCookies } from "better-auth/next-js"
+import { getPool } from "@/lib/db/pool"
 
 /**
  * Check if we're in a build/static generation phase
@@ -49,7 +46,6 @@ function getDatabaseUrl(): string {
  * This prevents database connection attempts during build time
  */
 let _auth: ReturnType<typeof betterAuth> | null = null
-let _pool: Pool | null = null
 
 function createAuth(): ReturnType<typeof betterAuth> | null {
   // Return cached auth instance if it exists
@@ -73,31 +69,19 @@ function createAuth(): ReturnType<typeof betterAuth> | null {
   try {
     console.log("[Better Auth] Creating betterAuth instance...")
     const baseURL = process.env.BETTER_AUTH_URL || "http://localhost:3000"
-    const issuer = process.env.BETTER_AUTH_ISSUER || baseURL
-    const audience = process.env.BETTER_AUTH_AUDIENCE || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
-    console.log("[Better Auth] JWT Plugin Config:", { issuer, audience })
-
-    // Create Pool only once and reuse it
-    if (!_pool) {
-      console.log("[Better Auth] Creating new database Pool")
-      _pool = new Pool({
-        connectionString: databaseUrl,
-        max: 10, // Maximum pool size
-        idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
-        connectionTimeoutMillis: 10000, // Wait 10 seconds for connection
-        ssl: {
-          rejectUnauthorized: false, // Neon requires SSL but we don't verify cert
-        },
-      })
-    } else {
-      console.log("[Better Auth] Reusing existing database Pool")
+    // Use shared database pool
+    const pool = getPool()
+    if (!pool) {
+      console.error("[Better Auth] Failed to get database pool")
+      return null
     }
+    console.log("[Better Auth] Using shared database pool")
 
     const authInstance = betterAuth({
       // Database configuration for storing users and sessions
       // Better Auth requires a Pool instance, not a config object
-      database: _pool,
+      database: pool,
 
       // Email and password authentication
       emailAndPassword: {
@@ -128,37 +112,13 @@ function createAuth(): ReturnType<typeof betterAuth> | null {
       // Secret for signing sessions
       secret: process.env.BETTER_AUTH_SECRET || "development-secret-change-in-production",
 
-      // JWT Plugin for API authentication
+      // Plugins for Next.js integration
       plugins: [
-        jwt({
-          jwt: {
-            expirationTime: "1h",
-            issuer,
-            audience,
-          },
-          jwks: {
-            keyPairConfig: {
-              alg: "RS256",           // Use RS256 instead of default EdDSA
-              modulusLength: 2048     // RSA key length
-            }
-          }
-        }),
+        // CRITICAL: nextCookies() enables Better Auth to work with Next.js cookies() API
+        // Without this, Server Components and Server Actions cannot read auth cookies
+        nextCookies(),
       ],
     })
-
-    // Verify JWT plugin endpoints are registered
-    const endpoints = Object.keys(authInstance.api || {})
-    console.log("[Better Auth] Total endpoints registered:", endpoints.length)
-    console.log("[Better Auth] JWT endpoints check:")
-    console.log("  - getToken:", endpoints.includes('getToken'))
-    console.log("  - getJwks:", endpoints.includes('getJwks'))
-    console.log("  - signJWT:", endpoints.includes('signJWT'))
-    console.log("  - verifyJWT:", endpoints.includes('verifyJWT'))
-
-    if (!endpoints.includes('getToken')) {
-      console.error("[Better Auth] WARNING: JWT plugin endpoints NOT found! Only base endpoints registered.")
-      console.error("[Better Auth] Available endpoints:", endpoints)
-    }
 
     _auth = authInstance
     console.log("[Better Auth] Initialized successfully")
@@ -185,3 +145,19 @@ export function getAuth(): ReturnType<typeof betterAuth> | null {
  * Allows TypeScript to understand the auth object shape
  */
 export type Auth = ReturnType<typeof betterAuth>
+
+/**
+ * Auth singleton instance for use in Server Components and Server Actions
+ * Lazily initialized on first use
+ */
+export const auth = {
+  api: {
+    getSession: async (options: { headers: any }) => {
+      const authInstance = getAuth()
+      if (!authInstance) {
+        return null
+      }
+      return authInstance.api.getSession(options)
+    }
+  }
+}

@@ -32,8 +32,8 @@
 
 "use client"
 
-import { useEffect, useState } from "react"
-import { getUserIdFromJWT } from "../auth/jwt-utils"
+import { useEffect } from "react"
+import { authClient } from "../auth/better-auth-client"
 import type { DraftTask } from "../api/types"
 
 const DRAFT_PREFIX = "draft-task-"
@@ -43,12 +43,9 @@ const DRAFT_MAX_AGE_MS = 24 * 60 * 60 * 1000 // 24 hours
  * Custom hook for draft recovery on session expiry
  */
 export function useDraftRecovery() {
-  const [userId, setUserId] = useState<string | null>(null)
-
-  // Get user ID on mount
-  useEffect(() => {
-    getUserIdFromJWT().then(setUserId)
-  }, [])
+  // Get user ID from Better Auth session
+  const { data: session } = authClient.useSession()
+  const userId = session?.user?.id || null
 
   // Clean up old drafts on mount
   useEffect(() => {

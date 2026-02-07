@@ -3,13 +3,10 @@
  *
  * Centralized HTTP client with:
  * - Base URL configuration from environment
- * - JWT token extraction from HttpOnly cookies
+ * - Session cookie forwarding (credentials: 'include')
  * - User ID path interpolation
- * - Authorization Bearer header injection
  * - 401 error interceptor for session expiry
  */
-
-import { getJWTToken } from '../auth/jwt-utils'
 
 /**
  * Map HTTP error responses to user-friendly messages
@@ -60,7 +57,7 @@ export class ApiClient {
 
   /**
    * Build full URL with user_id path interpolation
-   * @param userId - Authenticated user's ID (from JWT)
+   * @param userId - Authenticated user's ID (from Better Auth session)
    * @param path - API endpoint path (e.g., '/tasks', '/tasks/123')
    * @returns Full URL string
    */
@@ -94,16 +91,8 @@ export class ApiClient {
       headers.set('Content-Type', 'application/json')
     }
 
-    // Inject Authorization Bearer header with session token
-    try {
-      const token = await getJWTToken()
-      if (token) {
-        headers.set('Authorization', `Bearer ${token}`)
-      }
-    } catch (error) {
-      console.warn('[ApiClient] Failed to get session token for Authorization header:', error)
-      // Continue without token - backend will handle 401
-    }
+    // Session authentication is handled via cookies (credentials: 'include')
+    // Backend validates session by calling Better Auth's /api/auth/session endpoint
 
     try {
       // Make request with credentials to include HttpOnly cookies

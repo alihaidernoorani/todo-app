@@ -5,7 +5,7 @@
  * redirects to /sign-in when not authenticated.
  *
  * Features:
- * - Checks authentication on component mount
+ * - Checks authentication on component mount using Better Auth session
  * - Redirects to sign-in page when not authenticated
  * - Returns authentication status for conditional rendering
  * - Preserves current URL for redirect after login
@@ -30,9 +30,9 @@
 
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
-import { isAuthenticated } from '@/lib/auth/jwt-utils'
+import { authClient } from '@/lib/auth/better-auth-client'
 
 interface UseAuthRedirectReturn {
   isAuthenticated: boolean
@@ -40,40 +40,25 @@ interface UseAuthRedirectReturn {
 }
 
 export function useAuthRedirect(): UseAuthRedirectReturn {
-  const [authStatus, setAuthStatus] = useState<boolean>(false)
-  const [isChecking, setIsChecking] = useState(true)
   const router = useRouter()
   const pathname = usePathname()
 
+  // Use Better Auth's built-in session hook
+  const { data: session, isPending } = authClient.useSession()
+
   useEffect(() => {
-    const checkAuth = async () => {
-      setIsChecking(true)
-
-      try {
-        const authenticated = await isAuthenticated()
-        setAuthStatus(authenticated)
-
-        // Redirect to sign-in if not authenticated
-        if (!authenticated) {
-          const signInUrl = `/sign-in?from=${encodeURIComponent(pathname)}`
-          router.push(signInUrl)
-        }
-      } catch (error) {
-        console.error('Authentication check failed:', error)
-        setAuthStatus(false)
-        // Redirect on error to be safe
-        const signInUrl = `/sign-in?from=${encodeURIComponent(pathname)}`
+    // Only check once loading is complete
+    if (!isPending) {
+      // Redirect to sign-in if not authenticated
+      if (!session) {
+        const signInUrl = `/signin?from=${encodeURIComponent(pathname)}`
         router.push(signInUrl)
-      } finally {
-        setIsChecking(false)
       }
     }
-
-    checkAuth()
-  }, [router, pathname])
+  }, [session, isPending, router, pathname])
 
   return {
-    isAuthenticated: authStatus,
-    isChecking,
+    isAuthenticated: !!session,
+    isChecking: isPending,
   }
 }

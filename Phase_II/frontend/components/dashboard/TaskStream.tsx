@@ -59,14 +59,24 @@ export function TaskStream() {
   } = useOptimisticTask(initialTasks)
 
   // Fetch initial tasks on mount
+  // CRITICAL: This useEffect must handle the case where it runs before session is ready
   useEffect(() => {
     const fetchTasks = async () => {
       try {
+        console.log('[TaskStream] Starting task fetch...')
+
         const result = await listTasks()
+
+        console.log('[TaskStream] Task fetch result:', {
+          success: result.success,
+          error: result.success ? null : result.error
+        })
 
         // Handle API response failure
         if (!result.success) {
           console.error("Failed to fetch tasks:", result.error.message)
+          console.error("Error code:", result.error.code)
+          console.error("Error status:", result.error.status)
 
           // Check if authentication failed - redirect to login
           if (shouldRedirectToLogin(result.error.code)) {

@@ -43,13 +43,15 @@ def extract_bearer_token(authorization: str | None) -> str:
 
 
 async def decode_jwt(token: str) -> dict[str, Any]:
-    """Decode and validate JWT token using RS256 with JWKS public key.
+    """Decode and validate JWT token using RS256 with JWKS or HS256 with shared secret.
 
     Validates:
-    - Token signature using RS256 with public key from JWKS endpoint
+    - Token signature using RS256 (JWKS) or HS256 (shared secret)
     - Token expiration (exp claim)
     - Token issued-at time (iat claim)
     - Presence of required user_id claim (sub)
+
+    Tries RS256 first (production), falls back to HS256 (development).
 
     Args:
         token: JWT token string
@@ -60,18 +62,18 @@ async def decode_jwt(token: str) -> dict[str, Any]:
     Raises:
         ExpiredSignatureError: If token has expired (exp < current time)
         InvalidTokenError: If token signature is invalid or token is malformed
-        ValueError: If sub claim is missing or malformed, or JWKS fetch failed
+        ValueError: If sub claim is missing or malformed, or both RS256 and HS256 failed
     """
     settings = get_settings()
+    payload = None
+    last_error = None
 
-    # Create JWKS client to fetch and cache public keys
-    jwks_client = PyJWKClient(settings.better_auth_jwks_url)
-
+    # Try RS256 with JWKS first (production approach)
     try:
-        # Get the signing key from JWKS that matches the token's kid header
+        logger.debug("Attempting RS256 verification with JWKS")
+        jwks_client = PyJWKClient(settings.better_auth_jwks_url)
         signing_key = jwks_client.get_signing_key_from_jwt(token)
 
-        # Decode and validate JWT token using RS256 with public key
         payload = jwt.decode(
             token,
             signing_key.key,
@@ -83,21 +85,47 @@ async def decode_jwt(token: str) -> dict[str, Any]:
                 "require": ["exp", "iat"],
             },
         )
+        logger.debug("Successfully verified with RS256")
 
-        # Validate required sub claim (standard JWT subject for user ID)
-        # Better Auth uses 'sub' claim for user ID per OIDC standard
-        user_id = payload.get("sub")
-        if not user_id or not isinstance(user_id, str) or len(user_id) == 0:
-            raise ValueError("Invalid token: missing or malformed user ID claim")
+    except (httpx.RequestError, InvalidTokenError) as e:
+        logger.debug("RS256 verification failed: %s. Trying HS256 fallback...", str(e))
+        last_error = e
 
-        return payload
+        # Fallback to HS256 with shared secret (development approach)
+        # This works around WSL2/environment issues where JWKS fetching fails
+        secret = settings.better_auth_secret
+        if secret:
+            try:
+                logger.debug("Attempting HS256 verification with shared secret")
+                payload = jwt.decode(
+                    token,
+                    secret,
+                    algorithms=["HS256"],
+                    options={
+                        "verify_signature": True,
+                        "verify_exp": True,
+                        "verify_iat": True,
+                        "require": ["exp", "iat"],
+                    },
+                )
+                logger.debug("Successfully verified with HS256")
+            except InvalidTokenError as hs_error:
+                logger.warning("Both RS256 and HS256 verification failed")
+                last_error = hs_error
 
-    except httpx.RequestError as e:
-        logger.error("Failed to fetch JWKS from %s: %s", settings.better_auth_jwks_url, str(e))
-        raise ValueError(f"Unable to verify token: authentication service unavailable") from e
-    except ExpiredSignatureError as e:
-        logger.warning("JWT token expired: %s", str(e))
-        raise
-    except InvalidTokenError as e:
-        logger.warning("JWT validation failed: %s", str(e))
-        raise
+    # Check for expiration separately to provide clear error message
+    if payload is None and isinstance(last_error, ExpiredSignatureError):
+        logger.warning("JWT token expired")
+        raise last_error
+
+    # If both methods failed, raise the last error
+    if payload is None:
+        logger.error("JWT validation failed with both RS256 and HS256: %s", str(last_error))
+        raise last_error if last_error else InvalidTokenError("Unable to verify token")
+
+    # Validate required sub claim
+    user_id = payload.get("sub")
+    if not user_id or not isinstance(user_id, str) or len(user_id) == 0:
+        raise ValueError("Invalid token: missing or malformed user ID claim")
+
+    return payload

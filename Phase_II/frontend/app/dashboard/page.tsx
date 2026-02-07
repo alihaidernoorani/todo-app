@@ -3,6 +3,7 @@
  *
  * Main TaskFlow dashboard for task management.
  * Features:
+ * - Server-side session validation (redirects to sign in if not authenticated)
  * - Real-time task metrics grid
  * - Task stream with CRUD operations
  * - Suspense boundaries for streaming data
@@ -14,24 +15,34 @@
  * - Task stream with create/edit/delete functionality
  *
  * Data Loading:
+ * - Session: Server-side check via Better Auth
  * - Metrics: Server Action → Backend API → Suspense streaming
  * - Tasks: Server Action → Backend API → Optimistic updates
  */
 
-"use client"
-
 import { Suspense } from "react"
+import { redirect } from "next/navigation"
+import { headers } from "next/headers"
+import { auth } from "@/lib/auth/better-auth"
 import { MetricsGrid } from "@/components/dashboard/MetricsGrid"
 import { TaskStream } from "@/components/dashboard/TaskStream"
 import { MetricsGridSkeleton } from "@/components/atoms/ShimmerSkeleton"
 import { PageTransition } from "@/components/layout/PageTransition"
-import { useSession } from "@/lib/auth/useSession"
 
-// Note: Metadata cannot be exported from Client Components
-// Title is inherited from root layout.tsx: "TaskFlow"
+// Server Component - no "use client" directive
+export default async function DashboardPage() {
+  // Server-side session validation
+  const session = await auth.api.getSession({
+    headers: await headers()
+  })
 
-export default function DashboardPage() {
-  const { session, status } = useSession()
+  // Redirect to sign in if not authenticated
+  if (!session) {
+    redirect("/signin")
+  }
+
+  // Extract user info for display
+  const userName = session.user?.name?.split(' ')[0] || 'there'
 
   return (
     <PageTransition>
@@ -40,9 +51,7 @@ export default function DashboardPage() {
         {/* Page header */}
         <div>
           <h1 className="text-3xl font-bold text-slate-900 mb-2 font-serif">
-            {status === 'authenticated' && session.user?.name
-              ? `Welcome back, ${session.user.name.split(' ')[0]}`
-              : 'My Tasks'}
+            Welcome back, {userName}
           </h1>
           <p className="text-slate-600 text-body">Task overview and management</p>
         </div>

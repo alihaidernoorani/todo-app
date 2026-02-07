@@ -50,10 +50,29 @@ export function SignInForm() {
         setError(result.error.message || 'Invalid credentials')
         setIsLoading(false)
       } else {
-        console.log('[SignIn] Success! Redirecting to:', returnUrl)
-        // Success - redirect to return URL
-        router.push(returnUrl)
-        router.refresh() // Refresh to update server-side auth state
+        console.log('[SignIn] Sign-in successful!')
+        console.log('[SignIn] Cookies after sign-in:', document.cookie)
+
+        // Verify session was created
+        const sessionCheck = await fetch('/api/auth/session', {
+          credentials: 'include',
+          cache: 'no-store'
+        })
+        const sessionData = await sessionCheck.json()
+        console.log('[SignIn] Session check:', sessionData)
+
+        if (sessionData.user) {
+          console.log('[SignIn] Session verified! User:', sessionData.user.email)
+          console.log('[SignIn] Redirecting to:', returnUrl)
+          // Session confirmed - redirect
+          router.push(returnUrl)
+          router.refresh()
+        } else {
+          console.error('[SignIn] Session not created despite successful sign-in!')
+          console.error('[SignIn] This indicates a cookie or session storage issue')
+          setError('Login succeeded but session was not created. Please check console logs.')
+          setIsLoading(false)
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')

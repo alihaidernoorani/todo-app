@@ -3,16 +3,18 @@
  *
  * Type-safe API client methods for task CRUD operations and metrics.
  * All methods are Server Actions that automatically:
- * - Extract user_id from JWT cookie
- * - Extract JWT token for Authorization header
+ * - Get user_id from Better Auth session
+ * - Forward session cookies to backend
  * - Make authenticated requests to backend API
  *
- * These must be called from client components using async functions.
+ * Authentication is handled via Better Auth session cookies.
+ * Backend validates session by calling Better Auth's /api/auth/session endpoint.
  */
 
 'use server'
 
-import { getUserIdFromJWT, getJWTToken } from '../auth/jwt-utils'
+import { cookies, headers } from 'next/headers'
+import { auth } from '../auth/better-auth'
 import {
   mapStatusToErrorCode,
   getUserFriendlyMessage,
@@ -38,14 +40,23 @@ async function makeAuthenticatedRequest<T>(
   options: RequestInit = {}
 ): Promise<ApiResponse<T>> {
   try {
-    // Get user_id and JWT token from cookie
-    const [userId, token] = await Promise.all([
-      getUserIdFromJWT(),
-      getJWTToken(),
-    ])
+    console.log(`[makeAuthenticatedRequest] Starting request to: ${path}`)
 
-    // Handle missing credentials gracefully
-    if (!userId || !token) {
+    // Get session from Better Auth
+    const session = await auth.api.getSession({
+      headers: await headers()
+    })
+
+    console.log(`[makeAuthenticatedRequest] Session check:`, {
+      hasSession: !!session,
+      hasUser: !!session?.user,
+      userId: session?.user?.id
+    })
+
+    // Handle missing session gracefully
+    if (!session || !session.user?.id) {
+      console.error(`[makeAuthenticatedRequest] AUTHENTICATION FAILED: No valid session`)
+
       return {
         success: false,
         error: {
@@ -56,8 +67,9 @@ async function makeAuthenticatedRequest<T>(
       }
     }
 
+    const userId = session.user.id
+
     // Build full URL with user_id
-    // CRITICAL FIX: Use BACKEND_URL (server-only) instead of NEXT_PUBLIC_API_URL
     const baseURL = process.env.BACKEND_URL
 
     // Explicit check for missing BACKEND_URL
@@ -74,15 +86,21 @@ async function makeAuthenticatedRequest<T>(
 
     const url = `${baseURL}/api/${userId}${path}`
 
-    // Merge headers with Authorization
-    const headers = new Headers(options.headers || {})
-    headers.set('Authorization', `Bearer ${token}`)
-    headers.set('Content-Type', 'application/json')
+    // Get all cookies to forward to backend
+    const cookieStore = await cookies()
+    const cookieHeader = cookieStore.getAll()
+      .map(cookie => `${cookie.name}=${cookie.value}`)
+      .join('; ')
+
+    // Merge headers with cookies
+    const requestHeaders = new Headers(options.headers || {})
+    requestHeaders.set('Content-Type', 'application/json')
+    requestHeaders.set('Cookie', cookieHeader)
 
     // Make request
     const response = await fetch(url, {
       ...options,
-      headers,
+      headers: requestHeaders,
     })
 
     // Handle non-OK responses with structured errors

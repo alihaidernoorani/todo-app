@@ -93,7 +93,7 @@ export function FeaturesSection() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.5 }}
-            className="text-4xl md:text-5xl font-bold text-slate-900 font-serif mb-4"
+            className="text-4xl md:text-5xl font-bold text-slate-900 font-heading mb-4"
           >
             Why TaskFlow?
           </motion.h2>
@@ -134,7 +134,7 @@ export function FeaturesSection() {
                 </div>
 
                 {/* Title */}
-                <h3 className="text-xl font-bold text-slate-900 mb-3 font-serif">
+                <h3 className="text-xl font-bold text-slate-900 mb-3 font-heading">
                   {feature.title}
                 </h3>
 

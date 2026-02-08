@@ -71,7 +71,7 @@ export function SignupForm() {
     <div className="auth-card">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-900 mb-2 font-serif">
+        <h1 className="text-3xl font-bold text-slate-900 mb-2 font-heading">
           Join TaskFlow
         </h1>
         <p className="text-slate-600 text-sm">

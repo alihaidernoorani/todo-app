@@ -35,7 +35,7 @@ export function LandingHeader() {
           <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform">
             <Sparkles className="w-5 h-5 text-white" />
           </div>
-          <span className="text-xl font-bold text-slate-900 font-serif">
+          <span className="text-xl font-bold text-slate-900 font-heading">
             TaskFlow
           </span>
         </Link>

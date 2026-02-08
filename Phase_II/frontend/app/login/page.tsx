@@ -12,7 +12,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         {/* TaskFlow Branding */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-slate-900 font-serif tracking-tight">
+          <h1 className="text-4xl font-bold text-slate-900 font-heading tracking-tight">
             TaskFlow
           </h1>
           <p className="text-slate-600 mt-2">

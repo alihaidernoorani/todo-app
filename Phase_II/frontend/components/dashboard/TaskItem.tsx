@@ -67,19 +67,19 @@ interface TaskItemProps {
 
 const priorityColors = {
   High: {
-    bg: "bg-red-100",
-    border: "border-red-200",
-    text: "text-red-700",
+    bg: "bg-red-100 dark:bg-red-900/30",
+    border: "border-red-200 dark:border-red-800",
+    text: "text-red-700 dark:text-red-300",
   },
   Medium: {
-    bg: "bg-amber-100",
-    border: "border-amber-200",
-    text: "text-amber-700",
+    bg: "bg-amber-100 dark:bg-amber-900/30",
+    border: "border-amber-200 dark:border-amber-800",
+    text: "text-amber-700 dark:text-amber-300",
   },
   Low: {
-    bg: "bg-blue-100",
-    border: "border-blue-200",
-    text: "text-blue-700",
+    bg: "bg-blue-100 dark:bg-blue-900/30",
+    border: "border-blue-200 dark:border-blue-800",
+    text: "text-blue-700 dark:text-blue-300",
   },
 }
 
@@ -103,9 +103,9 @@ export function TaskItem({
         opacity: { duration: 0.2 },
       }}
       className={`
-        bg-white rounded-lg border border-slate-200/80 p-5 md:p-6 shadow-sm
+        bg-white dark:bg-slate-800 rounded-lg border border-slate-200/80 dark:border-slate-700 p-5 md:p-6 shadow-sm
         ${task._optimistic ? "optimistic-pending" : ""}
-        ${task._error ? "border-red-200" : "hover:border-slate-300"}
+        ${task._error ? "border-red-200 dark:border-red-800" : "hover:border-slate-300 dark:hover:border-slate-600"}
         transition-all duration-150
         hover:shadow-sm
       `}
@@ -133,8 +133,8 @@ export function TaskItem({
             {/* FR-009b: Responsive typography */}
             <h3
               className={`
-                text-sm md:text-base font-medium mb-1 font-serif
-                ${task.is_completed ? "text-slate-500 line-through" : "text-slate-900"}
+                text-base md:text-lg font-semibold mb-1 font-heading
+                ${task.is_completed ? "text-slate-500 dark:text-slate-500 line-through" : "text-slate-900 dark:text-slate-50"}
                 transition-all duration-200
               `}
             >
@@ -145,8 +145,8 @@ export function TaskItem({
             {task.description && (
               <p
                 className={`
-                  text-xs md:text-sm
-                  ${task.is_completed ? "text-slate-500" : "text-slate-600"}
+                  text-sm md:text-base
+                  ${task.is_completed ? "text-slate-500 dark:text-slate-500" : "text-slate-600 dark:text-slate-300"}
                   line-clamp-2
                 `}
               >
@@ -155,7 +155,7 @@ export function TaskItem({
             )}
 
             {/* Timestamp */}
-            <p className="text-xs text-slate-500 mt-1">
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1.5">
               {new Date(task.created_at).toLocaleDateString(undefined, {
                 month: "short",
                 day: "numeric",
@@ -169,7 +169,7 @@ export function TaskItem({
           <div className="flex-shrink-0">
             <span
               className={`
-                inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium
+                inline-flex items-center px-3 py-1.5 rounded-full text-sm font-semibold
                 ${priorityStyle.bg} ${priorityStyle.border} ${priorityStyle.text}
                 border
               `}
@@ -180,20 +180,20 @@ export function TaskItem({
 
           {/* Action Buttons - Hidden on mobile, shown on tablet+ */}
           {/* FR-005b: Touch-friendly buttons (min 44px handled by IconButton) */}
-          <div className="hidden md:flex items-center gap-1">
+          <div className="hidden md:flex items-center gap-2">
             <IconButton
-              icon={<Edit3 className="w-4 h-4" />}
+              icon={<Edit3 className="w-5 h-5" />}
               ariaLabel={`Edit task: ${task.title}`}
               onClick={onEdit}
               variant="ghost"
-              size="sm"
+              size="md"
             />
             <IconButton
-              icon={<Trash2 className="w-4 h-4" />}
+              icon={<Trash2 className="w-5 h-5" />}
               ariaLabel={`Delete task: ${task.title}`}
               onClick={onDelete}
               variant="ghost"
-              size="sm"
+              size="md"
             />
           </div>
         </div>
@@ -201,18 +201,18 @@ export function TaskItem({
         {/* Bottom Row: Action buttons for mobile only */}
         <div className="flex md:hidden items-center justify-end gap-2 pl-8">
           <IconButton
-            icon={<Edit3 className="w-4 h-4" />}
+            icon={<Edit3 className="w-5 h-5" />}
             ariaLabel={`Edit task: ${task.title}`}
             onClick={onEdit}
             variant="ghost"
-            size="sm"
+            size="md"
           />
           <IconButton
-            icon={<Trash2 className="w-4 h-4" />}
+            icon={<Trash2 className="w-5 h-5" />}
             ariaLabel={`Delete task: ${task.title}`}
             onClick={onDelete}
             variant="ghost"
-            size="sm"
+            size="md"
           />
         </div>
       </div>

@@ -84,7 +84,7 @@ export function AppInitializer({ children }: { children: React.ReactNode }) {
             </div>
 
             {/* Error title */}
-            <h2 className="text-2xl font-serif font-bold text-white text-center mb-3">
+            <h2 className="text-2xl font-heading font-bold text-white text-center mb-3">
               Configuration Error
             </h2>
 

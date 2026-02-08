@@ -22,7 +22,8 @@
       "Bash(find:*)",
       "mcp__better-auth__ask-question-about-better-auth",
       "Bash(node -e:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(npm run build:*)"
     ]
   }
 }

@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
-import { Inter, Playfair_Display } from "next/font/google";
+import { Inter, Poppins } from "next/font/google";
 import "./globals.css";
 import { WebVitalsReporter } from "@/components/WebVitalsReporter";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppInitializer } from "@/components/AppInitializer";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { ThemeProvider } from "@/contexts/ThemeContext";
 
 // T073: Optimized font loading with next/font for zero layout shift
 // Inter for UI elements and data (sans-serif, highly readable)
@@ -15,13 +17,14 @@ const inter = Inter({
   fallback: ["system-ui", "arial"], // System font fallback for instant text rendering
 });
 
-// Playfair Display for headers (serif, elegant)
-const playfair = Playfair_Display({
+// Poppins for headers (modern, geometric, highly readable)
+const poppins = Poppins({
   subsets: ["latin"],
-  variable: "--font-playfair",
+  variable: "--font-poppins",
+  weight: ["400", "500", "600", "700", "800"],
   display: "swap", // Prevents FOIT (Flash of Invisible Text), enables FOUT with fallback
   preload: true, // Preload font files for faster rendering
-  fallback: ["Georgia", "serif"], // Serif fallback for instant text rendering
+  fallback: ["system-ui", "arial"], // Sans-serif fallback for instant text rendering
 });
 
 export const metadata: Metadata = {
@@ -35,8 +38,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${playfair.variable}`}>
-      <body className={`${inter.className} relative`}>
+    <html lang="en" className={`${inter.variable} ${poppins.variable}`}>
+      <body className={`${inter.className} relative transition-colors duration-300`}>
         {/* T077: Skip link for keyboard navigation */}
         <a
           href="#main-content"
@@ -66,7 +69,13 @@ export default function RootLayout({
           <ErrorBoundary>
             {/* T075: Environment variable validation */}
             <AppInitializer>
-              {children}
+              {/* Theme context provider */}
+              <ThemeProvider>
+                {/* Auth context provider */}
+                <AuthProvider>
+                  {children}
+                </AuthProvider>
+              </ThemeProvider>
             </AppInitializer>
           </ErrorBoundary>
         </div>

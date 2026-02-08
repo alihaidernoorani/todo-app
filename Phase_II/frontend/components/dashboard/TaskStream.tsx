@@ -51,7 +51,6 @@ export function TaskStream({ onTasksChange }: TaskStreamProps = {}) {
 
   const {
     tasks,
-    createTask,
     toggleComplete,
     updateTask,
     deleteTask,

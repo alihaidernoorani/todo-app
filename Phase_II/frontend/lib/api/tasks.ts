@@ -92,8 +92,12 @@ async function makeAuthenticatedRequest<T>(
     }
 
     // 3. Construct URL
-    const baseURL = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-    const url = `${baseURL}/api/${userId}${path}`;
+    // NEW (Fixed)
+    const baseURL = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
+
+    // Remove '/api/${userId}' because your backend endpoints are relative to /api/v1
+    // and they don't actually contain the user_id in the path string
+    const url = `${baseURL}${path}`;
 
     // 4. Set Headers
     const requestHeaders = new Headers(options.headers || {});

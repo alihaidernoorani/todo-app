@@ -20,7 +20,7 @@
 
 import { useEffect } from "react"
 import { User, Settings, LogOut } from "lucide-react"
-import { signOut } from "@/lib/auth/better-auth-client"
+import { authClient } from "@/lib/auth/better-auth-client"
 import { useRouter } from "next/navigation"
 
 interface AccountSheetProps {
@@ -73,7 +73,9 @@ export function AccountSheet({ open, onOpenChange }: AccountSheetProps) {
   // Handle sign out
   const handleSignOut = async () => {
     try {
-      await signOut()
+      await authClient.signOut()
+      // Clear any local storage
+      localStorage.clear()
       router.push("/login")
     } catch (error) {
       console.error("Failed to sign out:", error)

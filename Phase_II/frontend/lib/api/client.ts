@@ -7,9 +7,44 @@
  * - User ID path interpolation
  * - 401 error interceptor for token expiry
  * - Automatic token cleanup on authentication failures
+ * - 3-second timeout for performance requirements
  */
 
 import { TokenStorage } from '../auth/token-storage'
+
+/**
+ * Default timeout for API requests (2 seconds)
+ * Optimistic updates make UI feel instant, but we keep timeout
+ * reasonable to fail fast on slow networks
+ */
+export const DEFAULT_TIMEOUT = 2000
+
+/**
+ * Creates an AbortSignal that times out after specified duration
+ *
+ * @param timeoutMs - Timeout duration in milliseconds (default: 3000ms)
+ * @returns AbortSignal that aborts after timeout
+ *
+ * @example
+ * ```ts
+ * const signal = createTimeoutSignal(3000)
+ * await fetch(url, { signal })
+ * ```
+ */
+export function createTimeoutSignal(timeoutMs: number = DEFAULT_TIMEOUT): AbortSignal {
+  const controller = new AbortController()
+
+  const timeoutId = setTimeout(() => {
+    controller.abort()
+  }, timeoutMs)
+
+  // Clean up timeout if request completes successfully
+  controller.signal.addEventListener('abort', () => {
+    clearTimeout(timeoutId)
+  })
+
+  return controller.signal
+}
 
 /**
  * Map HTTP error responses to user-friendly messages
@@ -77,12 +112,14 @@ export class ApiClient {
    * @param userId - Authenticated user's ID
    * @param path - API endpoint path
    * @param options - Fetch options (method, body, headers, etc.)
+   * @param timeout - Timeout in milliseconds (default: 3000ms, pass 0 to disable)
    * @returns Response object with data and ETag header
    */
   async request<T>(
     userId: string,
     path: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    timeout: number = DEFAULT_TIMEOUT
   ): Promise<{ data: T; etag?: string }> {
     const url = this.buildURL(userId, path)
 
@@ -100,11 +137,18 @@ export class ApiClient {
       headers.set('Authorization', `Bearer ${token}`)
     }
 
+    // Create timeout signal if timeout is enabled (timeout > 0)
+    const timeoutSignal = timeout > 0 ? createTimeoutSignal(timeout) : undefined
+
+    // Merge timeout signal with any existing signal
+    const combinedSignal = options.signal || timeoutSignal
+
     try {
-      // Make request with Authorization header (JWT-based authentication)
+      // Make request with Authorization header and timeout (JWT-based authentication)
       const response = await fetch(url, {
         ...options,
         headers,
+        signal: combinedSignal,
         // Note: credentials no longer needed for JWT-only authentication
         // Removed to comply with stateless architecture requirement
       })
@@ -155,6 +199,14 @@ export class ApiClient {
 
       return { data: data as T, etag }
     } catch (error) {
+      // Handle timeout/abort errors
+      if (error instanceof Error && error.name === 'AbortError') {
+        const timeoutError = new Error(`Request timed out after ${timeout}ms. Please try again.`)
+        ;(timeoutError as any).isTimeout = true
+        ;(timeoutError as any).timeout = timeout
+        throw timeoutError
+      }
+
       // Re-throw with user-friendly message if not already mapped
       if (error instanceof Error) {
         // If error already has a friendly message (from status code handling), use it
@@ -162,7 +214,8 @@ export class ApiClient {
             error.message.includes("Service temporarily") ||
             error.message.includes("session has expired") ||
             error.message.includes("don't have permission") ||
-            error.message.includes("Unable to connect")) {
+            error.message.includes("Unable to connect") ||
+            error.message.includes("timed out")) {
           throw error
         }
         // Otherwise, map it to a friendly message
@@ -213,9 +266,10 @@ export class ApiClient {
   /**
    * GET request helper
    * @param includeEtag - If true, return full response with ETag; if false, return data only (default: false for backward compatibility)
+   * @param timeout - Timeout in milliseconds (default: 3000ms)
    */
-  async get<T>(userId: string, path: string, includeEtag?: boolean): Promise<T | { data: T; etag?: string }> {
-    const response = await this.request<T>(userId, path, { method: 'GET' })
+  async get<T>(userId: string, path: string, includeEtag?: boolean, timeout?: number): Promise<T | { data: T; etag?: string }> {
+    const response = await this.request<T>(userId, path, { method: 'GET' }, timeout)
     return includeEtag ? response : response.data
   }
 
@@ -246,19 +300,21 @@ export class ApiClient {
 
   /**
    * POST request helper
+   * @param timeout - Timeout in milliseconds (default: 3000ms)
    */
-  async post<T>(userId: string, path: string, body?: unknown, includeEtag?: boolean): Promise<T | { data: T; etag?: string }> {
+  async post<T>(userId: string, path: string, body?: unknown, includeEtag?: boolean, timeout?: number): Promise<T | { data: T; etag?: string }> {
     const response = await this.request<T>(userId, path, {
       method: 'POST',
       body: body ? JSON.stringify(body) : undefined,
-    })
+    }, timeout)
     return includeEtag ? response : response.data
   }
 
   /**
    * PUT request helper with optional If-Match header for conditional updates
+   * @param timeout - Timeout in milliseconds (default: 3000ms)
    */
-  async put<T>(userId: string, path: string, body?: unknown, ifMatch?: string, includeEtag?: boolean): Promise<T | { data: T; etag?: string }> {
+  async put<T>(userId: string, path: string, body?: unknown, ifMatch?: string, includeEtag?: boolean, timeout?: number): Promise<T | { data: T; etag?: string }> {
     const headers: HeadersInit = {}
     if (ifMatch) {
       headers['If-Match'] = ifMatch
@@ -268,14 +324,15 @@ export class ApiClient {
       method: 'PUT',
       body: body ? JSON.stringify(body) : undefined,
       headers,
-    })
+    }, timeout)
     return includeEtag ? response : response.data
   }
 
   /**
    * PATCH request helper with optional If-Match header for conditional updates
+   * @param timeout - Timeout in milliseconds (default: 3000ms)
    */
-  async patch<T>(userId: string, path: string, body?: unknown, ifMatch?: string, includeEtag?: boolean): Promise<T | { data: T; etag?: string }> {
+  async patch<T>(userId: string, path: string, body?: unknown, ifMatch?: string, includeEtag?: boolean, timeout?: number): Promise<T | { data: T; etag?: string }> {
     const headers: HeadersInit = {}
     if (ifMatch) {
       headers['If-Match'] = ifMatch
@@ -285,14 +342,15 @@ export class ApiClient {
       method: 'PATCH',
       body: body ? JSON.stringify(body) : undefined,
       headers,
-    })
+    }, timeout)
     return includeEtag ? response : response.data
   }
 
   /**
    * DELETE request helper with optional If-Match header for conditional deletes
+   * @param timeout - Timeout in milliseconds (default: 3000ms)
    */
-  async delete<T>(userId: string, path: string, ifMatch?: string, includeEtag?: boolean): Promise<T | { data: T; etag?: string }> {
+  async delete<T>(userId: string, path: string, ifMatch?: string, includeEtag?: boolean, timeout?: number): Promise<T | { data: T; etag?: string }> {
     const headers: HeadersInit = {}
     if (ifMatch) {
       headers['If-Match'] = ifMatch
@@ -301,7 +359,7 @@ export class ApiClient {
     const response = await this.request<T>(userId, path, {
       method: 'DELETE',
       headers,
-    })
+    }, timeout)
     return includeEtag ? response : response.data
   }
 }

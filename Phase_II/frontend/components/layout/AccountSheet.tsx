@@ -19,7 +19,7 @@
 "use client"
 
 import { useEffect } from "react"
-import { User, Settings, LogOut } from "lucide-react"
+import { User, LogOut } from "lucide-react"
 import { authClient } from "@/lib/auth/better-auth-client"
 import { useRouter } from "next/navigation"
 

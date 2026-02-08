@@ -32,13 +32,15 @@ import { PageTransition } from "@/components/layout/PageTransition"
 // Server Component - no "use client" directive
 export default async function DashboardPage() {
   // Server-side session validation
+  const requestHeaders = await headers()
+
   const session = await auth.api.getSession({
-    headers: await headers()
+    headers: requestHeaders
   })
 
   // Redirect to sign in if not authenticated
   if (!session) {
-    redirect("/signin")
+    redirect("/login")
   }
 
   // Extract user info for display

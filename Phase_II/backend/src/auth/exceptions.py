@@ -24,3 +24,27 @@ class AuthorizationError(Exception):
     """
 
     pass
+
+
+class JWTExpiredError(AuthenticationError):
+    """Exception raised when JWT token has expired (exp claim in the past)."""
+
+    pass
+
+
+class JWTInvalidSignatureError(AuthenticationError):
+    """Exception raised when JWT signature verification fails (tampered or wrong key)."""
+
+    pass
+
+
+class JWTMissingClaimError(AuthenticationError):
+    """Exception raised when required JWT claims are missing (sub, exp, iat, iss)."""
+
+    pass
+
+
+class JWKSUnavailableError(AuthenticationError):
+    """Exception raised when JWKS endpoint is unreachable or returns invalid data."""
+
+    pass

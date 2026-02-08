@@ -4,16 +4,18 @@
  * Type-safe API client methods for task CRUD operations and metrics.
  * All methods are Server Actions that automatically:
  * - Get user_id from Better Auth session
- * - Forward session cookies to backend
- * - Make authenticated requests to backend API
+ * - Obtain JWT token via /api/auth/token endpoint
+ * - Make authenticated requests to backend API with Authorization header
  *
- * Authentication is handled via Better Auth session cookies.
- * Backend validates session by calling Better Auth's /api/auth/session endpoint.
+ * Authentication flow:
+ * 1. Session validated via Better Auth cookies (getSession)
+ * 2. JWT obtained via /api/auth/token HTTP endpoint
+ * 3. Backend validates JWT signature (HS256/RS256)
  */
 
 'use server'
 
-import { cookies, headers } from 'next/headers'
+import { headers } from 'next/headers'
 import { auth } from '../auth/better-auth'
 import {
   mapStatusToErrorCode,
@@ -40,73 +42,72 @@ async function makeAuthenticatedRequest<T>(
   options: RequestInit = {}
 ): Promise<ApiResponse<T>> {
   try {
-    console.log(`[makeAuthenticatedRequest] Starting request to: ${path}`)
+    const reqHeaders = await headers();
 
-    // Get session from Better Auth
+    // 1. Get Session for the User ID
     const session = await auth.api.getSession({
-      headers: await headers()
-    })
+      headers: reqHeaders
+    });
 
-    console.log(`[makeAuthenticatedRequest] Session check:`, {
-      hasSession: !!session,
-      hasUser: !!session?.user,
-      userId: session?.user?.id
-    })
+    const userId = session?.user?.id;
 
-    // Handle missing session gracefully
-    if (!session || !session.user?.id) {
-      console.error(`[makeAuthenticatedRequest] AUTHENTICATION FAILED: No valid session`)
-
+    if (!userId) {
+      console.error("[API] No user ID in session");
       return {
         success: false,
-        error: {
-          code: ERROR_CODES.AUTH_FAILED,
-          message: 'Not authenticated. Please sign in to continue.',
-          status: 401
-        }
-      }
+        error: { code: ERROR_CODES.AUTH_FAILED, message: 'Not authenticated', status: 401 }
+      };
     }
 
-    const userId = session.user.id
+    // 2. Get JWT token via Better Auth /api/auth/token endpoint
+    //    auth.api.getToken() is undocumented and unreliable server-side.
+    //    The documented approach is to call the HTTP endpoint directly.
+    let jwt: string | undefined;
 
-    // Build full URL with user_id
-    const baseURL = process.env.BACKEND_URL
+    try {
+      const authUrl = process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_BETTER_AUTH_URL || 'http://localhost:3000';
+      const cookie = reqHeaders.get('cookie') || '';
 
-    // Explicit check for missing BACKEND_URL
-    if (!baseURL) {
+      const tokenRes = await fetch(`${authUrl}/api/auth/token`, {
+        headers: { cookie },
+        cache: 'no-store',
+      });
+
+      if (tokenRes.ok) {
+        const tokenData = await tokenRes.json();
+        jwt = tokenData?.token;
+      } else {
+        console.error('[API] Token endpoint returned:', tokenRes.status);
+      }
+    } catch (tokenError) {
+      console.error("[API] Failed to fetch JWT:", tokenError);
+    }
+
+    if (!jwt || !jwt.includes('.')) {
+      console.error("[API] No valid JWT token received");
       return {
         success: false,
-        error: {
-          code: ERROR_CODES.CONFIG_ERROR,
-          message: 'Backend URL not configured. Please check environment variables.',
-          status: 500
-        }
-      }
+        error: { code: ERROR_CODES.AUTH_FAILED, message: 'Failed to get JWT token', status: 401 }
+      };
     }
 
-    const url = `${baseURL}/api/${userId}${path}`
+    // 3. Construct URL
+    const baseURL = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const url = `${baseURL}/api/${userId}${path}`;
 
-    // Get all cookies to forward to backend
-    const cookieStore = await cookies()
-    const cookieHeader = cookieStore.getAll()
-      .map(cookie => `${cookie.name}=${cookie.value}`)
-      .join('; ')
+    // 4. Set Headers
+    const requestHeaders = new Headers(options.headers || {});
+    requestHeaders.set('Content-Type', 'application/json');
+    requestHeaders.set('Authorization', `Bearer ${jwt}`);
 
-    // Merge headers with cookies
-    const requestHeaders = new Headers(options.headers || {})
-    requestHeaders.set('Content-Type', 'application/json')
-    requestHeaders.set('Cookie', cookieHeader)
-
-    // Make request
     const response = await fetch(url, {
       ...options,
       headers: requestHeaders,
-    })
+    });
 
-    // Handle non-OK responses with structured errors
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-
+      const errorData = await response.json().catch(() => ({}));
+      console.error(`[API] Backend responded: ${response.status}`);
       return {
         success: false,
         error: {
@@ -114,26 +115,20 @@ async function makeAuthenticatedRequest<T>(
           message: getUserFriendlyMessage(response.status, errorData),
           status: response.status
         }
-      }
+      };
     }
 
-    // Parse and return successful response
-    const data = await response.json()
-    return { success: true, data }
+    const data = await response.json();
+    return { success: true, data };
 
   } catch (error) {
-    // Network failures or other exceptions
+    console.error(`[API] Connection Error:`, error);
     return {
       success: false,
-      error: {
-        code: ERROR_CODES.BACKEND_UNAVAILABLE,
-        message: 'Unable to connect to the server. Please try again.',
-        status: 503
-      }
-    }
+      error: { code: ERROR_CODES.BACKEND_UNAVAILABLE, message: 'Server unreachable', status: 503 }
+    };
   }
 }
-
 /**
  * Create a new task
  * POST /api/{user_id}/tasks

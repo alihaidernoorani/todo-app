@@ -77,8 +77,8 @@ export function mapStatusToErrorCode(status: number): ErrorCode {
  */
 export function getUserFriendlyMessage(status: number, errorData: any = {}): string {
   const messages: Record<number, string> = {
-    401: 'Your session has expired. Please sign in again.',
-    403: 'Access denied. You can only access your own tasks.',
+    401: 'Your authentication token has expired. Please sign in again.',
+    403: 'Access denied. You cannot access another user\'s resources.',
     404: "Task not found or you don't have permission to access it.",
     422: 'Invalid task data. Please check your input.',
     503: 'Service temporarily unavailable. Please try again later.',

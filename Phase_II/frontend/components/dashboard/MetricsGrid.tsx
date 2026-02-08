@@ -30,7 +30,6 @@
 import { useEffect, useState } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { getTaskMetrics } from "@/lib/api/tasks"
-import { shouldRedirectToLogin } from "@/lib/api/errors"
 import { MetricCard } from "./MetricCard"
 import { EmptyState } from "./EmptyState"
 import type { TaskMetrics } from "@/lib/api/types"
@@ -64,13 +63,6 @@ export function MetricsGrid() {
           message: apiError.message,
           status: apiError.status
         })
-
-        // Check if authentication failed - redirect to login
-        if (shouldRedirectToLogin(apiError.code)) {
-          const loginUrl = `/login?from=${encodeURIComponent(pathname)}`
-          router.push(loginUrl)
-          return
-        }
 
         // Extract error message safely
         const errorMessage = typeof apiError.message === 'string'

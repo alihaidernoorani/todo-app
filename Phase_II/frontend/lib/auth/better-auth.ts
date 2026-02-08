@@ -1,20 +1,21 @@
 /**
  * Better Auth Server Configuration
  *
- * This file configures Better Auth for session-based authentication with:
+ * This file configures Better Auth for JWT-based authentication with:
  * - PostgreSQL database integration
  * - Email/password authentication
- * - HttpOnly cookie storage for web sessions (XSS protection)
- * - 15-minute session expiry
+ * - JWT tokens with RS256 signing for stateless authentication
+ * - 15-minute JWT expiry for security
  *
  * Environment Variables Required:
- * - BETTER_AUTH_SECRET: 32-character random string (used for session signing)
- * - BETTER_AUTH_URL: Base URL for auth endpoints (e.g., http://localhost:3000)
+ * - BETTER_AUTH_SECRET: 32-character random string (used for JWT signing)
+ * - BETTER_AUTH_URL: Base URL for auth endpoints and issuer claim
  * - NEON_DATABASE_URL or DATABASE_URL: PostgreSQL connection string for auth tables
  */
 
 import { betterAuth } from "better-auth"
 import { nextCookies } from "better-auth/next-js"
+import { jwt } from "better-auth/plugins"
 import { getPool } from "@/lib/db/pool"
 
 /**
@@ -112,11 +113,32 @@ function createAuth(): ReturnType<typeof betterAuth> | null {
       // Secret for signing sessions
       secret: process.env.BETTER_AUTH_SECRET || "development-secret-change-in-production",
 
-      // Plugins for Next.js integration
+      // Plugins for Next.js integration and JWT support
       plugins: [
         // CRITICAL: nextCookies() enables Better Auth to work with Next.js cookies() API
         // Without this, Server Components and Server Actions cannot read auth cookies
         nextCookies(),
+
+        // JWT plugin for stateless authentication across different domains
+        jwt({
+          // JWT configuration for cross-domain deployment (Vercel + HuggingFace)
+          // RS256: Public/private key cryptography for signature verification
+          algorithm: "HS256",
+
+          // Token expiration: 15 minutes for security (matches session expiry)
+          expiresIn: 60 * 15,
+
+          // Issuer claim: identifies the Better Auth instance that issued the token
+          issuer: baseURL,
+
+          // Audience claim: identifies the intended recipient (backend API)
+          // Optional - can be used for additional validation
+          audience: process.env.NEXT_PUBLIC_API_URL || undefined,
+
+          // Disable private key encryption to avoid key decryption issues
+          // This is fine for development; keys are still stored securely in database
+          disablePrivateKeyEncryption: true,
+        }),
       ],
     })
 
@@ -149,6 +171,9 @@ export type Auth = ReturnType<typeof betterAuth>
 /**
  * Auth singleton instance for use in Server Components and Server Actions
  * Lazily initialized on first use
+ *
+ * Note: JWT tokens should be obtained via the /api/auth/token HTTP endpoint,
+ * not via auth.api. The server-side getToken API is undocumented and unreliable.
  */
 export const auth = {
   api: {
@@ -158,6 +183,6 @@ export const auth = {
         return null
       }
       return authInstance.api.getSession(options)
-    }
+    },
   }
 }

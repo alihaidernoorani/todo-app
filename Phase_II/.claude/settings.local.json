@@ -8,7 +8,20 @@
       "Bash(python -m pytest:*)",
       "Bash(python3 -m pytest:*)",
       "Bash(uv run python:*)",
-      "Bash(gh auth:*)"
+      "Bash(gh auth:*)",
+      "WebSearch",
+      "mcp__better-auth__search-better-auth-docs",
+      "WebFetch(domain:pyjwt.readthedocs.io)",
+      "WebFetch(domain:renzolucioni.com)",
+      "WebFetch(domain:alukach.com)",
+      "WebFetch(domain:workos.com)",
+      "Bash(.specify/scripts/bash/check-prerequisites.sh:*)",
+      "Bash(npx tsc:*)",
+      "Bash(python -m py_compile:*)",
+      "Bash(python3 -m py_compile:*)",
+      "Bash(find:*)",
+      "mcp__better-auth__ask-question-about-better-auth",
+      "Bash(node -e:*)"
     ]
   }
 }

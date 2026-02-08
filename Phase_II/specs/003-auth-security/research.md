@@ -1,528 +1,656 @@
-# Research: Authentication and Security
+# Research Findings: Stateless JWT Authentication
 
 **Feature**: 003-auth-security
-**Date**: 2026-01-25
+**Date**: 2026-02-07
 **Status**: Complete
 
 ## Overview
 
-This document consolidates research findings for implementing stateless JWT authentication and authorization with Better Auth and FastAPI. Key focus areas include JWT library selection, Better Auth JWT payload structure, FastAPI dependency patterns, and HS256 security best practices.
+This document consolidates research findings for migrating from session-cookie based authentication to stateless JWT authentication using RS256 and JWKS. All 8 research tasks have been completed with decisions, rationale, and implementation guidance.
 
 ---
 
-## Task 1: Python JWT Library Evaluation
+## RT-001: Better Auth JWT Plugin Configuration
 
-### Objective
-Select the optimal JWT library for HS256 validation in Python 3.13+
+### Question
+How to enable Better Auth JWT plugin with RS256 signing?
 
-### Options Evaluated
+### Research Findings
 
-#### Option 1: python-jose[cryptography]
-- **Maintainer**: Michael Davis (FastAPI community contributor)
-- **Algorithm Support**: HS256, RS256, ES256, EdDSA
-- **Performance**: Fast (C-based cryptography backend)
-- **FastAPI Integration**: ✅ Recommended by FastAPI official docs
-- **Type Hints**: ✅ Full Python 3.13 support
-- **Security Track Record**: Well-audited, regular CVE patches
-- **Documentation**: Excellent FastAPI-specific examples
+Better Auth provides a JWT plugin that generates JWT tokens on sign-in. Configuration requires:
 
-**Pros**:
-- Official FastAPI recommendation
-- Cryptography backend for performance
-- Comprehensive algorithm support
-- Strong community adoption
+1. **Import the JWT plugin**:
+```typescript
+import { jwt } from "better-auth/plugins/jwt"
+```
 
-**Cons**:
-- Larger dependency footprint (cryptography)
+2. **Enable in Better Auth configuration**:
+```typescript
+export const auth = betterAuth({
+  // ... other config
+  plugins: [
+    jwt({
+      // JWT configuration
+      issuer: process.env.BETTER_AUTH_URL,
+      audience: process.env.BETTER_AUTH_AUDIENCE || process.env.NEXT_PUBLIC_API_URL,
+      expiresIn: 60 * 15, // 15 minutes in seconds
+      algorithm: "RS256", // Use RS256 for JWKS compatibility
+    })
+  ]
+})
+```
 
-#### Option 2: PyJWT
-- **Maintainer**: José Padilla (industry standard)
-- **Algorithm Support**: HS256, RS256, ES256, EdDSA
-- **Performance**: Fast (C extensions available)
-- **FastAPI Integration**: ⚠️ Works but less documented
-- **Type Hints**: ✅ Python 3.13 compatible
-- **Security Track Record**: Excellent, industry-standard library
-- **Documentation**: General-purpose (not FastAPI-specific)
-
-**Pros**:
-- Industry standard JWT library
-- Excellent security track record
-- Lightweight dependency
-
-**Cons**:
-- Less FastAPI-specific documentation
-- Requires more boilerplate for FastAPI integration
-
-#### Option 3: authlib
-- **Maintainer**: Hsiaoming Yang (lepture)
-- **Algorithm Support**: All JWT/JWE algorithms
-- **Performance**: Good (pure Python + optional C)
-- **FastAPI Integration**: ⚠️ Works but heavyweight
-- **Type Hints**: ✅ Python 3.13 compatible
-- **Security Track Record**: Good, comprehensive library
-- **Documentation**: OAuth/OpenID focused
-
-**Pros**:
-- Comprehensive auth library (JWT, OAuth, OpenID)
-- Future-proof for OAuth integration
-
-**Cons**:
-- Heavyweight dependency (includes OAuth, OpenID)
-- Overkill for simple JWT validation
+3. **Key Generation**: Better Auth automatically generates RS256 key pairs when JWT plugin is enabled. Private key signs tokens, public key exposed via JWKS endpoint.
 
 ### Decision
+**Enable Better Auth JWT plugin with RS256 algorithm and 15-minute expiration**
 
-**Selected**: `python-jose[cryptography]` version 3.3.0+
+### Rationale
+- RS256 enables asymmetric verification (backend can verify without shared secret)
+- 15-minute expiration balances security (limits exposure) with UX (reduces refresh frequency)
+- Better Auth handles key generation and rotation automatically
+- JWKS endpoint automatically exposed at `/.well-known/jwks.json`
 
-**Rationale**:
-1. **Official FastAPI recommendation** - Reduces integration risk
-2. **Excellent documentation** - FastAPI security tutorial uses python-jose
-3. **Performance** - Cryptography backend meets <50ms requirement
-4. **Security** - Well-audited, active CVE response
-5. **Type safety** - Full type hints for Python 3.13+
+### Alternatives Considered
+- **HS256 (symmetric)**: Rejected - requires shared secret between frontend and backend, violates stateless principle
+- **30-minute expiration**: Rejected - longer token lifetime increases security risk if token stolen
+- **5-minute expiration**: Rejected - too short, causes poor UX with frequent refresh prompts
 
-**Implementation Details**:
-```python
-# Installation
-pip install python-jose[cryptography]
-
-# Import
-from jose import jwt, JWTError, ExpiredSignatureError
-
-# Usage
-payload = jwt.decode(
-    token,
-    secret_key,
-    algorithms=["HS256"]
-)
-```
-
----
-
-## Task 2: Better Auth JWT Claim Structure Research
-
-### Objective
-Understand the exact JWT payload structure generated by Better Auth
-
-### Findings
-
-**CRITICAL DISCOVERY**: Better Auth uses **EdDSA (Ed25519)** by default, **NOT HS256**.
-
-#### Default JWT Header Structure
-
-```json
-{
-  "alg": "EdDSA",    // Default algorithm (NOT HS256!)
-  "kid": "c5c7995d-0037-4553-8aee-b5b620b89b23",  // Key ID
-  "typ": "JWT"
-}
-```
-
-#### Default JWT Payload Structure
-
-```json
-{
-  "sub": "<user.id>",                    // Subject = User ID (customizable)
-  "iss": "<BASE_URL>",                   // Issuer = BASE_URL env var
-  "aud": "<BASE_URL>",                   // Audience = BASE_URL env var
-  "exp": <timestamp_15_mins_from_now>,   // Expiration (default: 15 minutes)
-  "iat": <current_timestamp>,            // Issued at
-  // Entire user object spread here by default
-  "id": "<user.id>",
-  "email": "<user.email>",
-  "name": "<user.name>"
-  // ... additional user fields ...
-}
-```
-
-#### Key Claims
-
-1. **User ID**: Stored in `sub` claim (defaults to `user.id`)
-2. **Expiration**: Default 15 minutes (`exp` claim)
-3. **Standard Claims**: `iss`, `aud`, `exp`, `iat`, `sub`
-4. **User Data**: Entire user object included by default (can be customized)
-
-#### Better Auth JWT Configuration for HS256
-
-**IMPORTANT**: To use HS256 as required by the spec, Better Auth must be configured with a custom signing strategy:
-
+### Implementation Snippet
 ```typescript
-// Better Auth configuration (frontend)
-jwt({
-  jwt: {
-    // Custom payload definition
-    definePayload: ({ user }) => {
-      return {
-        uid: user.id,      // Use 'uid' instead of default 'sub'
-        email: user.email,
-        role: user.role
-      }
-    },
+// frontend/lib/auth/better-auth.ts
+import { betterAuth } from "better-auth"
+import { jwt } from "better-auth/plugins/jwt"
 
-    // CRITICAL: Configure HS256 signing (not default EdDSA)
-    customSign: async ({ payload }) => {
-      // Use jose library with HS256
-      const token = await new jose.SignJWT(payload)
-        .setProtectedHeader({ alg: 'HS256' })
-        .setIssuedAt()
-        .setExpirationTime('15m')
-        .sign(new TextEncoder().encode(process.env.BETTER_AUTH_SECRET))
-      return token
-    },
-
-    // Custom verification (if needed)
-    customVerify: async ({ token }) => {
-      const { payload } = await jose.jwtVerify(
-        token,
-        new TextEncoder().encode(process.env.BETTER_AUTH_SECRET)
-      )
-      return payload
-    }
+export const auth = betterAuth({
+  database: pool,
+  emailAndPassword: { enabled: true },
+  session: {
+    expiresIn: 60 * 15, // 15 minutes
+    updateAge: 60 * 5,  // Refresh every 5 minutes
+  },
+  plugins: [
+    jwt({
+      issuer: process.env.BETTER_AUTH_URL,
+      audience: process.env.NEXT_PUBLIC_API_URL,
+      expiresIn: 60 * 15,
+      algorithm: "RS256",
+    })
+  ],
+  advanced: {
+    useSecureCookies: process.env.NODE_ENV === "production",
   }
 })
 ```
 
-#### Claim Mapping for Spec Requirements
-
-| Spec Requirement | Better Auth Default | Required Configuration |
-|------------------|---------------------|------------------------|
-| User ID claim: `uid` | `sub` | Custom `definePayload` to use `uid` |
-| Algorithm: HS256 | EdDSA (Ed25519) | Custom `customSign` with HS256 |
-| Shared secret | Key pair (public/private) | Use BETTER_AUTH_SECRET in customSign |
-
-### Decision
-
-**For MVP**: Assume Better Auth is configured with HS256 and `uid` claim as specified.
-
-**Documentation Required**: Create configuration guide for Better Auth frontend setup to ensure HS256 compatibility.
-
-**Alternative Approach**: If Better Auth cannot be configured for HS256, the FastAPI backend can support **both EdDSA and HS256** validation:
-
-```python
-# Multi-algorithm support
-algorithms = ["HS256", "EdDSA"]  # Support both
-payload = jwt.decode(token, secret_key, algorithms=algorithms)
-```
-
-**Recommendation**: Clarify with frontend team whether Better Auth will be configured for HS256 or if backend should support EdDSA.
-
 ---
 
-## Task 3: FastAPI Dependency Best Practices
+## RT-002: JWKS Endpoint Discovery
 
-### Objective
-Design FastAPI dependencies that follow framework conventions
+### Question
+What is the JWKS endpoint URL format for Better Auth?
 
 ### Research Findings
 
-#### Pattern 1: OAuth2PasswordBearer (FastAPI Built-in)
+Better Auth follows standard OAuth 2.0 / OpenID Connect conventions:
+
+1. **JWKS Endpoint**: `{BETTER_AUTH_URL}/.well-known/jwks.json`
+2. **Response Format**:
+```json
+{
+  "keys": [
+    {
+      "kty": "RSA",
+      "kid": "key-id-string",
+      "use": "sig",
+      "alg": "RS256",
+      "n": "modulus-base64url-encoded",
+      "e": "exponent-base64url-encoded"
+    }
+  ]
+}
+```
+
+3. **Key Rotation**: Better Auth may expose multiple keys during rotation periods (old + new)
+
+### Decision
+**Use standard JWKS endpoint at `/.well-known/jwks.json`**
+
+### Rationale
+- Industry standard (RFC 7517 - JSON Web Key)
+- Better Auth automatically exposes this endpoint when JWT plugin enabled
+- Backend can fetch public keys without authentication
+- Supports key rotation seamlessly
+
+### Alternatives Considered
+- **Custom endpoint**: Rejected - non-standard, requires additional configuration
+- **Hardcoded public key**: Rejected - doesn't support key rotation, requires redeployment on key change
+
+### Implementation Notes
+```python
+# Backend JWKS URL construction
+JWKS_URL = f"{BETTER_AUTH_URL}/.well-known/jwks.json"
+
+# Example fetch
+async def fetch_jwks():
+    async with httpx.AsyncClient() as client:
+        response = await client.get(JWKS_URL)
+        response.raise_for_status()
+        return response.json()
+```
+
+---
+
+## RT-003: PyJWT RS256 Verification
+
+### Question
+How to verify RS256 JWT signatures using PyJWT with JWKS public keys?
+
+### Research Findings
+
+PyJWT library provides robust RS256 verification:
+
+1. **Install Dependencies**:
+```bash
+pip install PyJWT[crypto]>=2.8.0 cryptography>=41.0.0
+```
+
+2. **JWKS Fetching and Key Conversion**:
+```python
+import jwt
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives import serialization
+from jwt import PyJWKClient
+
+# Option 1: Use PyJWKClient (recommended)
+jwks_client = PyJWKClient(JWKS_URL)
+signing_key = jwks_client.get_signing_key_from_jwt(token)
+
+# Option 2: Manual fetch and convert
+def jwk_to_pem(jwk: dict) -> bytes:
+    # Convert JWK to PEM format for PyJWT
+    from jwt.algorithms import RSAAlgorithm
+    public_key = RSAAlgorithm.from_jwk(json.dumps(jwk))
+    return public_key
+```
+
+3. **Token Verification**:
+```python
+decoded = jwt.decode(
+    token,
+    signing_key.key,
+    algorithms=["RS256"],
+    issuer=EXPECTED_ISSUER,
+    options={
+        "verify_signature": True,
+        "verify_exp": True,
+        "verify_iss": True,
+        "require": ["sub", "exp", "iss"]
+    }
+)
+```
+
+### Decision
+**Use PyJWT with PyJWKClient for automatic JWKS fetching and caching**
+
+### Rationale
+- PyJWKClient handles JWKS fetching and caching automatically
+- Built-in support for key rotation (fetches multiple keys)
+- Validates token signatures with proper RS256 verification
+- Enforces required claims and expiration
+
+### Alternatives Considered
+- **Manual JWK conversion**: Rejected - more code, error-prone, doesn't handle caching
+- **python-jose library**: Rejected - PyJWT is more widely used and better maintained
+- **Custom verification**: Rejected - security-critical code should use established libraries
+
+### Security Considerations
+- Always verify `iss` claim matches expected Better Auth URL
+- Always verify `exp` claim to reject expired tokens
+- Require `sub` claim for user identity
+- Use `algorithms=["RS256"]` explicitly (prevents algorithm confusion attacks)
+
+---
+
+## RT-004: JWKS Caching Strategy
+
+### Question
+What caching strategy prevents JWKS endpoint overload while ensuring key rotation?
+
+### Research Findings
+
+Industry best practices for JWKS caching:
+
+1. **TTL-Based Caching**: Cache keys for 1-6 hours
+2. **On-Demand Refresh**: Refresh when signature verification fails (handles rotation)
+3. **Stale-While-Revalidate**: Serve cached keys while fetching new keys in background
+
+**Recommended Strategy**:
+- Cache JWKS keys for **1 hour** (3600 seconds)
+- On signature verification failure, refresh cache and retry once
+- Startup validation: Fetch JWKS on application start (fail if unavailable)
+
+### Decision
+**Implement 1-hour TTL cache with on-demand refresh and startup validation**
+
+### Rationale
+- 1-hour TTL balances performance (reduces JWKS requests) with freshness (handles rotation)
+- On-demand refresh handles key rotation transparently
+- Startup validation ensures JWKS availability before accepting traffic (fail-safe)
+- PyJWKClient provides built-in caching with these strategies
+
+### Alternatives Considered
+- **No caching**: Rejected - unnecessary load on JWKS endpoint, adds latency
+- **24-hour TTL**: Rejected - too long, delays key rotation propagation
+- **5-minute TTL**: Rejected - too short, increases JWKS endpoint load
+- **Manual cache invalidation**: Rejected - complex, error-prone
+
+### Implementation Pattern
+```python
+from jwt import PyJWKClient
+
+jwks_client = PyJWKClient(
+    JWKS_URL,
+    cache_keys=True,
+    max_cached_keys=16,  # Cache up to 16 keys
+    cache_jwk_set_ttl=3600,  # 1 hour TTL
+    lifespan=3600,  # Refresh after 1 hour
+)
+
+# Startup validation
+async def validate_jwks_on_startup():
+    try:
+        # Fetch JWKS to populate cache
+        jwks = await fetch_jwks()
+        if not jwks.get("keys"):
+            raise RuntimeError("JWKS endpoint returned no keys")
+    except Exception as e:
+        raise RuntimeError(f"JWKS endpoint unavailable: {e}")
+```
+
+### Cache Performance Metrics
+- **Hit rate target**: >99% (with 1-hour TTL and typical traffic patterns)
+- **Miss penalty**: ~50-200ms (JWKS fetch over network)
+- **Verification latency**: <1ms (cached) vs ~50-200ms (cache miss)
+
+---
+
+## RT-005: Frontend JWT Storage Security
+
+### Question
+Is localStorage secure for JWT tokens? What are XSS mitigation strategies?
+
+### Research Findings
+
+**localStorage Security Analysis**:
+
+**Pros**:
+- Simple API, no server-side session required
+- Works across tabs
+- Survives page refreshes
+
+**Cons**:
+- Vulnerable to XSS attacks (JavaScript can read localStorage)
+- Not httpOnly (accessible to any script on the page)
+
+**XSS Mitigation Strategies**:
+
+1. **Content Security Policy (CSP)**:
+```typescript
+// next.config.js
+const cspHeader = `
+  default-src 'self';
+  script-src 'self' 'unsafe-eval' 'unsafe-inline';
+  style-src 'self' 'unsafe-inline';
+  img-src 'self' blob: data:;
+  font-src 'self';
+  connect-src 'self' ${process.env.NEXT_PUBLIC_API_URL};
+  frame-ancestors 'none';
+`;
+
+module.exports = {
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'Content-Security-Policy',
+            value: cspHeader.replace(/\n/g, ''),
+          },
+        ],
+      },
+    ];
+  },
+};
+```
+
+2. **Input Sanitization**: Sanitize all user inputs before rendering
+3. **Trusted Dependencies**: Audit and minimize third-party scripts
+4. **Short-Lived Tokens**: Use 15-minute expiration to limit exposure window
+
+### Decision
+**Use localStorage with CSP headers and short-lived tokens (15 minutes)**
+
+### Rationale
+- Necessary for stateless cross-domain architecture (cookies don't work across domains)
+- CSP headers block inline scripts and untrusted origins (mitigates XSS)
+- Short token lifetime limits damage if token stolen
+- Simpler than memory-only storage (no tab sync issues)
+
+### Alternatives Considered
+- **HttpOnly cookies**: Rejected - doesn't work across different domains (Vercel + HuggingFace)
+- **SessionStorage**: Rejected - doesn't persist across tabs, poor UX
+- **Memory-only storage**: Rejected - lost on page refresh, complex tab synchronization
+- **IndexedDB**: Rejected - overkill for single value, same XSS vulnerability as localStorage
+
+### OWASP Recommendations
+- ✅ Use CSP headers
+- ✅ Use short-lived tokens (15-60 minutes)
+- ✅ Implement token refresh flow
+- ✅ Clear tokens on logout
+- ✅ Validate token on every sensitive operation
+
+### Implementation
+```typescript
+// frontend/lib/auth/token-storage.ts
+const TOKEN_KEY = "better_auth_jwt_token";
+
+export const tokenStorage = {
+  set: (token: string) => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(TOKEN_KEY, token);
+    }
+  },
+
+  get: (): string | null => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem(TOKEN_KEY);
+    }
+    return null;
+  },
+
+  remove: () => {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem(TOKEN_KEY);
+    }
+  },
+};
+```
+
+---
+
+## RT-006: Token Lifecycle Management
+
+### Question
+How does Better Auth handle token refresh with JWT plugin?
+
+### Research Findings
+
+Better Auth JWT plugin provides built-in token refresh:
+
+1. **Token Types**:
+   - **Access Token**: Short-lived (15 minutes), used for API requests
+   - **Refresh Token**: Long-lived (7 days), used to obtain new access tokens
+
+2. **Refresh Flow**:
+```typescript
+// Client-side refresh
+const { data, error } = await authClient.refresh({
+  refreshToken: storedRefreshToken
+});
+
+if (data) {
+  // New access token
+  tokenStorage.set(data.accessToken);
+}
+```
+
+3. **Automatic Refresh**: Better Auth client can automatically refresh tokens before expiration
+
+### Decision
+**Implement automatic token refresh with Better Auth client**
+
+### Rationale
+- Better Auth handles refresh logic (reduces custom code)
+- Automatic refresh improves UX (no interruption)
+- Refresh tokens stored separately with longer TTL
+
+### Implementation Pattern
+```typescript
+// frontend/lib/auth/auth-client.ts
+import { createAuthClient } from "better-auth/client"
+
+export const authClient = createAuthClient({
+  baseURL: process.env.NEXT_PUBLIC_BETTER_AUTH_URL,
+  plugins: [
+    // JWT plugin automatically handles refresh
+  ],
+});
+
+// API client interceptor for automatic refresh
+async function requestWithTokenRefresh(url: string, options: RequestInit) {
+  const token = tokenStorage.get();
+
+  // Add Authorization header
+  const headers = {
+    ...options.headers,
+    Authorization: `Bearer ${token}`,
+  };
+
+  // Make request
+  let response = await fetch(url, { ...options, headers });
+
+  // If 401, try refreshing token
+  if (response.status === 401) {
+    const refreshed = await authClient.refresh();
+    if (refreshed.data) {
+      tokenStorage.set(refreshed.data.accessToken);
+
+      // Retry with new token
+      headers.Authorization = `Bearer ${refreshed.data.accessToken}`;
+      response = await fetch(url, { ...options, headers });
+    }
+  }
+
+  return response;
+}
+```
+
+---
+
+## RT-007: FastAPI Dependency Pattern for JWT
+
+### Question
+What is the idiomatic FastAPI pattern for JWT extraction and verification?
+
+### Research Findings
+
+FastAPI provides dependency injection for authentication:
 
 ```python
 from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+security = HTTPBearer()
 
-async def get_current_user(token: str = Depends(oauth2_scheme)):
-    # Validates presence of Authorization header
-    # Extracts token automatically
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    # ... validate token ...
-    return user
-```
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    jwks_client: PyJWKClient = Depends(get_jwks_client),
+) -> AuthenticatedUser:
+    """
+    FastAPI dependency that extracts and verifies JWT token.
+    Returns authenticated user or raises HTTPException.
+    """
+    token = credentials.credentials
 
-**Pros**:
-- Automatic OpenAPI documentation
-- Built-in header extraction
-- Standard OAuth2 compliance
-
-**Cons**:
-- Requires `/token` endpoint (not applicable for Better Auth)
-- Less flexible for custom error messages
-
-#### Pattern 2: Custom Security Dependency
-
-```python
-from fastapi import Depends, HTTPException, Header
-
-async def get_current_user(authorization: str = Header(None)):
-    if authorization is None:
-        raise HTTPException(status_code=401, detail="Missing authentication token")
-
-    if not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Invalid authorization header format")
-
-    token = authorization.split(" ")[1]
-    # ... validate token ...
-    return user_id
-```
-
-**Pros**:
-- Full control over error messages (FR-012 requirement)
-- No OAuth2 endpoint dependency
-- Simpler for JWT-only authentication
-
-**Cons**:
-- Manual OpenAPI documentation setup
-- More boilerplate for header parsing
-
-### Decision
-
-**Selected**: Custom Security Dependency (Pattern 2)
-
-**Rationale**:
-1. **Error message control** - Spec requires specific error messages (FR-012)
-2. **No OAuth2 endpoint** - Better Auth handles token issuance
-3. **Simplicity** - JWT-only authentication doesn't need OAuth2 complexity
-4. **Flexibility** - Easy to customize for user ID scoping
-
-#### Error Handling Strategy
-
-**Decision**: Raise `HTTPException` from dependencies (fail-fast)
-
-```python
-from fastapi import HTTPException, status
-
-def verify_token(token: str) -> str:
     try:
-        payload = jwt.decode(token, secret, algorithms=["HS256"])
-        return payload["uid"]
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token expired",
-            headers={"WWW-Authenticate": "Bearer"}
-        )
-    except jwt.JWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token signature"
-        )
-```
+        # Get signing key from JWKS
+        signing_key = jwks_client.get_signing_key_from_jwt(token)
 
-**Rationale**:
-- FastAPI convention for authentication failures
-- Prevents endpoint handlers from null checking
-- Automatic error response formatting
-- Clear exception-to-status-code mapping
-
-#### Path Parameter Extraction
-
-**Decision**: Explicit dependency parameter injection
-
-```python
-async def verify_user_access(
-    user_id: str,  # FastAPI injects from path {user_id}
-    current_user_id: str = Depends(get_current_user)
-) -> str:
-    if current_user_id != user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied: cannot access another user's resources"
-        )
-    return current_user_id
-```
-
-**Rationale**:
-- Explicit is better than implicit (PEP 20)
-- Type-safe parameter validation
-- Clear dependency contract
-- Easy to test in isolation
-
----
-
-## Task 4: HS256 Security Best Practices
-
-### Objective
-Ensure secure implementation of HS256 signature verification
-
-### Research Findings
-
-#### Secret Length Requirements
-
-**RFC 7518 Recommendation**: Minimum 256 bits (32 characters) for HS256
-
-**OWASP Recommendation**: ≥256 bits, prefer 512 bits for production
-
-**Implementation**:
-```python
-# Pydantic validation
-class Settings(BaseSettings):
-    BETTER_AUTH_SECRET: str
-
-    @validator('BETTER_AUTH_SECRET')
-    def validate_secret_length(cls, v):
-        if len(v) < 32:
-            raise ValueError('BETTER_AUTH_SECRET must be at least 32 characters (256 bits)')
-        return v
-```
-
-#### Timing Attack Mitigation
-
-**Finding**: Python JWT libraries use constant-time comparison internally.
-
-**python-jose**: Uses `hmac.compare_digest()` for signature verification (constant-time)
-
-**No custom implementation needed** - Library handles timing attack prevention.
-
-#### Validation Sequence (OWASP JWT Cheatsheet)
-
-1. **Verify signature** before trusting any claims
-2. **Check expiration** (`exp` claim) immediately after signature
-3. **Validate issuer** (`iss`) if applicable
-4. **Validate audience** (`aud`) if applicable
-5. **Extract claims** only after all validation passes
-
-**Implementation**:
-```python
-def decode_jwt(token: str) -> dict:
-    try:
-        # Step 1-4: python-jose handles signature + claim validation
+        # Verify token
         payload = jwt.decode(
             token,
-            settings.BETTER_AUTH_SECRET,
-            algorithms=["HS256"],
+            signing_key.key,
+            algorithms=["RS256"],
+            issuer=settings.better_auth_url,
             options={
-                "verify_signature": True,  # CRITICAL
-                "verify_exp": True,        # Check expiration
-                "verify_iat": True,        # Validate issued-at
-                "require_exp": True,       # Require exp claim
-                "require_iat": True        # Require iat claim
+                "verify_signature": True,
+                "verify_exp": True,
+                "verify_iss": True,
+                "require": ["sub", "exp", "iss"]
             }
         )
 
-        # Step 5: Validate required claims
-        if "uid" not in payload:
-            raise ValueError("Missing uid claim")
-
-        return payload
+        # Extract user info
+        return AuthenticatedUser(
+            user_id=payload["sub"],
+            email=payload.get("email", ""),
+            name=payload.get("name"),
+        )
 
     except jwt.ExpiredSignatureError:
-        raise  # Re-raise with specific error
-    except jwt.JWTError as e:
-        raise  # Re-raise for handling upstream
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has expired"
+        )
+    except jwt.InvalidTokenError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid token: {str(e)}"
+        )
 ```
 
-#### Secret Storage Best Practices
+### Decision
+**Use FastAPI HTTPBearer security with dependency injection**
 
-**Development**:
-- Use `.env` file (add to `.gitignore`)
-- Never commit secrets to version control
+### Rationale
+- FastAPI HTTPBearer automatically extracts Authorization header
+- Dependency injection enables reusable, testable authentication
+- Standard pattern recognized by OpenAPI/Swagger documentation
+- Easy to apply to any endpoint with `Depends(get_current_user)`
 
-**Production**:
-- Use environment variable injection (Docker, Kubernetes)
-- Use secret management (AWS Secrets Manager, HashiCorp Vault)
-- Rotate secrets periodically
-
-**Implementation**:
+### Usage in Endpoints
 ```python
-# .env.example (checked into repo)
-BETTER_AUTH_SECRET=your-secret-here-min-32-chars
+@router.get("/me")
+async def get_current_user_info(
+    current_user: AuthenticatedUser = Depends(get_current_user)
+) -> dict:
+    return {
+        "user_id": current_user.user_id,
+        "email": current_user.email,
+        "name": current_user.name,
+    }
 
-# .gitignore
-.env
-.env.local
+# With user ID scoping
+@router.get("/{user_id}/tasks")
+async def get_tasks(
+    user_id: str,
+    current_user: AuthenticatedUser = Depends(get_current_user)
+) -> list[Task]:
+    # Validate user can only access their own tasks
+    if current_user.user_id != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cannot access another user's resources"
+        )
+
+    return await task_service.get_tasks(user_id)
 ```
-
-#### Error Information Disclosure
-
-**OWASP Guideline**: Don't leak internal state in error messages
-
-**Good**:
-- "Invalid token signature"
-- "Token expired"
-- "Missing authentication token"
-
-**Bad** (information disclosure):
-- "JWT signature verification failed using secret: abc123"
-- "User ID mismatch: expected user-123 but got user-456"
-
-**Implementation**:
-```python
-# Public error message (generic)
-raise HTTPException(status_code=401, detail="Invalid token signature")
-
-# Internal logging (detailed)
-logger.warning(f"JWT validation failed: {str(e)}", extra={"token_header": header})
-```
-
-### Security Checklist
-
-- ✅ Secret minimum 32 characters (256 bits)
-- ✅ Verify signature before trusting claims
-- ✅ Enforce token expiration (`exp` claim)
-- ✅ Use constant-time comparison (library handles)
-- ✅ Never commit secrets to version control
-- ✅ Return generic error messages to clients
-- ✅ Log detailed errors server-side only
-- ✅ Validate all required claims (`uid`, `exp`, `iat`)
 
 ---
 
-## Summary of Key Findings
+## RT-008: JWKS Startup Validation
 
-### Critical Discoveries
+### Question
+How to fail application startup if JWKS endpoint is unreachable?
 
-1. **Better Auth Default Algorithm**: EdDSA (Ed25519), NOT HS256
-   - **Action Required**: Configure Better Auth for HS256 OR support multi-algorithm validation
-   - **Impact**: Frontend team must customize Better Auth JWT plugin
+### Research Findings
 
-2. **User ID Claim**: Default is `sub`, spec requires `uid`
-   - **Action Required**: Configure Better Auth `definePayload` to use `uid` key
-   - **Impact**: Frontend configuration change needed
+FastAPI provides lifespan events for startup validation:
 
-3. **Default Expiration**: 15 minutes (aligns with spec recommendation)
-   - **No action needed**: Default is acceptable
+```python
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
 
-### Library Selections
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Validate JWKS endpoint
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{settings.better_auth_url}/.well-known/jwks.json",
+                timeout=10.0
+            )
+            response.raise_for_status()
 
-| Component | Selected Library | Version |
-|-----------|------------------|---------|
-| JWT Validation | python-jose[cryptography] | ≥3.3.0 |
-| Environment Config | pydantic-settings | ≥2.0.0 |
-| Testing | pytest + httpx | Latest stable |
+            jwks_data = response.json()
+            if not jwks_data.get("keys"):
+                raise RuntimeError("JWKS endpoint returned no keys")
 
-### Architecture Patterns
+            app.state.jwks_client = PyJWKClient(
+                f"{settings.better_auth_url}/.well-known/jwks.json",
+                cache_keys=True,
+                max_cached_keys=16,
+                cache_jwk_set_ttl=3600,
+            )
 
-| Pattern | Decision |
-|---------|----------|
-| Dependency Injection | Custom Header extraction (not OAuth2PasswordBearer) |
-| Error Handling | Raise HTTPException (fail-fast) |
-| Path Parameter Extraction | Explicit dependency parameter injection |
-| Environment Variables | Pydantic BaseSettings with validation |
+            logger.info(f"✅ JWKS endpoint validated: {len(jwks_data['keys'])} keys loaded")
 
-### Security Requirements
+    except Exception as e:
+        logger.error(f"❌ JWKS endpoint validation failed: {e}")
+        raise RuntimeError(
+            f"Cannot start application: JWKS endpoint unavailable at "
+            f"{settings.better_auth_url}/.well-known/jwks.json"
+        ) from e
 
-- Minimum secret length: 32 characters (256 bits)
-- Algorithm: HS256 (requires Better Auth configuration)
-- Validation sequence: Signature → Expiration → Claims
-- Error messages: Generic public, detailed internal logs
-- Secret storage: Environment variables, never committed
+    yield
 
-### Open Questions for Frontend Team
+    # Shutdown: Cleanup if needed
+    pass
 
-1. **Can Better Auth be configured to use HS256 instead of EdDSA?**
-   - If yes: Provide configuration example
-   - If no: Backend will support both EdDSA and HS256
+app = FastAPI(lifespan=lifespan)
+```
 
-2. **Can Better Auth payload use `uid` instead of `sub` for user ID?**
-   - Requires `definePayload` customization
-   - Backend will adapt based on confirmation
+### Decision
+**Implement fail-safe startup validation using FastAPI lifespan events**
 
-3. **What is the BETTER_AUTH_SECRET value?**
-   - Must be shared between frontend and backend
-   - Must be ≥32 characters
+### Rationale
+- Prevents insecure deployment (app won't start without JWKS)
+- Clear error messages aid debugging
+- Pre-populates JWKS cache (first request won't have cache miss)
+- Standard FastAPI pattern
+
+### Startup Checklist
+1. ✅ Fetch JWKS from Better Auth endpoint
+2. ✅ Validate response contains keys array
+3. ✅ Initialize PyJWKClient with fetched keys
+4. ✅ Log success with key count
+5. ✅ Raise RuntimeError if any step fails
+
+---
+
+## Summary of Decisions
+
+| Research Task | Decision | Key Benefit |
+|--------------|----------|-------------|
+| RT-001 | Enable JWT plugin with RS256, 15-min expiry | Asymmetric verification, security/UX balance |
+| RT-002 | Use standard `/.well-known/jwks.json` endpoint | Industry standard, supports key rotation |
+| RT-003 | PyJWT with PyJWKClient for verification | Robust, handles caching, widely used |
+| RT-004 | 1-hour JWKS cache TTL with on-demand refresh | Performance + freshness balance |
+| RT-005 | localStorage with CSP headers, short tokens | Necessary for cross-domain, XSS mitigation |
+| RT-006 | Automatic token refresh with Better Auth | Seamless UX, reduces custom code |
+| RT-007 | FastAPI HTTPBearer with dependency injection | Idiomatic, reusable, testable |
+| RT-008 | Fail-safe startup validation with lifespan | Prevents insecure deployment |
 
 ---
 
 ## Next Steps
 
-1. ✅ Complete data model design (Phase 1)
-2. ✅ Generate API contracts (Phase 1)
-3. ✅ Create quickstart guide (Phase 1)
-4. 🔄 Coordinate with frontend team on Better Auth configuration
-5. 🔄 Generate implementation tasks (`/sp.tasks`)
+1. ✅ Research complete (this document)
+2. ⏳ Create data-model.md with entity definitions
+3. ⏳ Create contracts/ with OpenAPI specifications
+4. ⏳ Create quickstart.md with setup instructions
+5. ⏳ Update agent context with new technologies
+
+**Status**: Phase 0 complete. Ready for Phase 1 design.

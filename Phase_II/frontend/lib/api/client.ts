@@ -3,10 +3,13 @@
  *
  * Centralized HTTP client with:
  * - Base URL configuration from environment
- * - Session cookie forwarding (credentials: 'include')
+ * - JWT token injection via Authorization header
  * - User ID path interpolation
- * - 401 error interceptor for session expiry
+ * - 401 error interceptor for token expiry
+ * - Automatic token cleanup on authentication failures
  */
+
+import { TokenStorage } from '../auth/token-storage'
 
 /**
  * Map HTTP error responses to user-friendly messages
@@ -21,8 +24,8 @@ function mapErrorToFriendlyMessage(error: any): string {
   if (error.status === 503 || error.message?.includes('503')) {
     return "Service temporarily unavailable. Please try again in a moment."
   }
-  if (error.status === 401 || error.message?.includes('401') || error.message?.includes('Session expired')) {
-    return "Your session has expired. Please sign in again."
+  if (error.status === 401 || error.message?.includes('401') || error.message?.includes('expired') || error.message?.includes('Invalid token')) {
+    return "Your authentication token has expired. Please sign in again."
   }
   if (error.status === 403 || error.message?.includes('403') || error.message?.includes('Access denied')) {
     return "You don't have permission to perform this action."
@@ -91,19 +94,26 @@ export class ApiClient {
       headers.set('Content-Type', 'application/json')
     }
 
-    // Session authentication is handled via cookies (credentials: 'include')
-    // Backend validates session by calling Better Auth's /api/auth/session endpoint
+    // Inject JWT token from localStorage into Authorization header
+    const token = TokenStorage.getAccessToken()
+    if (token && !TokenStorage.isExpired()) {
+      headers.set('Authorization', `Bearer ${token}`)
+    }
 
     try {
-      // Make request with credentials to include HttpOnly cookies
+      // Make request with Authorization header (JWT-based authentication)
       const response = await fetch(url, {
         ...options,
         headers,
-        credentials: 'include', // Include cookies in cross-origin requests
+        // Note: credentials no longer needed for JWT-only authentication
+        // Removed to comply with stateless architecture requirement
       })
 
-      // Handle 401 Unauthorized (session expired)
+      // Handle 401 Unauthorized (token expired or invalid)
       if (response.status === 401) {
+        // Clear expired token from localStorage
+        TokenStorage.clearAccessToken()
+
         // Trigger draft save and redirect to sign-in
         // This will be handled by the useDraftRecovery hook
         const event = new CustomEvent('session-expired')
@@ -172,9 +182,16 @@ export class ApiClient {
     const url = this.buildURL(userId, path)
 
     try {
+      // Add JWT token to HEAD requests as well
+      const token = TokenStorage.getAccessToken()
+      const headers: HeadersInit = {}
+      if (token && !TokenStorage.isExpired()) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
+
       const response = await fetch(url, {
         method: 'HEAD',
-        credentials: 'include',
+        headers,
       })
 
       if (!response.ok) {

@@ -1,11 +1,13 @@
 """FastAPI application entry point."""
 
+import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from jwt import PyJWKClient
 from sqlalchemy.exc import OperationalError
 
 from src.api.v1.router import router as v1_router
@@ -13,14 +15,64 @@ from src.config import get_settings
 from src.database import create_db_and_tables
 from src.exceptions import DatabaseError, NotFoundError, ValidationError
 
+logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
-    """Application lifespan handler."""
-    # Startup: Create tables if they don't exist
+    """Application lifespan handler with optional JWKS validation.
+
+    Attempts to validate JWKS endpoint on startup for RS256 support.
+    If JWKS is unavailable, falls back to HS256 with shared secret.
+    This allows development environments to work without JWKS.
+
+    JWKS client is cached in app.state for reuse if available.
+    """
+    settings = get_settings()
+
+    # Startup: Validate JWKS endpoint and cache client (optional)
+    logger.info("Validating JWKS endpoint: %s", settings.better_auth_jwks_url)
+    try:
+        jwks_client = PyJWKClient(settings.better_auth_jwks_url)
+        # Test JWKS endpoint by fetching keys
+        keys = jwks_client.get_jwk_set()
+        if not keys or not keys.get("keys"):
+            logger.warning(
+                "JWKS endpoint returned no keys: %s. Will fall back to HS256 with shared secret.",
+                settings.better_auth_jwks_url,
+            )
+        else:
+            logger.info("✅ JWKS validation successful. Found %d keys. Using RS256.", len(keys.get("keys", [])))
+            # Cache JWKS client in app state for reuse
+            app.state.jwks_client = jwks_client
+
+    except Exception as e:
+        logger.warning(
+            "⚠️  JWKS endpoint unavailable: %s. Error: %s. "
+            "Falling back to HS256 with BETTER_AUTH_SECRET for JWT verification. "
+            "This is acceptable for development but RS256 is recommended for production.",
+            settings.better_auth_jwks_url,
+            str(e),
+        )
+        # Check if HS256 fallback is available
+        if not settings.better_auth_secret:
+            logger.error(
+                "❌ Neither JWKS (RS256) nor BETTER_AUTH_SECRET (HS256) is available. "
+                "Set BETTER_AUTH_SECRET environment variable or ensure JWKS endpoint is accessible."
+            )
+            raise RuntimeError(
+                "Cannot start: No JWT verification method available. "
+                "Either configure JWKS endpoint or set BETTER_AUTH_SECRET environment variable."
+            ) from e
+        logger.info("✅ Using HS256 fallback with BETTER_AUTH_SECRET for JWT verification.")
+
+    # Create database tables if they don't exist
     await create_db_and_tables()
+
     yield
+
     # Shutdown: Cleanup if needed
+    pass
 
 
 app = FastAPI(

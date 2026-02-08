@@ -1,39 +1,48 @@
 """
 FastAPI Authentication Dependencies
 
-Reusable dependencies for session validation and user ID scoping.
-All authentication is delegated to Better Auth - no custom JWT parsing.
+Reusable dependencies for JWT token validation and user ID scoping.
+Uses RS256 signature verification with JWKS public keys.
 """
 
+import logging
 from fastapi import Depends, HTTPException, Request, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Annotated
 from urllib.parse import unquote
+from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
 
 from ..config import get_settings, Settings
-from .session_validator import validate_session, ServiceUnavailableError, InvalidSessionError
+from .jwt_handler import decode_jwt, extract_bearer_token
 from .models import AuthenticatedUser
+from .exceptions import JWTExpiredError, JWKSUnavailableError
+
+logger = logging.getLogger(__name__)
+
+# HTTPBearer security scheme for extracting Authorization header
+security = HTTPBearer()
 
 
 async def get_current_user(
-    request: Request,
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)],
     settings: Annotated[Settings, Depends(get_settings)]
 ) -> AuthenticatedUser:
     """
-    FastAPI dependency to validate user session via Better Auth.
+    FastAPI dependency to validate JWT tokens from Authorization header.
 
-    Extracts cookies from the incoming request and forwards them to Better Auth's
-    session endpoint for validation. No custom JWT parsing is performed.
+    Extracts JWT from Authorization: Bearer header and verifies signature
+    using RS256 with JWKS public keys. No session endpoint calls.
 
     Args:
-        request: FastAPI request containing cookies
+        credentials: HTTP Bearer credentials from Authorization header
         settings: Application settings (injected)
 
     Returns:
         AuthenticatedUser object with user_id, email, and name
 
     Raises:
-        HTTPException(401): If session is invalid, expired, or missing
-        HTTPException(503): If Better Auth is unreachable
+        HTTPException(401): If JWT is invalid, expired, or missing
+        HTTPException(503): If JWKS endpoint is unreachable
 
     Example:
         @app.get("/protected")
@@ -41,67 +50,69 @@ async def get_current_user(
             return {"user_id": user.user_id, "email": user.email}
     """
 
-    # Extract cookies from request
-    cookies = dict(request.cookies)
-
-    if not cookies:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing authentication credentials"
-        )
-
     try:
-        # Call Better Auth session endpoint to validate session
-        user = await validate_session(
-            cookies=cookies,
-            better_auth_url=settings.session_endpoint_url
-        )
+        # Extract token from credentials
+        token = credentials.credentials
 
-        if user is None:
-            # Better Auth returned 401 - session is invalid
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or expired session"
-            )
+        # Decode and validate JWT token
+        payload = await decode_jwt(token, verify_issuer=True)
+
+        # Extract user information from JWT claims
+        user = AuthenticatedUser(
+            user_id=payload["sub"],
+            email=payload.get("email", ""),
+            name=payload.get("name")
+        )
 
         return user
 
-    except ServiceUnavailableError as e:
-        # Better Auth is unreachable or returned server error
+    except ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token expired"
+        )
+
+    except InvalidTokenError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid token: {str(e)}"
+        )
+
+    except JWKSUnavailableError as e:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"Authentication service unavailable: {str(e)}"
         )
 
-    except InvalidSessionError as e:
-        # Session format is invalid
+    except Exception as e:
+        # Catch any unexpected errors
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid session format: {str(e)}"
+            detail=f"Authentication failed: {str(e)}"
         )
 
 
 async def get_current_user_with_path_validation(
     request: Request,
-    settings: Annotated[Settings, Depends(get_settings)]
+    user: Annotated[AuthenticatedUser, Depends(get_current_user)]
 ) -> AuthenticatedUser:
     """
     FastAPI dependency for user ID scoping with path parameter validation.
 
-    Validates session via Better Auth and ensures authenticated user_id matches
+    Validates JWT token and ensures authenticated user_id (from sub claim) matches
     the {user_id} path parameter. This prevents horizontal privilege escalation.
 
     Args:
-        request: FastAPI request containing cookies and path parameters
-        settings: Application settings (injected)
+        request: FastAPI request containing path parameters
+        user: Authenticated user from JWT token (injected)
 
     Returns:
         AuthenticatedUser object with user_id, email, and name
 
     Raises:
-        HTTPException(401): If session is invalid, expired, or missing
+        HTTPException(401): If JWT is invalid, expired, or missing
         HTTPException(403): If authenticated user_id doesn't match path user_id
-        HTTPException(503): If Better Auth is unreachable
+        HTTPException(503): If JWKS endpoint is unreachable
 
     Example:
         # Router configured with: prefix="/{user_id}/tasks"
@@ -113,9 +124,6 @@ async def get_current_user_with_path_validation(
             return {"tasks": [...]}
     """
 
-    # First authenticate the user
-    user = await get_current_user(request, settings)
-
     # Extract user_id from path parameters
     path_user_id = request.path_params.get("user_id")
 
@@ -126,13 +134,20 @@ async def get_current_user_with_path_validation(
     # URL-decode the path parameter before comparison
     decoded_path_user_id = unquote(path_user_id)
 
-    # Validate that session user matches path user
+    # Validate that JWT user matches path user (JWT-based validation)
     if user.user_id != decoded_path_user_id:
+        logger.warning(
+            "User ID mismatch detected: JWT sub=%s, path user_id=%s",
+            user.user_id,
+            decoded_path_user_id
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied: cannot access another user's resources"
+            detail="Access denied: JWT user_id does not match path parameter. "
+                   "You cannot access another user's resources."
         )
 
+    logger.debug("User ID validation passed: %s", user.user_id)
     return user
 
 

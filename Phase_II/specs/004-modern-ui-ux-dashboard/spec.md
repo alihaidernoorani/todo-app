@@ -31,6 +31,15 @@
 - Q: Should the Add Task button open a modal form or directly create a task from an input field? → A: Modal form - clicking Add Task opens a modal with full form fields
 - Q: Should user-facing errors show a friendly message instead of generic server errors? → A: User-friendly messages - translate technical errors to clear explanations
 
+### Session 2026-02-08
+
+- Q: Should the BACKEND_URL environment variable include the `/api` prefix or should the code add it? → A: BACKEND_URL environment variable includes `/api` prefix (e.g., `http://localhost:8000/api`); code constructs URLs as `{BACKEND_URL}/{user_id}{path}` without adding `/api`
+- Q: What spacing and padding values should be used for dashboard layout, cards, lists, and grids? → A: Generous spacing - Use p-8 to p-10 for main layout (32-40px), p-5 to p-6 for cards (20-24px), space-y-4 to 5 for lists (16-20px), and gap-5 to 6 for grids (20-24px) for premium feel
+- Q: How should mobile users access account settings and sign out functionality? → A: Add "Account" menu item to bottom nav that opens bottom sheet with Profile, Settings (hidden until implemented), and Sign Out - mobile-native pattern, scalable for future features
+- Q: What UX patterns should task input fields and buttons use? → A: Floating labels with focus states, large touch-friendly buttons (min-height 48px), inline validation with error messages below fields, auto-focus on modal open
+- Q: What bottom padding should mobile layout use to clear bottom navigation and safe areas? → A: Use pb-28 (112px) base padding combined with safe-area-inset-bottom CSS environment variable for dynamic safe area support on devices with notches/home indicators
+- Q: Should typography (font sizes and styling) adapt between mobile and desktop viewports? → A: Yes, implement responsive typography with smaller font sizes on mobile and larger sizes on desktop for optimal readability across all devices
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Authenticated Dashboard Access (Priority: P1)
@@ -115,10 +124,12 @@ As a mobile user, I need intuitive navigation that is accessible and doesn't obs
 
 **Acceptance Scenarios**:
 
-1. **Given** I am on mobile, **When** I scroll the dashboard, **Then** the bottom navigation bar remains fixed and accessible
+1. **Given** I am on mobile, **When** I scroll the dashboard, **Then** the bottom navigation bar remains fixed and accessible with Dashboard, Tasks, and Account menu items
 2. **Given** I am on mobile, **When** I tap a navigation item, **Then** the view transitions smoothly without page refresh
-3. **Given** I am on desktop, **When** I view the dashboard, **Then** I see a collapsible glass sidebar with Clean Light Mode styling instead of bottom navigation
-4. **Given** the sidebar is collapsed on desktop, **When** I click the toggle button, **Then** it expands smoothly with animation; when expanded, clicking the same toggle button collapses it again (icon updates to reflect current state)
+3. **Given** I am on mobile, **When** I tap the Account menu item in bottom navigation, **Then** a bottom sheet slides up from the bottom displaying Profile, Settings (hidden), and Sign Out options
+4. **Given** the mobile account bottom sheet is open, **When** I tap Sign Out, **Then** I am logged out and redirected to /login
+5. **Given** I am on desktop, **When** I view the dashboard, **Then** I see a collapsible glass sidebar with Clean Light Mode styling instead of bottom navigation
+6. **Given** the sidebar is collapsed on desktop, **When** I click the toggle button, **Then** it expands smoothly with animation; when expanded, clicking the same toggle button collapses it again (icon updates to reflect current state)
 
 ---
 
@@ -158,20 +169,25 @@ As a user accessing my tasks through the API, I need all requests to be automati
 
 - **FR-001**: System MUST authenticate users using Better Auth client SDK with stateless JWT-based sessions
 - **FR-001a**: System MUST store JWT tokens in HttpOnly cookies to prevent XSS-based token theft
-- **FR-002**: System MUST provide a central ApiClient utility that handles centralized fetch logic, credentials inclusion, error handling, 401 redirects, and user_id path interpolation; ApiClient obtains user_id via Server Action (never by client-side JWT decoding)
-- **FR-003**: System MUST construct API paths with user_id (e.g., `/api/{user_id}/tasks`) as required by backend; user_id is obtained exclusively via Next.js Server Action that reads HttpOnly cookie server-side; client-side JavaScript MUST NOT directly decode JWT payload
+- **FR-002**: System MUST provide a central ApiClient utility that handles centralized fetch logic, credentials inclusion, error handling, 401 redirects, and user_id path interpolation; ApiClient obtains user_id via Server Action (never by client-side JWT decoding) and constructs full URLs as `{BACKEND_URL}/{user_id}{path}` where BACKEND_URL environment variable includes the `/api` prefix (e.g., `http://localhost:8000/api`)
+- **FR-003**: System MUST construct API paths with user_id (e.g., `http://localhost:8000/api/{user_id}/tasks`) using BACKEND_URL environment variable that includes `/api` prefix; user_id is obtained exclusively via Next.js Server Action that reads HttpOnly cookie server-side; client-side JavaScript MUST NOT directly decode JWT payload
 - **FR-004**: System MUST display task metrics in top-row dashboard cards showing total tasks, completed tasks, pending tasks, overdue tasks, and priority breakdowns (High, Medium, Low)
 - **FR-004a**: System MUST allow users to assign priority levels (High, Medium, or Low) to tasks during creation and editing
 - **FR-005**: System MUST implement optimistic UI updates for task creation, updates, and completion using React 19's useOptimistic hook
 - **FR-005a**: System MUST display a modal form when the Add Task button is clicked, containing input fields for title, description, priority (High/Medium/Low), and due date
+- **FR-005b**: System MUST implement user-friendly input patterns in task forms: floating labels with focus states, touch-friendly buttons with minimum height of 48px, inline validation displaying error messages directly below invalid fields, and auto-focus on the title field when modal opens
 - **FR-006**: System MUST display shimmer skeleton loaders during initial data loading and streaming SSR
 - **FR-007**: System MUST apply the Clean Light Mode color palette with clean white backgrounds (#ffffff) and slate secondary colors (#f8fafc) with blue accents (#2563eb)
 - **FR-008**: System MUST use subtle glassmorphism styling with backdrop-blur, semi-transparent backgrounds (bg-slate-50/95), and 1px translucent borders (border-slate-200/80)
+- **FR-008a**: System MUST apply generous spacing values for premium feel: main dashboard layout uses p-8 to p-10 (32-40px padding), task cards use p-5 to p-6 (20-24px padding), task lists use space-y-4 to space-y-5 (16-20px vertical spacing), and metrics grids use gap-5 to gap-6 (20-24px grid gap)
 - **FR-009**: System MUST use Inter font for UI elements and data, and Playfair Display (or similar serif) for page headers
 - **FR-009a**: System MUST set the browser tab title and authentication window title to "TaskFlow" across all pages
+- **FR-009b**: System MUST implement responsive typography with font sizes that adapt between mobile and desktop viewports: smaller sizes on mobile (text-sm to text-base) and larger sizes on desktop (text-base to text-lg) for headings, body text, and UI elements to ensure optimal readability on all devices
 - **FR-010**: System MUST customize shadcn/ui primitives with increased border-radius (rounded-xl) and soft shadows (shadow-sm) using PrimaryButton as the canonical button component
 - **FR-011**: System MUST implement staggered list animations and spring transitions using Framer Motion
-- **FR-012**: System MUST provide sticky bottom navigation on mobile devices
+- **FR-012**: System MUST provide sticky bottom navigation on mobile devices with navigation items for Dashboard, Tasks, and Account
+- **FR-012a**: System MUST display a bottom sheet (drawer sliding up from bottom) when the Account navigation item is tapped on mobile, containing options for Profile, Settings (hidden until implemented), and Sign Out
+- **FR-012b**: System MUST apply pb-28 (112px) base bottom padding to mobile dashboard layout combined with CSS safe-area-inset-bottom environment variable to ensure content clears bottom navigation on all devices including those with notches and home indicators
 - **FR-013**: System MUST provide a collapsible glass sidebar on desktop devices with a toggle button that collapses and expands the sidebar (icon changes state to indicate current action)
 - **FR-013a**: System MUST conditionally hide the settings button in navigation until settings functionality is implemented (using CSS display or conditional rendering)
 - **FR-014**: System MUST redirect unauthenticated users to the sign-in page when accessing protected routes
@@ -210,6 +226,7 @@ As a user accessing my tasks through the API, I need all requests to be automati
 
 - Users will access the dashboard through modern browsers that support CSS backdrop-filter for glassmorphism effects and HttpOnly cookies
 - Better Auth SDK will provide stable JWT token generation and validation without requiring custom cryptographic implementation
+- BACKEND_URL environment variable is configured to include the `/api` prefix (e.g., `http://localhost:8000/api` or `https://api.example.com/api`)
 - Task data volume per user will typically remain under 5,000 tasks for optimal performance
 - Users expect immediate visual feedback for actions, prioritizing perceived performance over strict server confirmation
 - The application will be deployed in an environment supporting environment variables for BETTER_AUTH_SECRET
@@ -219,7 +236,7 @@ As a user accessing my tasks through the API, I need all requests to be automati
 ## Dependencies
 
 - Better Auth client SDK and server-side integration for authentication
-- Backend API endpoints supporting task CRUD operations at `/api/{user_id}/tasks` with path-based user context and JWT validation
+- Backend FastAPI endpoints supporting task CRUD operations at `/api/{user_id}/tasks` path structure (with `/api` prefix as per FastAPI routing convention) with path-based user context and JWT validation
 - Tailwind CSS v4 configuration and build tooling
 - Next.js 16 with App Router and React Server Components support
 - shadcn/ui component library installed and configured

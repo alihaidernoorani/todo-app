@@ -54,7 +54,7 @@ export function useSession() {
         }
 
         // Fetch session from server
-        const { data: authSession, error: sessionError } = await authClient.getSession()
+        const { data: authSession } = await authClient.getSession()
 
         if (!mounted) return
 

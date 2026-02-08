@@ -51,6 +51,25 @@ async def list_tasks(
     return await task_service.list_tasks(session, user.user_id)
 
 
+@router.get("/metrics", response_model=TaskMetrics)
+async def get_metrics(
+    session: SessionDep,
+    user: AuthorizedUserDep,
+) -> TaskMetrics:
+    """Get aggregated task statistics for the user.
+
+    Returns metrics including:
+    - Total task count
+    - Completed task count
+    - Pending task count
+    - Overdue task count
+    - Priority breakdown (high, medium, low)
+
+    All metrics are computed server-side and scoped to the user_id from the URL path.
+    """
+    return await task_service.get_metrics(session, user.user_id)
+
+
 @router.get("/{id}", response_model=TaskRead)
 async def get_task(
     id: UUID,
@@ -129,22 +148,3 @@ async def delete_task(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Task not found",
         )
-
-
-@router.get("/metrics", response_model=TaskMetrics)
-async def get_metrics(
-    session: SessionDep,
-    user: AuthorizedUserDep,
-) -> TaskMetrics:
-    """Get aggregated task statistics for the user.
-
-    Returns metrics including:
-    - Total task count
-    - Completed task count
-    - Pending task count
-    - Overdue task count
-    - Priority breakdown (high, medium, low)
-
-    All metrics are computed server-side and scoped to the user_id from the URL path.
-    """
-    return await task_service.get_metrics(session, user.user_id)

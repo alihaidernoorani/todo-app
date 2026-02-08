@@ -18,19 +18,41 @@ const nextConfig = {
     domains: [],
   },
 
-  // Headers for CORS and security
+  // Security headers for production
   async headers() {
     return [
       {
         source: '/:path*',
         headers: [
+          // Content Security Policy (CSP) - Prevents XSS attacks
+          {
+            key: 'Content-Security-Policy',
+            value: "default-src 'self'; script-src 'self' 'unsafe-inline' https://vercel.live https://va.vercel-scripts.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' http://localhost:8000 https://your-production-api.com; img-src 'self' blob: data:; media-src 'self'; frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self';"
+          },
+          // X-Frame-Options - Prevents clickjacking
+          {
+            key: 'X-Frame-Options',
+            value: 'DENY'
+          },
+          // X-Content-Type-Options - Prevents MIME type sniffing
+          {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff'
+          },
+          // X-DNS-Prefetch-Control - Controls DNS prefetching
           {
             key: 'X-DNS-Prefetch-Control',
             value: 'on'
           },
+          // Referrer-Policy - Controls referrer information
           {
-            key: 'X-Frame-Options',
-            value: 'SAMEORIGIN'
+            key: 'Referrer-Policy',
+            value: 'strict-origin-when-cross-origin'
+          },
+          // Permissions-Policy - Controls browser features
+          {
+            key: 'Permissions-Policy',
+            value: 'camera=(), microphone=(), geolocation=()'
           },
         ],
       },

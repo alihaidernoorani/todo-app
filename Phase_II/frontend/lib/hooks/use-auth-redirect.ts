@@ -1,14 +1,15 @@
 /**
- * Authentication Redirect Hook
+ * Authentication Redirect Hook (JWT-based)
  *
- * Client-side hook that checks authentication status and automatically
- * redirects to /sign-in when not authenticated.
+ * Client-side hook that checks authentication status using JWT tokens
+ * and automatically redirects to /sign-in when not authenticated.
  *
  * Features:
- * - Checks authentication on component mount using Better Auth session
- * - Redirects to sign-in page when not authenticated
+ * - Checks for valid JWT token in localStorage
+ * - Redirects to sign-in page when no token or token expired
  * - Returns authentication status for conditional rendering
  * - Preserves current URL for redirect after login
+ * - Clears expired tokens automatically
  *
  * Usage:
  * ```tsx
@@ -30,9 +31,9 @@
 
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
-import { authClient } from '@/lib/auth/better-auth-client'
+import { TokenStorage } from '@/lib/auth/token-storage'
 
 interface UseAuthRedirectReturn {
   isAuthenticated: boolean
@@ -42,23 +43,32 @@ interface UseAuthRedirectReturn {
 export function useAuthRedirect(): UseAuthRedirectReturn {
   const router = useRouter()
   const pathname = usePathname()
-
-  // Use Better Auth's built-in session hook
-  const { data: session, isPending } = authClient.useSession()
+  const [isChecking, setIsChecking] = useState(true)
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
 
   useEffect(() => {
-    // Only check once loading is complete
-    if (!isPending) {
-      // Redirect to sign-in if not authenticated
-      if (!session) {
-        const signInUrl = `/signin?from=${encodeURIComponent(pathname)}`
-        router.push(signInUrl)
-      }
+    // Check for valid token in localStorage
+    const token = TokenStorage.getAccessToken()
+
+    if (!token || TokenStorage.isExpired()) {
+      // Clear expired token
+      TokenStorage.clearAccessToken()
+
+      // Redirect to sign-in with return URL
+      const signInUrl = `/signin?from=${encodeURIComponent(pathname)}`
+      router.push(signInUrl)
+
+      setIsAuthenticated(false)
+    } else {
+      // Token exists and is valid
+      setIsAuthenticated(true)
     }
-  }, [session, isPending, router, pathname])
+
+    setIsChecking(false)
+  }, [router, pathname])
 
   return {
-    isAuthenticated: !!session,
-    isChecking: isPending,
+    isAuthenticated,
+    isChecking,
   }
 }

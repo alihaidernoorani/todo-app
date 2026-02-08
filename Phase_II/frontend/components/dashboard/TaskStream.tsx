@@ -31,7 +31,6 @@ import { useRouter, usePathname } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import { Plus } from "lucide-react"
 import { listTasks } from "@/lib/api/tasks"
-import { shouldRedirectToLogin } from "@/lib/api/errors"
 import { useOptimisticTask } from "@/lib/hooks/use-optimistic-task"
 import { TaskItem } from "./TaskItem"
 import { TaskForm } from "./TaskForm"
@@ -77,13 +76,6 @@ export function TaskStream() {
           console.error("Failed to fetch tasks:", result.error.message)
           console.error("Error code:", result.error.code)
           console.error("Error status:", result.error.status)
-
-          // Check if authentication failed - redirect to login
-          if (shouldRedirectToLogin(result.error.code)) {
-            const loginUrl = `/login?from=${encodeURIComponent(pathname)}`
-            router.push(loginUrl)
-            return
-          }
 
           // For other errors, continue with empty task list
           setInitialTasks([])

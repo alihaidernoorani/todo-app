@@ -1,602 +1,664 @@
-# Quickstart: Authentication and Security
+# Quickstart: Stateless JWT Authentication
 
 **Feature**: 003-auth-security
-**Date**: 2026-01-25
-**Audience**: Backend developers implementing protected API endpoints
+**Date**: 2026-02-07
+**Status**: Complete
 
 ## Overview
 
-This guide shows you how to protect FastAPI endpoints using JWT authentication and authorization with Better Auth. You'll learn how to:
+This guide provides step-by-step instructions for setting up stateless JWT authentication using RS256 signature verification with JWKS public keys.
 
-1. Configure authentication in your FastAPI application
-2. Protect endpoints with authentication (valid token required)
-3. Protect endpoints with user-scoped authorization (user can only access their own resources)
-4. Handle authentication errors consistently
+**Architecture**:
+- **Frontend**: Next.js on Vercel
+- **Backend**: FastAPI on HuggingFace
+- **Auth**: Better Auth with JWT plugin (RS256)
+- **Transport**: Authorization: Bearer <token> header
+- **Verification**: JWKS public keys (stateless)
 
 ---
 
 ## Prerequisites
 
-### Environment Setup
+### Backend Requirements
+- Python 3.13+
+- FastAPI
+- PostgreSQL database (Neon)
+- Environment variable management
 
-1. **Install dependencies**:
-```bash
-pip install fastapi python-jose[cryptography] pydantic-settings uvicorn
-```
-
-2. **Create `.env` file**:
-```bash
-# .env (DO NOT commit to version control)
-BETTER_AUTH_SECRET=your-production-secret-minimum-32-characters-required-here
-```
-
-3. **Add to `.gitignore`**:
-```bash
-echo ".env" >> .gitignore
-```
-
-### Configuration Validation
-
-Create `backend/src/config.py`:
-
-```python
-from pydantic_settings import BaseSettings
-from pydantic import Field, field_validator
-
-
-class Settings(BaseSettings):
-    """Application configuration from environment variables."""
-
-    BETTER_AUTH_SECRET: str = Field(
-        ...,
-        description="Shared secret for HS256 JWT verification",
-        min_length=32
-    )
-
-    @field_validator('BETTER_AUTH_SECRET')
-    @classmethod
-    def validate_secret_strength(cls, v: str) -> str:
-        if len(v) < 32:
-            raise ValueError(
-                "BETTER_AUTH_SECRET must be at least 32 characters"
-            )
-        return v
-
-    class Config:
-        env_file = ".env"
-
-
-# Singleton instance - fails on startup if invalid
-settings = Settings()
-```
-
-**What happens**: Application will fail to start with clear error if `BETTER_AUTH_SECRET` is missing or too short.
+### Frontend Requirements
+- Node.js 18+
+- Next.js 16+ (App Router)
+- TypeScript
+- Better Auth
 
 ---
 
-## Usage Patterns
+## Step 1: Environment Setup
 
-### Pattern 1: Authentication Only (Valid Token Required)
+### Backend Configuration
 
-**Use Case**: Endpoint that any authenticated user can access (no user ID scoping).
+Create `.env` file in `backend/` directory:
 
-**Example**: Get current user profile
+```bash
+# Database
+NEON_DATABASE_URL=postgresql://user:password@host/database
+
+# Better Auth Configuration
+BETTER_AUTH_URL=https://app.example.com
+BETTER_AUTH_JWKS_URL=https://app.example.com/.well-known/jwks.json
+
+# Optional: JWKS Cache Configuration
+JWKS_CACHE_TTL=3600  # 1 hour in seconds
+
+# CORS Configuration
+ALLOWED_ORIGINS=https://app.example.com,http://localhost:3000
+
+# Server Configuration
+HOST=0.0.0.0
+PORT=8000
+DEBUG=false
+```
+
+### Frontend Configuration
+
+Create `.env.local` file in `frontend/` directory:
+
+```bash
+# Better Auth Configuration
+BETTER_AUTH_URL=https://app.example.com
+BETTER_AUTH_SECRET=your-cryptographically-secure-secret-min-32-chars
+
+# API Configuration
+NEXT_PUBLIC_API_URL=https://api.example.com
+NEXT_PUBLIC_BETTER_AUTH_URL=https://app.example.com
+
+# Database
+NEON_DATABASE_URL=postgresql://user:password@host/database
+```
+
+**Security Notes**:
+- `BETTER_AUTH_SECRET` must be at least 32 characters
+- Use `openssl rand -base64 32` to generate secure secrets
+- Never commit `.env` or `.env.local` to version control
+
+---
+
+## Step 2: Backend Setup
+
+### Install Dependencies
+
+```bash
+cd backend
+pip install \
+  "PyJWT[crypto]>=2.8.0" \
+  "cryptography>=41.0.0" \
+  "httpx>=0.24.0" \
+  "fastapi>=0.109.0" \
+  "pydantic>=2.0.0" \
+  "pydantic-settings>=2.0.0"
+```
+
+### Create JWT Verifier Module
+
+File: `backend/src/auth/jwt_verifier.py`
 
 ```python
-from fastapi import APIRouter, Depends, HTTPException, Header, status
-from jose import jwt, JWTError
-from backend.src.config import settings
+import jwt
+from jwt import PyJWKClient
+from datetime import datetime
+from typing import Optional
+from pydantic import BaseModel
 
-router = APIRouter(prefix="/api", tags=["Users"])
+class AuthenticatedUser(BaseModel):
+    user_id: str
+    email: str
+    name: Optional[str] = None
+    exp: datetime
+    iss: str
 
-
-def get_current_user(authorization: str = Header(None)) -> str:
-    """Extract and validate authenticated user from JWT token.
-
-    Returns:
-        str: User ID extracted from JWT uid claim
-
-    Raises:
-        HTTPException (401): Authentication failed
-    """
-    # 1. Check Authorization header exists
-    if authorization is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing authentication token",
-            headers={"WWW-Authenticate": "Bearer"}
+class JWTVerifier:
+    def __init__(self, jwks_url: str, expected_issuer: str):
+        self.jwks_client = PyJWKClient(
+            jwks_url,
+            cache_keys=True,
+            max_cached_keys=16,
+            cache_jwk_set_ttl=3600,  # 1 hour
+            lifespan=3600,
         )
+        self.expected_issuer = expected_issuer
 
-    # 2. Validate "Bearer <token>" format
-    if not authorization.startswith("Bearer "):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authorization header format",
-            headers={"WWW-Authenticate": "Bearer"}
-        )
+    def verify_token(self, token: str) -> AuthenticatedUser:
+        """Verify JWT token and extract user information."""
+        # Get signing key from JWKS
+        signing_key = self.jwks_client.get_signing_key_from_jwt(token)
 
-    # 3. Extract token
-    token = authorization.split(" ")[1]
-
-    # 4. Validate and decode JWT
-    try:
+        # Verify token
         payload = jwt.decode(
             token,
-            settings.BETTER_AUTH_SECRET,
-            algorithms=["HS256"],
+            signing_key.key,
+            algorithms=["RS256"],
+            issuer=self.expected_issuer,
             options={
                 "verify_signature": True,
                 "verify_exp": True,
-                "require_exp": True
+                "verify_iss": True,
+                "require": ["sub", "exp", "iss"]
             }
         )
 
-        # 5. Extract user ID from uid claim
-        user_id = payload.get("uid")
-        if not user_id:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token: missing or malformed user ID claim"
-            )
-
-        return user_id
-
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token expired",
-            headers={"WWW-Authenticate": "Bearer"}
+        # Extract user info
+        return AuthenticatedUser(
+            user_id=payload["sub"],
+            email=payload.get("email", ""),
+            name=payload.get("name"),
+            exp=datetime.fromtimestamp(payload["exp"]),
+            iss=payload["iss"]
         )
-    except JWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token signature",
-            headers={"WWW-Authenticate": "Bearer"}
-        )
-
-
-@router.get("/me")
-async def get_my_profile(current_user_id: str = Depends(get_current_user)):
-    """Get current user profile.
-
-    Any authenticated user can access this endpoint.
-    """
-    return {
-        "user_id": current_user_id,
-        "message": f"Authenticated as user {current_user_id}"
-    }
 ```
 
-**Test**:
-```bash
-# Valid token
-curl -H "Authorization: Bearer <valid_jwt>" http://localhost:8000/api/me
-# Response: {"user_id": "user123", "message": "Authenticated as user user123"}
+### Create FastAPI Dependency
 
-# Missing token
-curl http://localhost:8000/api/me
-# Response: 401 {"detail": "Missing authentication token"}
-
-# Invalid token
-curl -H "Authorization: Bearer invalid.token.here" http://localhost:8000/api/me
-# Response: 401 {"detail": "Invalid token signature"}
-```
-
----
-
-### Pattern 2: User-Scoped Authorization (User Can Only Access Own Resources)
-
-**Use Case**: Endpoint where users can only access/modify their own data.
-
-**Example**: Get user's tasks
+File: `backend/src/auth/dependencies.py`
 
 ```python
-def verify_user_access(
-    user_id: str,  # Injected from path parameter {user_id}
-    current_user_id: str = Depends(get_current_user)
-) -> str:
-    """Verify authenticated user can access the requested user's resources.
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+import jwt
 
-    Args:
-        user_id: User ID from path parameter {user_id}
-        current_user_id: Authenticated user ID from JWT token
+security = HTTPBearer()
 
-    Returns:
-        str: Authenticated user ID (guaranteed to match user_id)
-
-    Raises:
-        HTTPException (401): Authentication failed
-        HTTPException (403): User attempting to access another user's resources
-    """
-    if current_user_id != user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied: cannot access another user's resources"
-        )
-
-    return current_user_id
-
-
-@router.get("/users/{user_id}/tasks")
-async def get_user_tasks(
-    user_id: str,
-    authenticated_user: str = Depends(verify_user_access)
-):
-    """Get tasks for a specific user.
-
-    User can only access their own tasks (uid from JWT must match user_id in path).
-    """
-    # authenticated_user is guaranteed to equal user_id at this point
-    return {
-        "user_id": authenticated_user,
-        "tasks": [
-            {"id": 1, "title": "Task 1"},
-            {"id": 2, "title": "Task 2"}
-        ]
-    }
-
-
-@router.post("/users/{user_id}/tasks")
-async def create_user_task(
-    user_id: str,
-    task_title: str,
-    authenticated_user: str = Depends(verify_user_access)
-):
-    """Create a task for a specific user.
-
-    User can only create tasks for themselves.
-    """
-    return {
-        "user_id": authenticated_user,
-        "task": {"id": 3, "title": task_title}
-    }
-```
-
-**Test**:
-```bash
-# User accessing their own tasks (user_id matches JWT uid)
-curl -H "Authorization: Bearer <jwt_with_uid=user123>" \
-     http://localhost:8000/api/users/user123/tasks
-# Response: 200 {"user_id": "user123", "tasks": [...]}
-
-# User attempting to access another user's tasks (user_id ≠ JWT uid)
-curl -H "Authorization: Bearer <jwt_with_uid=user123>" \
-     http://localhost:8000/api/users/user456/tasks
-# Response: 403 {"detail": "Access denied: cannot access another user's resources"}
-```
-
----
-
-### Pattern 3: Modular Dependency (Recommended for Production)
-
-**Use Case**: Reusable authentication module shared across all routers.
-
-**File**: `backend/src/auth/dependencies.py`
-
-```python
-"""Authentication and authorization dependencies for FastAPI endpoints."""
-
-from fastapi import Depends, HTTPException, Header, status
-from jose import jwt, JWTError
-from backend.src.config import settings
-
-
-async def get_current_user(authorization: str = Header(None)) -> str:
-    """Extract and validate JWT token from Authorization header.
-
-    This is the base authentication dependency. Use this for endpoints
-    that require authentication but not user-scoped authorization.
-
-    Returns:
-        str: User ID extracted from JWT uid claim
-
-    Raises:
-        HTTPException (401): Authentication failed
-    """
-    if authorization is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing authentication token",
-            headers={"WWW-Authenticate": "Bearer"}
-        )
-
-    if not authorization.startswith("Bearer "):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authorization header format",
-            headers={"WWW-Authenticate": "Bearer"}
-        )
-
-    token = authorization.split(" ")[1]
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    verifier: JWTVerifier = Depends(get_jwt_verifier),
+) -> AuthenticatedUser:
+    """FastAPI dependency that extracts and verifies JWT token."""
+    token = credentials.credentials
 
     try:
-        payload = jwt.decode(
-            token,
-            settings.BETTER_AUTH_SECRET,
-            algorithms=["HS256"],
-            options={"verify_signature": True, "verify_exp": True, "require_exp": True}
-        )
-
-        user_id = payload.get("uid")
-        if not user_id:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token: missing or malformed user ID claim"
-            )
-
-        return user_id
-
+        return verifier.verify_token(token)
     except jwt.ExpiredSignatureError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token expired",
-            headers={"WWW-Authenticate": "Bearer"}
+            detail="Token has expired",
+            headers={"WWW-Authenticate": "Bearer"},
         )
-    except JWTError:
+    except jwt.InvalidTokenError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token signature",
-            headers={"WWW-Authenticate": "Bearer"}
+            detail=f"Invalid token: {str(e)}",
+            headers={"WWW-Authenticate": "Bearer"},
         )
-
-
-async def verify_user_access(
-    user_id: str,
-    current_user_id: str = Depends(get_current_user)
-) -> str:
-    """Verify authenticated user can access requested user's resources.
-
-    This dependency combines authentication + authorization. Use this for
-    user-scoped endpoints (e.g., /users/{user_id}/tasks).
-
-    Args:
-        user_id: User ID from path parameter {user_id}
-        current_user_id: Authenticated user ID from get_current_user dependency
-
-    Returns:
-        str: Authenticated user ID (guaranteed to match user_id)
-
-    Raises:
-        HTTPException (401): Authentication failed (from get_current_user)
-        HTTPException (403): User attempting to access another user's resources
-    """
-    if current_user_id != user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied: cannot access another user's resources"
-        )
-
-    return current_user_id
 ```
 
-**Usage in Router**:
+### Add Startup Validation
+
+File: `backend/src/main.py`
 
 ```python
-from fastapi import APIRouter, Depends
-from backend.src.auth.dependencies import get_current_user, verify_user_access
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+import httpx
 
-router = APIRouter(prefix="/api", tags=["Tasks"])
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Validate JWKS endpoint
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                settings.better_auth_jwks_url,
+                timeout=10.0
+            )
+            response.raise_for_status()
 
+            jwks_data = response.json()
+            if not jwks_data.get("keys"):
+                raise RuntimeError("JWKS endpoint returned no keys")
 
-@router.get("/users/{user_id}/tasks")
-async def get_user_tasks(
-    user_id: str,
-    current_user: str = Depends(verify_user_access)
-):
-    """User-scoped endpoint: User can only access their own tasks."""
-    return {"user_id": current_user, "tasks": []}
+            logger.info(f"✅ JWKS validated: {len(jwks_data['keys'])} keys loaded")
 
+    except Exception as e:
+        logger.error(f"❌ JWKS validation failed: {e}")
+        raise RuntimeError(f"JWKS endpoint unavailable: {e}")
 
-@router.get("/health")
-async def health_check(current_user: str = Depends(get_current_user)):
-    """Authentication-only endpoint: Any authenticated user can access."""
-    return {"status": "healthy", "authenticated_user": current_user}
+    yield
+
+app = FastAPI(lifespan=lifespan)
 ```
 
 ---
 
-## Error Handling
+## Step 3: Frontend Setup
 
-### Consistent Error Response Format
+### Install Dependencies
 
-All authentication and authorization errors return this JSON structure:
+```bash
+cd frontend
+npm install better-auth
+```
 
-```json
-{
-  "detail": "Human-readable error message",
-  "status_code": 401
+### Enable Better Auth JWT Plugin
+
+File: `frontend/lib/auth/better-auth.ts`
+
+```typescript
+import { betterAuth } from "better-auth";
+import { jwt } from "better-auth/plugins/jwt";
+import { pool } from "@/lib/db/pool";
+
+export const auth = betterAuth({
+  database: pool,
+  emailAndPassword: {
+    enabled: true,
+  },
+  session: {
+    expiresIn: 60 * 15, // 15 minutes
+    updateAge: 60 * 5,  // Refresh every 5 minutes
+  },
+  plugins: [
+    jwt({
+      issuer: process.env.BETTER_AUTH_URL,
+      audience: process.env.NEXT_PUBLIC_API_URL,
+      expiresIn: 60 * 15, // 15 minutes
+      algorithm: "RS256",
+    })
+  ],
+  advanced: {
+    useSecureCookies: process.env.NODE_ENV === "production",
+  },
+});
+```
+
+### Create Token Storage Module
+
+File: `frontend/lib/auth/token-storage.ts`
+
+```typescript
+export interface TokenData {
+  accessToken: string;
+  refreshToken?: string;
+}
+
+const ACCESS_TOKEN_KEY = "better_auth_jwt_token";
+const REFRESH_TOKEN_KEY = "better_auth_refresh_token";
+
+export const tokenStorage = {
+  set(tokenData: TokenData) {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(ACCESS_TOKEN_KEY, tokenData.accessToken);
+      if (tokenData.refreshToken) {
+        localStorage.setItem(REFRESH_TOKEN_KEY, tokenData.refreshToken);
+      }
+    }
+  },
+
+  getAccessToken(): string | null {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem(ACCESS_TOKEN_KEY);
+    }
+    return null;
+  },
+
+  getRefreshToken(): string | null {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem(REFRESH_TOKEN_KEY);
+    }
+    return null;
+  },
+
+  clear() {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem(ACCESS_TOKEN_KEY);
+      localStorage.removeItem(REFRESH_TOKEN_KEY);
+    }
+  },
+};
+```
+
+### Update Sign-In Flow
+
+File: `frontend/app/(auth)/signin/page.tsx`
+
+```typescript
+import { authClient } from "@/lib/auth/better-auth-client";
+import { tokenStorage } from "@/lib/auth/token-storage";
+
+async function handleSignIn(email: string, password: string) {
+  const { data, error } = await authClient.signIn.email({
+    email,
+    password,
+  });
+
+  if (error) {
+    console.error("Sign-in failed:", error);
+    return;
+  }
+
+  if (data) {
+    // Store JWT token in localStorage
+    tokenStorage.set({
+      accessToken: data.accessToken,
+      refreshToken: data.refreshToken,
+    });
+
+    // Redirect to dashboard
+    router.push("/dashboard");
+  }
 }
 ```
 
-### Error Scenarios Reference
+### Update API Client
 
-| Scenario | Status Code | Detail Message |
-|----------|-------------|----------------|
-| Missing `Authorization` header | 401 | "Missing authentication token" |
-| Invalid header format (not "Bearer <token>") | 401 | "Invalid authorization header format" |
-| Invalid JWT signature | 401 | "Invalid token signature" |
-| Expired token (`exp` < now) | 401 | "Token expired" |
-| Malformed token (invalid JSON) | 401 | "Malformed token" |
-| Missing `uid` claim | 401 | "Invalid token: missing or malformed user ID claim" |
-| User ID mismatch (uid ≠ {user_id}) | 403 | "Access denied: cannot access another user's resources" |
+File: `frontend/lib/api/client.ts`
+
+```typescript
+import { tokenStorage } from "@/lib/auth/token-storage";
+
+export async function apiRequest<T>(
+  path: string,
+  options: RequestInit = {}
+): Promise<T> {
+  const token = tokenStorage.getAccessToken();
+
+  const headers = {
+    "Content-Type": "application/json",
+    ...(token && { Authorization: `Bearer ${token}` }),
+    ...options.headers,
+  };
+
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_API_URL}${path}`,
+    { ...options, headers }
+  );
+
+  // Handle 401: Try token refresh
+  if (response.status === 401) {
+    const refreshed = await authClient.refresh({
+      refreshToken: tokenStorage.getRefreshToken(),
+    });
+
+    if (refreshed.data) {
+      tokenStorage.set({
+        accessToken: refreshed.data.accessToken,
+        refreshToken: refreshed.data.refreshToken,
+      });
+
+      // Retry with new token
+      headers.Authorization = `Bearer ${refreshed.data.accessToken}`;
+      return apiRequest(path, { ...options, headers });
+    } else {
+      // Refresh failed, redirect to login
+      tokenStorage.clear();
+      window.location.href = "/signin";
+      throw new Error("Session expired");
+    }
+  }
+
+  if (!response.ok) {
+    throw new Error(`API error: ${response.status}`);
+  }
+
+  return response.json();
+}
+```
 
 ---
 
-## Testing
+## Step 4: Testing the Flow
 
-### Manual Testing with curl
+### Test 1: Verify JWKS Endpoint
 
 ```bash
-# 1. Get a valid JWT from Better Auth (frontend)
-# (Example token structure shown below)
+# Check Better Auth JWKS endpoint
+curl https://app.example.com/.well-known/jwks.json
 
-# 2. Test authentication-only endpoint
-curl -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
-     http://localhost:8000/api/me
-
-# 3. Test user-scoped endpoint (matching user ID)
-curl -H "Authorization: Bearer <jwt_with_uid=user123>" \
-     http://localhost:8000/api/users/user123/tasks
-
-# 4. Test user-scoped endpoint (mismatched user ID - should fail)
-curl -H "Authorization: Bearer <jwt_with_uid=user123>" \
-     http://localhost:8000/api/users/user456/tasks
+# Expected response:
+# {
+#   "keys": [
+#     {
+#       "kty": "RSA",
+#       "kid": "key-id-abc123",
+#       "use": "sig",
+#       "alg": "RS256",
+#       "n": "...",
+#       "e": "AQAB"
+#     }
+#   ]
+# }
 ```
 
-### Automated Testing with pytest
+### Test 2: Sign In and Obtain Token
 
-**File**: `backend/tests/integration/test_auth_integration.py`
+```bash
+# Sign in via frontend or API
+curl -X POST https://app.example.com/api/auth/sign-in/email \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","password":"password123"}'
 
-```python
-from fastapi.testclient import TestClient
-from jose import jwt
-from datetime import datetime, timedelta
-from backend.src.main import app
-from backend.src.config import settings
+# Expected response includes accessToken and refreshToken
+```
 
-client = TestClient(app)
+### Test 3: Make Authenticated Request
 
+```bash
+# Use token in Authorization header
+curl https://api.example.com/api/v1/me \
+  -H "Authorization: Bearer <your-jwt-token>"
 
-def create_test_token(user_id: str, expired: bool = False) -> str:
-    """Helper: Create test JWT token."""
-    exp = datetime.utcnow() + timedelta(minutes=-1 if expired else 15)
-    payload = {
-        "uid": user_id,
-        "exp": exp.timestamp(),
-        "iat": datetime.utcnow().timestamp()
-    }
-    return jwt.encode(payload, settings.BETTER_AUTH_SECRET, algorithm="HS256")
+# Expected: 200 OK with user data
+```
 
+### Test 4: Test Invalid Token
 
-def test_authentication_success():
-    """Valid token grants access."""
-    token = create_test_token("user123")
-    response = client.get(
-        "/api/me",
-        headers={"Authorization": f"Bearer {token}"}
-    )
-    assert response.status_code == 200
-    assert response.json()["user_id"] == "user123"
+```bash
+# Expired or invalid token
+curl https://api.example.com/api/v1/me \
+  -H "Authorization: Bearer invalid-token"
 
+# Expected: 401 Unauthorized
+# {
+#   "error": "Unauthorized",
+#   "error_code": "invalid_token",
+#   "message": "Invalid token: signature verification failed"
+# }
+```
 
-def test_authentication_missing_token():
-    """Missing Authorization header returns 401."""
-    response = client.get("/api/me")
-    assert response.status_code == 401
-    assert "Missing authentication token" in response.json()["detail"]
+### Test 5: Test User ID Scoping
 
+```bash
+# Try accessing another user's resources
+curl https://api.example.com/api/v1/user-456/tasks \
+  -H "Authorization: Bearer <user-123-token>"
 
-def test_authentication_expired_token():
-    """Expired token returns 401."""
-    token = create_test_token("user123", expired=True)
-    response = client.get(
-        "/api/me",
-        headers={"Authorization": f"Bearer {token}"}
-    )
-    assert response.status_code == 401
-    assert "Token expired" in response.json()["detail"]
+# Expected: 403 Forbidden
+# {
+#   "error": "Forbidden",
+#   "error_code": "forbidden",
+#   "message": "Access denied: cannot access another user's resources"
+# }
+```
 
+## Step 5: Testing JWT Authentication (Additional)
 
-def test_authorization_user_access_allowed():
-    """User can access their own resources."""
-    token = create_test_token("user123")
-    response = client.get(
-        "/api/users/user123/tasks",
-        headers={"Authorization": f"Bearer {token}"}
-    )
-    assert response.status_code == 200
+### Test JWT Configuration
 
+Run the JWT configuration validation script to verify your setup:
 
-def test_authorization_user_access_denied():
-    """User cannot access another user's resources."""
-    token = create_test_token("user123")
-    response = client.get(
-        "/api/users/user456/tasks",
-        headers={"Authorization": f"Bearer {token}"}
-    )
-    assert response.status_code == 403
-    assert "cannot access another user's resources" in response.json()["detail"]
+```bash
+cd backend
+./scripts/validate-jwt-config.sh
+```
+
+This will check:
+- BETTER_AUTH_SECRET length (minimum 32 characters)
+- JWKS endpoint reachability
+- JSON response validity
+- Supported algorithms
+
+### Test JWT Authentication with cURL
+
+```bash
+# 1. Obtain a JWT token from Better Auth (via sign-in)
+#    Save the token to a variable
+TOKEN="your-jwt-token-from-better-auth"
+
+# 2. Make an authenticated request to the backend
+curl -X GET http://localhost:8000/api/user-id/me \
+  -H "Authorization: Bearer $TOKEN"
+
+# Expected: 200 OK with user information
+
+# 3. Test with an expired token
+curl -X GET http://localhost:8000/api/user-id/me \
+  -H "Authorization: Bearer expired-token"
+
+# Expected: 401 Unauthorized
+
+# 4. Test cross-user access protection
+curl -X GET http://localhost:8000/api/other-user-id/tasks \
+  -H "Authorization: Bearer user-own-token"
+
+# Expected: 403 Forbidden
+```
+
+### Automated Testing
+
+Run the JWT-specific tests:
+
+```bash
+# Backend JWT tests
+cd backend
+pytest tests/test_jwt_authentication.py
+pytest tests/test_jwt_authorization.py
+pytest tests/test_jwks_startup.py
+pytest tests/test_e2e_jwt_flow.py
+
+# Frontend JWT tests
+cd frontend
+npm run test:unit tests/token-storage.test.ts
+npm run test:unit tests/api-client-jwt.test.ts
+```
+
+### JWT Security Validation
+
+Verify the security headers are in place:
+
+```bash
+# Check security headers on frontend
+curl -I https://your-frontend-domain.com
+
+# Look for these headers:
+# Content-Security-Policy: default-src 'self'; ...
+# X-Frame-Options: DENY
+# X-Content-Type-Options: nosniff
 ```
 
 ---
 
-## Common Pitfalls
+## Step 5: Deployment Checklist
 
-### ❌ Pitfall 1: Hardcoding Secrets
+### Backend Deployment (HuggingFace)
 
-**Wrong**:
-```python
-SECRET_KEY = "my-secret-key"  # NEVER do this!
-```
+- [ ] Environment variables configured
+- [ ] JWKS endpoint URL validated
+- [ ] HTTPS enabled in production
+- [ ] CORS configured for frontend origin
+- [ ] Startup validation passes (JWKS fetch successful)
+- [ ] Health check endpoint responds
 
-**Correct**:
-```python
-from backend.src.config import settings
-secret = settings.BETTER_AUTH_SECRET  # From environment variable
-```
+### Frontend Deployment (Vercel)
 
-### ❌ Pitfall 2: Not Validating Header Format
+- [ ] Environment variables configured
+- [ ] Better Auth JWT plugin enabled
+- [ ] localStorage token storage implemented
+- [ ] Authorization header sent in all API requests
+- [ ] Token refresh flow implemented
+- [ ] CSP headers configured (XSS protection)
 
-**Wrong**:
-```python
-token = authorization.split(" ")[1]  # Crashes if format is wrong
-```
+### Security Checklist
 
-**Correct**:
-```python
-if not authorization.startswith("Bearer "):
-    raise HTTPException(status_code=401, detail="Invalid authorization header format")
-token = authorization.split(" ")[1]
-```
+- [ ] Tokens short-lived (15-60 minutes)
+- [ ] Refresh tokens properly managed
+- [ ] HTTPS enforced in production
+- [ ] JWKS endpoint accessible from backend
+- [ ] No secrets in client-side code
+- [ ] CSP headers prevent XSS
+- [ ] Token cleared on logout
 
-### ❌ Pitfall 3: Forgetting WWW-Authenticate Header
+---
 
-**Wrong**:
-```python
-raise HTTPException(status_code=401, detail="Token expired")
-```
+## Troubleshooting
 
-**Correct**:
-```python
-raise HTTPException(
-    status_code=401,
-    detail="Token expired",
-    headers={"WWW-Authenticate": "Bearer"}  # Required by HTTP spec
-)
-```
+### Issue: "JWKS endpoint unavailable"
 
-### ❌ Pitfall 4: Not Checking User ID Claim
+**Symptoms**: Backend fails to start
 
-**Wrong**:
-```python
-user_id = payload["uid"]  # Crashes if uid missing
-```
+**Solution**:
+1. Verify `BETTER_AUTH_JWKS_URL` is correct
+2. Check Better Auth is running and JWT plugin enabled
+3. Test JWKS endpoint manually: `curl $BETTER_AUTH_JWKS_URL`
 
-**Correct**:
-```python
-user_id = payload.get("uid")
-if not user_id:
-    raise HTTPException(status_code=401, detail="Invalid token: missing or malformed user ID claim")
-```
+### Issue: "Invalid token: signature verification failed"
+
+**Symptoms**: 401 errors on authenticated requests
+
+**Solution**:
+1. Verify token is not expired
+2. Check Better Auth is using RS256 algorithm
+3. Verify JWKS endpoint returns valid RS256 keys
+4. Clear JWKS cache and restart backend
+
+### Issue: "Token has expired"
+
+**Symptoms**: 401 errors after 15 minutes
+
+**Solution**:
+1. Implement token refresh flow
+2. Check token expiration on frontend before making requests
+3. Automatically refresh tokens before expiration
+
+### Issue: "Access denied: cannot access another user's resources"
+
+**Symptoms**: 403 errors when accessing resources
+
+**Solution**:
+1. Verify user ID in path matches JWT `sub` claim
+2. Check URL encoding/decoding
+3. Ensure frontend sends correct user ID in URLs
+
+---
+
+## Performance Metrics
+
+**Target Metrics**:
+- JWT verification: <10ms (with cached JWKS)
+- JWKS cache hit rate: >99%
+- Token refresh latency: <200ms
+- Zero session endpoint calls
+
+**Monitoring**:
+- Log JWKS cache hit/miss rates
+- Monitor JWT verification latency
+- Track token expiration and refresh rates
+- Alert on JWKS endpoint failures
 
 ---
 
 ## Next Steps
 
-1. ✅ Set up environment variables (`BETTER_AUTH_SECRET`)
-2. ✅ Create authentication dependencies (`backend/src/auth/dependencies.py`)
-3. ✅ Protect endpoints with `Depends(get_current_user)` or `Depends(verify_user_access)`
-4. ✅ Write integration tests for protected endpoints
-5. 🔄 Coordinate with frontend team on Better Auth HS256 configuration
-6. 🔄 Deploy to production with environment variable injection
+1. ✅ Environment setup complete
+2. ✅ Backend JWT verification implemented
+3. ✅ Frontend token storage implemented
+4. ✅ Testing complete
+5. ⏳ Deploy to production
+6. ⏳ Monitor performance metrics
+7. ⏳ Implement advanced features (MFA, SSO)
 
 ---
 
-## Reference
+## Additional Resources
 
-- **Spec**: [spec.md](./spec.md)
-- **Plan**: [plan.md](./plan.md)
-- **Data Model**: [data-model.md](./data-model.md)
-- **Error Contracts**: [contracts/auth-errors.json](./contracts/auth-errors.json)
-- **FastAPI Security Docs**: https://fastapi.tiangolo.com/tutorial/security/
-- **python-jose Docs**: https://python-jose.readthedocs.io/
+- [Better Auth Documentation](https://better-auth.com/docs)
+- [PyJWT Documentation](https://pyjwt.readthedocs.io/)
+- [RFC 7519 - JSON Web Token](https://tools.ietf.org/html/rfc7519)
+- [RFC 7517 - JSON Web Key](https://tools.ietf.org/html/rfc7517)
+- [OWASP JWT Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/JSON_Web_Token_for_Java_Cheat_Sheet.html)

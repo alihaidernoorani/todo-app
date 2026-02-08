@@ -1,370 +1,346 @@
-# Implementation Tasks: Authentication Redirect Loop Fix
+# Tasks: Stateless JWT Authentication Migration
 
-**Feature**: Authentication with Better Auth Sessions
-**Branch**: `003-auth-security` | **Date**: 2026-02-07
-**Spec**: [spec.md](./spec.md) | **Plan**: [plan.md](./plan.md)
+**Feature**: 003-auth-security
+**Generated**: 2026-02-07
+**Status**: Ready for implementation
 
-## Overview
+**Input**: Design documents from `/specs/003-auth-security/`
+**Prerequisites**: plan.md ✅, spec.md ✅, research.md ✅, data-model.md ✅, contracts/ ✅
 
-Fix authentication redirect loop by removing all custom JWT/token logic and implementing Better Auth session-based validation as the single source of truth. Backend validates sessions by calling Better Auth's `/api/auth/session` endpoint. Frontend removes middleware and uses server-side session checks.
+**Organization**: Tasks organized by phase and user story for systematic implementation
+**Tests**: Included per user requirements
 
-**Key Principles**:
-- No custom JWT parsing or verification
-- Session cookies only (Better Auth managed)
-- Delegated validation via Better Auth API
-- Small, independently testable tasks
+## Format: `- [ ] [ID] [P?] [Story?] Description with file path`
 
-## Task Summary
-
-- **Total Tasks**: 21
-- **Setup & Config**: 3 tasks (T001-T003)
-- **User Story 1** (Backend Session Validation): 6 tasks (T004-T009)
-- **User Story 2** (User ID Scoping): 4 tasks (T010-T013)
-- **User Story 3** (Centralized Dependencies): 2 tasks (T014-T015)
-- **Frontend Cleanup & Protection**: 5 tasks (T016-T020)
-- **Validation**: 1 task (T021)
-
-## Dependencies
-
-**Execution Order**:
-- Phase 1 (Setup) → Must complete before all other phases
-- Phase 2 (US1) → Blocks US2, US3, Frontend
-- Phase 3 (US2) → Depends on US1
-- Phase 4 (US3) → Depends on US1
-- Phase 5 (Frontend) → Can start after setup
-- Phase 6 (Validation) → Depends on all previous phases
-
-## Parallel Execution Opportunities
-
-**Maximum Parallelism** (after setup):
-- Backend: T004, T006, T009 can run in parallel
-- Frontend: T016, T017, T018, T020 can run in parallel (deletions)
-- Streams merge at T021 (E2E validation)
+- **[P]**: Parallelizable (different files, no dependencies)
+- **[Story]**: User story label (US1, US2, US3)
 
 ---
 
-## Phase 1: Setup & Configuration
+## Phase 1: Backend Setup (JWT Infrastructure)
 
-### Goal
-Verify Better Auth environment and dependencies are ready
+**Purpose**: Add JWT dependencies and configuration
 
-### Tasks
+- [X] T001 Add JWT dependencies to backend/requirements.txt (PyJWT>=2.8.0, cryptography>=41.0.0)
+- [X] T002 Add JWT configuration fields to backend/src/config.py (better_auth_secret, better_auth_jwks_url property)
+- [X] T003 Create backend/.env.example entries for BETTER_AUTH_SECRET and document RS256 vs HS256
 
-- [x] T001 Verify Better Auth environment variables in frontend/.env.local and backend/.env
-  - **Files**: `frontend/.env.local`, `backend/.env`
-  - **Action**: Check `BETTER_AUTH_URL`, `BETTER_AUTH_SECRET` (frontend), `BETTER_AUTH_SESSION_URL` (backend)
-  - **Validation**: All required env vars present, no missing values
-  - **Exit criteria**: Can start both services without env var errors
-
-- [x] T002 [P] Add httpx dependency to backend if not present
-  - **Files**: `backend/pyproject.toml` or `backend/requirements.txt`
-  - **Action**: Add `httpx>=0.24.0` to dependencies
-  - **Validation**: Can import httpx in Python without errors
-  - **Exit criteria**: `python -c "import httpx"` succeeds
-
-- [x] T003 [P] Verify Better Auth session endpoint is accessible
-  - **Files**: None (manual test)
-  - **Action**: Test `GET http://localhost:3000/api/auth/session` with valid session cookie
-  - **Validation**: Endpoint returns JSON with user and session data
-  - **Exit criteria**: Session endpoint responds with 200 or 401 (not 404)
+**Checkpoint**: JWT dependencies and config ready
 
 ---
 
-## Phase 2: User Story 1 - Backend Session Validation (P1)
+## Phase 2: Backend JWT Verification Core (Foundational)
 
-### Goal
-Backend validates sessions by calling Better Auth's `/api/auth/session` endpoint
+**Purpose**: Implement complete JWT verification with JWKS
 
-### Independent Test
-Make API request with valid session cookie → Backend validates via Better Auth → Returns 200
+- [X] T004 Enhance backend/src/auth/jwt_handler.py decode_jwt() to validate issuer and audience claims
+- [X] T005 Update backend/src/auth/jwt_handler.py to require ["sub", "exp", "iat", "iss"] claims in both RS256 and HS256
+- [X] T006 Add JWT exception classes to backend/src/auth/exceptions.py (JWTExpiredError, JWTInvalidSignatureError, JWTMissingClaimError, JWKSUnavailableError)
 
-### Tasks
-
-- [x] T\1 [P] [US1] Create session validator module in backend/src/auth/session_validator.py
-  - **Files**: `backend/src/auth/session_validator.py` (new)
-  - **Action**: Create function `validate_session(cookies: dict, better_auth_url: str) -> dict`
-    - Make GET request to `{better_auth_url}/api/auth/session` with cookies
-    - Handle httpx exceptions (connection errors, timeouts)
-    - Return parsed JSON response if 200, raise errors otherwise
-  - **Validation**: Function makes HTTP call, returns dict or raises exception
-  - **Exit criteria**: Function exists and callable
-
-- [x] T\1 [US1] Implement error mapping in session validator
-  - **Files**: `backend/src/auth/session_validator.py`
-  - **Action**: Add error handling:
-    - Better Auth 401 → Return None (invalid session)
-    - Better Auth 4xx/5xx → Raise ServiceUnavailableError (503)
-    - Connection error → Raise ServiceUnavailableError (503)
-    - Parse error → Raise ValidationError (500)
-  - **Validation**: Different error scenarios return correct status
-  - **Exit criteria**: All error codes map correctly
-
-- [x] T\1 [P] [US1] Create Pydantic models for Better Auth response in backend/src/auth/models.py
-  - **Files**: `backend/src/auth/models.py` (new)
-  - **Action**: Define:
-    - `UserData(BaseModel)` with id, email, name (optional)
-    - `SessionData(BaseModel)` with expiresAt
-    - `BetterAuthSessionResponse(BaseModel)` with user, session
-    - `AuthenticatedUser(BaseModel)` with user_id, email, name
-  - **Validation**: Can instantiate models with valid data
-  - **Exit criteria**: All models defined and importable
-
-- [x] T\1 [US1] Add session response validation to session validator
-  - **Files**: `backend/src/auth/session_validator.py`
-  - **Action**: Update `validate_session` to:
-    - Parse response JSON into `BetterAuthSessionResponse`
-    - Validate user.id is present and non-empty
-    - Return `AuthenticatedUser` object
-    - Raise ValidationError if user_id missing
-  - **Validation**: Valid response returns AuthenticatedUser
-  - **Exit criteria**: Function returns typed object
-
-- [x] T\1 [US1] Create FastAPI dependency `get_current_user` in backend/src/auth/dependencies.py
-  - **Files**: `backend/src/auth/dependencies.py` (new or update)
-  - **Action**: Implement:
-    ```python
-    async def get_current_user(request: Request) -> AuthenticatedUser:
-        cookies = dict(request.cookies)
-        better_auth_url = get_config().better_auth_session_url
-        return validate_session(cookies, better_auth_url)
-    ```
-  - **Validation**: Dependency can be used in FastAPI route
-  - **Exit criteria**: Function exists, returns AuthenticatedUser
-
-- [x] T\1 [P] [US1] Add Better Auth session URL to backend config in backend/src/config.py
-  - **Files**: `backend/src/config.py`
-  - **Action**: Add `BETTER_AUTH_SESSION_URL` environment variable
-    - Default: `{BETTER_AUTH_URL}/api/auth/session`
-    - Validate URL format on startup
-    - Raise error if missing in production
-  - **Validation**: Config loads, URL accessible
-  - **Exit criteria**: Config has session URL property
+**Checkpoint**: JWT verification validates all claims and signatures
 
 ---
 
-## Phase 3: User Story 2 - User ID Scoping (P1)
+## Phase 3: Backend Startup Validation (JWKS)
 
-### Goal
-Prevent cross-user access by validating user_id in path matches session user_id
+**Purpose**: Ensure JWKS endpoint reachable before accepting traffic
 
-### Independent Test
-User A tries to access User B's resource → Returns 403
+- [X] T007 Add lifespan event to backend/src/main.py that validates JWKS endpoint on startup
+- [X] T008 Initialize PyJWKClient in lifespan and cache in app.state.jwks_client
+- [X] T009 Add RuntimeError on startup if JWKS endpoint unavailable or returns no keys
 
-### Tasks
-
-- [x] T\1 [P] [US2] Create user ID scoping dependency in backend/src/auth/dependencies.py
-  - **Files**: `backend/src/auth/dependencies.py`
-  - **Action**: Implement:
-    ```python
-    def require_user_id_match(user_id: str):
-        async def check(current_user: AuthenticatedUser = Depends(get_current_user)):
-            if current_user.user_id != user_id:
-                raise HTTPException(403, "Access denied")
-            return current_user
-        return check
-    ```
-  - **Validation**: Dependency raises 403 on mismatch
-  - **Exit criteria**: Function exists, compares user IDs
-
-- [x] T\1 [P] [US2] Add URL decoding to user ID comparison
-  - **Files**: `backend/src/auth/dependencies.py`
-  - **Action**: Update `require_user_id_match` to decode path user_id
-    - Use `urllib.parse.unquote(user_id)`
-    - Handle special characters
-  - **Validation**: URL-encoded user IDs properly decoded
-  - **Exit criteria**: Function decodes before comparison
-
-- [x] T\1 [US2] Update protected tasks endpoint to use user ID scoping in backend/src/api/tasks.py
-  - **Files**: `backend/src/api/tasks.py`
-  - **Action**: Update route to use `Depends(require_user_id_match(user_id))`
-    - Example: `@app.get("/users/{user_id}/tasks")`
-    - Replace old JWT dependency with new session dependency
-  - **Validation**: Endpoint requires both auth and user ID match
-  - **Exit criteria**: Route has both dependencies
-
-- [x] T\1 [US2] Test user ID scoping with two different users
-  - **Files**: `backend/tests/test_auth_dependencies.py`
-  - **Action**: Write test:
-    - Create mock session for user123
-    - Try to access /users/user456/tasks
-    - Verify 403 response
-  - **Validation**: Test passes, returns 403
-  - **Exit criteria**: Test exists and passes
+**Checkpoint**: Application fails fast if JWKS unreachable
 
 ---
 
-## Phase 4: User Story 3 - Centralized Dependencies (P2)
+## Phase 4: User Story 1 - JWT Token Validation (Priority: P1) 🎯 MVP
 
-### Goal
-Provide reusable authentication dependencies for all endpoints
+**Goal**: Replace session validation with JWT signature verification
 
-### Independent Test
-New endpoint with auth dependency → Automatically enforces authentication
+**Independent Test**: Login → get JWT → make request with Authorization header → verify 200
 
-### Tasks
+### Backend JWT Authentication
 
-- [ ] T014 [P] [US3] Document authentication dependency usage in backend/src/auth/README.md
-  - **Files**: `backend/src/auth/README.md` (new)
-  - **Action**: Create documentation:
-    - How to use `get_current_user`
-    - How to use `require_user_id_match`
-    - Example routes
-    - Error responses
-  - **Validation**: Documentation clear with examples
-  - **Exit criteria**: README exists
+- [X] T010 [US1] Replace session_validator imports with jwt_handler and HTTPBearer in backend/src/auth/dependencies.py
+- [X] T011 [US1] Update get_current_user() in backend/src/auth/dependencies.py to extract JWT from Authorization header using HTTPBearer
+- [X] T012 [US1] Replace validate_session() call with decode_jwt() call in get_current_user()
+- [X] T013 [US1] Update AuthenticatedUser instantiation to use JWT payload (sub, email, name claims)
+- [X] T014 [US1] Replace session error handlers with JWT exception handlers (JWTExpiredError, JWKSUnavailableError)
+- [X] T015 [US1] Update error messages in backend/src/api/v1/auth.py /me endpoint to reference JWT tokens
 
-- [ ] T015 [US3] Create example protected endpoint
-  - **Files**: `backend/src/api/example.py` (new, temporary)
-  - **Action**: Create test endpoint:
-    ```python
-    @app.get("/protected")
-    async def protected(user: AuthenticatedUser = Depends(get_current_user)):
-        return {"user_id": user.user_id}
-    ```
-  - **Validation**: Endpoint works with auth
-  - **Exit criteria**: Endpoint demonstrates reusability
+### Frontend JWT Integration
+
+- [X] T016 [US1] Enable JWT plugin in frontend/lib/auth/better-auth.ts with RS256, 15min expiry, issuer/audience config
+- [X] T017 [US1] Create frontend/lib/auth/token-storage.ts with TokenStorage class (set, get, clear, isExpired, decode methods)
+- [X] T018 [US1] Update frontend/lib/auth/useSession.ts to extract JWT from Better Auth session and store in localStorage
+- [X] T019 [US1] Update frontend/lib/api/client.ts to inject Authorization Bearer header with JWT from TokenStorage
+- [X] T020 [US1] Add 401 error handler in frontend/lib/api/client.ts to clear expired tokens from localStorage
+- [X] T021 [US1] Update error mapping in frontend/lib/api/client.ts for JWT-specific errors (expired, invalid signature)
+
+**Checkpoint**: US1 complete - JWT authentication working end-to-end
 
 ---
 
-## Phase 5: Frontend Cleanup & Protection
+## Phase 5: User Story 2 - User Identity Scoping (Priority: P1)
 
-### Goal
-Remove custom JWT logic, middleware, implement server-side session checks
+**Goal**: Enforce user_id path validation using JWT sub claim
 
-### Independent Test
-Login → Dashboard loads without redirect loop
+**Independent Test**: User A tries /users/{user_b_id}/tasks → verify 403
 
-### Tasks
+- [X] T022 [US2] Update error detail in backend/src/auth/dependencies.py get_current_user_with_path_validation() to clarify JWT-based validation
+- [X] T023 [US2] Add debug logging for user_id mismatch cases in backend/src/auth/dependencies.py
+- [X] T024 [US2] Verify all task endpoints in backend/src/api/v1/tasks.py use get_current_user_with_path_validation dependency
+- [X] T025 [US2] Update frontend/lib/api/tasks.ts error handling to catch 403 with user-friendly message
 
-- [ ] T016 [P] Remove custom JWT utilities from frontend/lib/auth/jwt-utils.ts
-  - **Files**: `frontend/lib/auth/jwt-utils.ts` (delete)
-  - **Action**: Delete file completely
-  - **Validation**: No imports of this file remain
-  - **Exit criteria**: File deleted, `git grep jwt-utils` returns nothing
-
-- [ ] T017 [P] Remove diagnostic logger from frontend/lib/auth/diagnostic-logger.ts
-  - **Files**: `frontend/lib/auth/diagnostic-logger.ts` (delete)
-  - **Action**: Delete temporary debugging file
-  - **Validation**: No imports remain
-  - **Exit criteria**: File deleted
-
-- [ ] T018 [P] Remove authentication middleware from frontend/middleware.ts
-  - **Files**: `frontend/middleware.ts` (delete)
-  - **Action**: Delete middleware file causing redirect loop
-  - **Validation**: No middleware intercepting requests
-  - **Exit criteria**: File deleted, Next.js doesn't run middleware
-
-- [ ] T019 Update dashboard page with server-side session check in frontend/app/dashboard/page.tsx
-  - **Files**: `frontend/app/dashboard/page.tsx`
-  - **Action**: Add server-side session validation:
-    ```tsx
-    import { auth } from "@/lib/auth/better-auth"
-    import { redirect } from "next/navigation"
-
-    export default async function DashboardPage() {
-      const session = await auth.api.getSession({ headers: headers() })
-      if (!session) redirect("/login")
-      // render dashboard
-    }
-    ```
-  - **Validation**: Unauthenticated users redirected
-  - **Exit criteria**: Page checks session, redirects if invalid
-
-- [x] T020 [P] Update Better Auth client config to remove custom token logic in frontend/lib/auth/better-auth.ts
-  - **Files**: `frontend/lib/auth/better-auth.ts`
-  - **Action**: Remove custom JWT/token handling code
-    - Keep only Better Auth client initialization
-    - Remove manual cookie/token parsing
-    - Rely on Better Auth defaults
-  - **Validation**: File only contains Better Auth setup
-  - **Exit criteria**: No custom auth logic
+**Checkpoint**: US2 complete - Cross-user access blocked
 
 ---
 
-## Phase 6: End-to-End Validation
+## Phase 6: User Story 3 - Centralized Authentication (Priority: P2)
 
-### Goal
-Verify complete authentication flow works without redirect loop
+**Goal**: Ensure all endpoints use consistent JWT authentication
 
-### Tasks
+**Independent Test**: Add new endpoint with Depends(get_current_user) → verify JWT works
 
-- [x] T021 Test complete authentication flow manually
-  - **Files**: None (manual testing)
-  - **Action**: Test all scenarios:
-    1. Navigate to /signin → Sign in → Redirect to /dashboard
-    2. Dashboard loads without redirect loop
-    3. Access backend API with valid session → Returns 200
-    4. Try to access another user's tasks → Returns 403
-    5. Clear cookies → Try /dashboard → Redirect to /signin
-    6. Clear cookies → Try API call → Returns 401
-  - **Validation**: All scenarios pass (ready for manual execution when services are running)
-  - **Exit criteria**: Implementation complete, manual testing scenarios documented
+- [X] T026 [US3] Audit all endpoints in backend/src/api/v1/ to verify consistent authentication dependency usage
+- [X] T027 [US3] Create backend/docs/authentication.md documenting JWT authentication flow and dependency usage patterns
+- [X] T028 [US3] Add code examples to backend/docs/authentication.md for protecting new endpoints with JWT dependencies
+
+**Checkpoint**: US3 complete - All endpoints use standardized JWT auth
+
+---
+
+## Phase 7: Cleanup & Migration (Remove Session Logic)
+
+**Purpose**: Remove obsolete session-based code
+
+### Backend Cleanup
+
+- [X] T029 Delete backend/src/auth/session_validator.py file entirely
+- [X] T030 Remove better_auth_session_url field and session_endpoint_url property from backend/src/config.py
+- [X] T031 Remove BETTER_AUTH_SESSION_URL from backend/.env and .env.example
+
+### Frontend Cleanup
+
+- [X] T032 [P] Remove credentials: 'include' from frontend/lib/api/client.ts (JWT-only mode)
+- [X] T033 [P] Update frontend/lib/hooks/use-auth-redirect.ts to use TokenStorage.getAccessToken() for token presence check
+- [X] T034 [P] Delete frontend/app/api/auth/session/route.ts if it exists
+
+### Documentation
+
+- [X] T035 Create specs/003-auth-security/ARCHITECTURE.md documenting complete JWT flow with diagrams
+- [X] T036 Add before/after comparison in ARCHITECTURE.md showing session vs JWT migration
+
+**Checkpoint**: Cleanup complete - Session logic removed
+
+---
+
+## Phase 8: Testing (Validation & Quality)
+
+**Purpose**: Comprehensive JWT authentication testing
+
+### Backend Tests
+
+- [X] T037 [P] Create backend/tests/test_jwt_authentication.py with valid token, expired token, invalid signature, missing token tests
+- [X] T038 [P] Create backend/tests/test_jwt_authorization.py with cross-user access and user_id scoping tests
+- [X] T039 [P] Add backend/tests/test_jwks_startup.py to verify startup validation with unreachable JWKS endpoint
+
+### Frontend Tests
+
+- [X] T040 [P] Create frontend/tests/token-storage.test.ts testing TokenStorage set, get, clear, isExpired methods
+- [X] T041 [P] Create frontend/tests/api-client-jwt.test.ts testing JWT header injection in API client
+
+### Integration Tests
+
+- [X] T042 Add end-to-end test: signup → login → get JWT → authenticated request → verify 200
+- [X] T043 Add end-to-end test: expired token → request → verify 401 → token cleared from localStorage
+
+**Checkpoint**: All JWT flows validated with tests
+
+---
+
+## Phase 9: Production Hardening & Polish
+
+**Purpose**: Security hardening and deployment readiness
+
+### Security
+
+- [X] T044 [P] Add CSP headers to frontend/next.config.js (default-src 'self', script-src with trusted domains, connect-src with API URL)
+- [X] T045 [P] Add security headers to frontend/next.config.js (X-Frame-Options: DENY, X-Content-Type-Options: nosniff)
+
+### Environment Validation
+
+- [X] T046 Create backend/scripts/validate-jwt-config.sh to check BETTER_AUTH_SECRET length and JWKS endpoint reachability
+- [X] T047 Add colored output and error reporting to validation script
+
+### Deployment Documentation
+
+- [X] T048 [P] Create deployment/JWT_DEPLOYMENT.md with environment checklist and JWKS endpoint requirements
+- [X] T049 [P] Add troubleshooting guide for common JWT errors to deployment documentation
+- [X] T050 [P] Document rollback procedure if JWT migration fails
+
+### Quickstart Update
+
+- [X] T051 Update specs/003-auth-security/quickstart.md with JWT-specific setup steps
+- [X] T052 Add "Testing JWT Authentication" section with curl examples to quickstart.md
+- [X] T053 Run through complete quickstart guide and verify all steps work
+
+**Checkpoint**: Production-ready deployment
+
+---
+
+## Dependencies & Execution Order
+
+### Phase Dependencies (Critical Path)
+
+```
+Phase 1 (Setup) → Phase 2 (JWT Core) → Phase 3 (Startup) →
+Phase 4 (US1: JWT Auth) → Phase 5 (US2: Scoping) → Phase 6 (US3: Audit) →
+Phase 7 (Cleanup) → Phase 8 (Testing) → Phase 9 (Production)
+```
+
+### Within-Phase Dependencies
+
+**Phase 1**: T001 → T002 → T003 (sequential)
+
+**Phase 2**:
+- T004, T005 can run in parallel
+- T006 can run in parallel with T004-T005
+
+**Phase 3**: T007 → T008 → T009 (sequential, lifespan setup)
+
+**Phase 4 (US1)**:
+- Backend (T010-T015) must complete before frontend (T016-T021)
+- Backend sequence: T010 (imports) → T011-T014 (implementation) → T015 (endpoints)
+- Frontend sequence: T016 (JWT plugin) → T017 (storage) → T018-T021 (integration)
+- Parallel within backend: T014, T015
+- Parallel within frontend: T017, T018
+
+**Phase 5 (US2)**:
+- T022-T023 (backend) must complete before T024-T025
+- T024 (backend audit) can run in parallel with T025 (frontend)
+
+**Phase 6 (US3)**:
+- T026 (audit) → T027-T028 (docs can run in parallel)
+
+**Phase 7 (Cleanup)**:
+- Backend (T029-T031) independent of Frontend (T032-T034)
+- Documentation (T035-T036) can run in parallel with cleanup
+- Parallel: T029, T030, T031, T032, T033, T034, T035, T036
+
+**Phase 8 (Testing)**:
+- All tests can run in parallel except integration (T042-T043 need prior phases complete)
+- Parallel: T037, T038, T039, T040, T041
+
+**Phase 9 (Production)**:
+- Security (T044-T045) can run in parallel
+- Validation (T046-T047) can run in parallel with security
+- Docs (T048-T050) can run in parallel with security and validation
+- Quickstart (T051-T053) should run last for final verification
+
+### Parallel Opportunities Summary
+
+- **Phase 2**: 2-3 tasks parallel
+- **Phase 4**: Backend (2 parallel) + Frontend (2 parallel)
+- **Phase 5**: 2 tasks parallel
+- **Phase 6**: 2 tasks parallel
+- **Phase 7**: 8 tasks parallel
+- **Phase 8**: 5 tasks parallel
+- **Phase 9**: 10 tasks parallel
+
+**Total parallel opportunities**: 29 tasks (marked with [P])
 
 ---
 
 ## Implementation Strategy
 
-### MVP Scope (First Deliverable)
+### MVP Approach (Fastest to Working JWT)
 
-Complete **User Story 1 only** (T001-T009):
-- Backend validates sessions via Better Auth
-- Protected endpoints return 401 for invalid sessions
-- No user ID scoping yet
+1. **Phases 1-3** (T001-T009): Infrastructure → 9 tasks, ~3 hours
+2. **Phase 4** (T010-T021): JWT Authentication → 12 tasks, ~6 hours 🎯
+3. **VALIDATE**: Test complete authentication flow
+4. **Phase 5** (T022-T025): User Scoping → 4 tasks, ~2 hours
+5. **Phase 6** (T026-T028): Audit & Document → 3 tasks, ~2 hours
+6. **Phase 7** (T029-T036): Cleanup → 8 tasks, ~2 hours
+7. **Phase 8** (T037-T043): Testing → 7 tasks, ~4 hours
+8. **Phase 9** (T044-T053): Production → 10 tasks, ~4 hours
 
-**Why**: Establishes core session validation, enables testing
+**Total**: 53 focused tasks, ~23 hours (with parallelization: ~15 hours)
 
-### Incremental Delivery
+### Incremental Milestones
 
-1. **Sprint 1**: T001-T009 (US1) - Backend session validation
-2. **Sprint 2**: T010-T013 (US2) - User ID scoping
-3. **Sprint 3**: T014-T020 (US3 + Frontend) - Frontend cleanup
-4. **Sprint 4**: T021 (Validation) - E2E testing
+- **M1** (T001-T009): JWT infrastructure ready
+- **M2** (T010-T015): Backend JWT validation working
+- **M3** (T016-T021): Frontend JWT integration complete ✅ **MVP**
+- **M4** (T022-T025): User scoping enforced
+- **M5** (T026-T028): Consistent auth across all endpoints
+- **M6** (T029-T036): Session code removed
+- **M7** (T037-T043): All tests passing
+- **M8** (T044-T053): Production-ready
 
-### Rollback Points
+### Risk Mitigation
 
-- After T009: Can revert to previous auth system
-- After T013: User ID scoping independent, can disable
-- After T020: Frontend changes independent
+**Dual Auth Phase (T010-T021)**:
+- Both JWT and session work during Phase 4 implementation
+- JWT failures don't break existing functionality
+- Monitor authentication success rates
 
----
+**Testing Before Cleanup**:
+- Phase 8 (Testing) validates everything before Phase 7 (Cleanup)
+- Can rollback easily if tests fail
+- No data loss risk
 
-## Testing Guidance
-
-### Manual Testing Checklist
-
-- [ ] Environment variables set correctly
-- [ ] Better Auth session endpoint accessible
-- [ ] Backend starts without errors
-- [ ] Frontend starts without errors
-- [ ] Sign in creates session cookie
-- [ ] Dashboard loads after sign in (no loop)
-- [ ] API call with valid session returns 200
-- [ ] API call without session returns 401
-- [ ] Cross-user API call returns 403
-- [ ] Sign out clears session
-- [ ] After sign out, dashboard redirects to sign in
-
----
-
-## Success Criteria
-
-✅ **All must pass**:
-1. Login redirects correctly to dashboard (no loop)
-2. Dashboard loads when session is valid
-3. Unauthorized users redirected to login
-4. Backend validates session via Better Auth
-5. Backend returns 401 for invalid/missing sessions
-6. Backend returns 403 for cross-user access attempts
-7. No custom JWT parsing in codebase
-8. Session validation latency <50ms P95
+**Rollback Plan**:
+1. Git revert Phase 7 changes (restore session_validator.py)
+2. Git revert Phase 4 backend (restore session in dependencies.py)
+3. Git revert Phase 4 frontend (remove JWT plugin)
+4. Investigate failure root cause
+5. Fix and retry migration
 
 ---
 
-## Notes
+## Task Validation Checklist
 
-- **Better Auth Cookie**: Default name is `better-auth.session_token`
-- **CORS**: Ensure backend allows frontend origin
-- **HTTP vs HTTPS**: Use HTTP for local dev, HTTPS in production
-- **Session Expiry**: Better Auth default is 7 days
-- **No Caching**: Validate session on every request
-- **Logging**: Add debug logging (but never log cookies in production)
+**Each task must:**
+- ✅ Focus on single file or logical concern
+- ✅ Be independently testable
+- ✅ Include exact file path
+- ✅ Be completable in 20-40 minutes
+- ✅ Have clear acceptance criteria
+
+**Organization:**
+- ✅ Organized by phase and user story
+- ✅ Aligned with spec.md priorities
+- ✅ Clear execution dependencies
+- ✅ Parallel opportunities identified
+
+---
+
+## Summary
+
+| Metric | Value |
+|--------|-------|
+| **Total Tasks** | 53 |
+| **Phases** | 9 |
+| **User Stories** | 3 (US1: JWT Validation, US2: User Scoping, US3: Audit) |
+| **Parallel Tasks** | 29 (marked with [P]) |
+| **MVP Scope** | Phases 1-4 (T001-T021) = 21 tasks |
+| **Estimated Time** | 23 hours sequential, 15 hours parallel |
+
+**Key Success Metrics**:
+- ✅ JWT verification <10ms (cached JWKS)
+- ✅ 100% invalid tokens rejected (401)
+- ✅ 100% cross-user access blocked (403)
+- ✅ Zero session endpoint calls
+- ✅ Application fails if JWKS unreachable on startup
+
+**Complexity Distribution**:
+- Simple: 20 tasks (config, cleanup, docs)
+- Moderate: 25 tasks (implementation, testing)
+- Complex: 8 tasks (JWT core, dependencies, integration)
+
+---
+
+**Status**: Ready for implementation
+**Next Command**: `/sp.implement` or start with Phase 1
+**Branch**: Will create `003-auth-security` from current fix/auth-session-redirect-loop

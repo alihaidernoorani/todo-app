@@ -30,6 +30,7 @@
 "use client"
 
 import { createAuthClient } from "better-auth/react"
+import { jwtClient } from "better-auth/client/plugins"
 
 /**
  * Better Auth client instance
@@ -39,9 +40,13 @@ import { createAuthClient } from "better-auth/react"
  * - Store session tokens in HttpOnly cookies
  * - Handle CSRF tokens
  * - Manage session state
+ * - JWT token support for API authentication
  */
 export const authClient = createAuthClient({
   baseURL: process.env.NEXT_PUBLIC_BETTER_AUTH_URL || "http://localhost:3000",
+  plugins: [
+    jwtClient(), // Enable JWT token retrieval
+  ],
 })
 
 /**

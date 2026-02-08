@@ -35,17 +35,15 @@ class Settings(BaseSettings):
         description="Base URL of Better Auth instance (e.g., https://app.example.com)",
     )
 
-    # Better Auth session validation endpoint URL
-    # This is the endpoint the backend calls to validate user sessions
-    better_auth_session_url: Optional[str] = Field(
+    # Better Auth JWT secret for HS256 verification (development fallback)
+    better_auth_secret: Optional[str] = Field(
         default=None,
-        alias="BETTER_AUTH_SESSION_URL",
-        description="Full URL to Better Auth session validation endpoint",
+        alias="BETTER_AUTH_SECRET",
+        description="Shared secret for HS256 JWT verification (development only)",
     )
-
     # CORS Configuration
-    # List of allowed origins for cross-origin requests
-    allowed_origins: list[str] = Field(
+    # Change the type hint to Union[str, list[str]] to bypass strict JSON parsing
+    allowed_origins: str | list[str] = Field(
         default=["http://localhost:3000"],
         alias="ALLOWED_ORIGINS",
         description="Comma-separated list of allowed CORS origins",
@@ -70,19 +68,22 @@ class Settings(BaseSettings):
             ["http://localhost:3000", "https://app.vercel.app"]
         """
         if isinstance(v, str):
+            # Remove potential JSON brackets/quotes if they exist
+            v = v.strip("[]'\" ")
             return [origin.strip() for origin in v.split(",") if origin.strip()]
         return v
 
     @property
-    def session_endpoint_url(self) -> str:
-        """Get Better Auth session validation endpoint URL.
+    def better_auth_jwks_url(self) -> str:
+        """Get Better Auth JWKS endpoint URL for JWT signature verification.
 
-        Uses explicit BETTER_AUTH_SESSION_URL if set, otherwise constructs
-        from BETTER_AUTH_URL with default path.
+        Constructs JWKS URL from BETTER_AUTH_URL using Better Auth's default API path.
+        JWKS endpoint provides public keys for RS256 signature verification.
+
+        Returns:
+            str: Full URL to JWKS endpoint (e.g., https://app.example.com/api/auth/jwks)
         """
-        if self.better_auth_session_url:
-            return self.better_auth_session_url
-        return f"{self.better_auth_url}/api/auth/session"
+        return f"{self.better_auth_url}/api/auth/jwks"
 
 
 @lru_cache

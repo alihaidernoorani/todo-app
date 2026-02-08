@@ -51,26 +51,21 @@ export function SignInForm() {
         setIsLoading(false)
       } else {
         console.log('[SignIn] Sign-in successful!')
-        console.log('[SignIn] Cookies after sign-in:', document.cookie)
+        console.log('[SignIn] User:', result.data.user.email)
 
-        // Verify session was created
-        const sessionCheck = await fetch('/api/auth/session', {
-          credentials: 'include',
-          cache: 'no-store'
-        })
-        const sessionData = await sessionCheck.json()
-        console.log('[SignIn] Session check:', sessionData)
+        // Get JWT token using Better Auth client
+        console.log('[SignIn] Requesting JWT token...')
+        const tokenResult = await authClient.token()
 
-        if (sessionData.user) {
-          console.log('[SignIn] Session verified! User:', sessionData.user.email)
+        if (tokenResult.data?.token) {
+          console.log('[SignIn] JWT token received!')
+          // Token will be used by useSession hook
           console.log('[SignIn] Redirecting to:', returnUrl)
-          // Session confirmed - redirect
           router.push(returnUrl)
           router.refresh()
         } else {
-          console.error('[SignIn] Session not created despite successful sign-in!')
-          console.error('[SignIn] This indicates a cookie or session storage issue')
-          setError('Login succeeded but session was not created. Please check console logs.')
+          console.error('[SignIn] Failed to get JWT token:', tokenResult.error)
+          setError('Failed to get authentication token. Please try again.')
           setIsLoading(false)
         }
       }

@@ -104,9 +104,10 @@ export function MetricCard({ icon, label, value, color, index = 0 }: MetricCardP
         delay: index * 0.1,
         ease: [0.16, 1, 0.3, 1], // Custom ease for smooth spring-like motion
       }}
-      className={`bg-white rounded-lg border border-slate-200 h-32 transition-all duration-300 ${colors.hover} cursor-default group shadow-sm`}
+      className={`bg-white rounded-lg border border-slate-200 h-32 transition-all duration-200 ${colors.hover} cursor-default group shadow-sm`}
     >
-      <div className="p-4 space-y-3">
+      {/* FR-008a: Generous spacing - p-5 to p-6 for cards (20-24px) */}
+      <div className="p-5 md:p-6 space-y-3">
         {/* Icon */}
         <div
           className={`w-10 h-10 rounded-lg ${colors.bg} border ${colors.border} flex items-center justify-center transition-transform duration-300 group-hover:scale-110`}
@@ -115,12 +116,13 @@ export function MetricCard({ icon, label, value, color, index = 0 }: MetricCardP
         </div>
 
         {/* Label */}
-        <p className="text-sm font-medium text-slate-600 tracking-wide uppercase">
+        {/* FR-009b: Responsive typography */}
+        <p className="text-xs md:text-sm font-medium text-slate-600 tracking-wide uppercase">
           {label}
         </p>
 
         {/* Value */}
-        <p className="text-3xl font-bold text-slate-900 font-mono tracking-tight">
+        <p className="text-2xl md:text-3xl font-bold text-slate-900 font-mono tracking-tight">
           {value.toLocaleString()}
         </p>
       </div>

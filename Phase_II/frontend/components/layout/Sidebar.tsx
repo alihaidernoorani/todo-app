@@ -19,6 +19,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Home, ListTodo, ChevronLeft, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { Tooltip } from '@/components/atoms/Tooltip'
 
 interface NavItem {
   label: string
@@ -46,7 +47,7 @@ export function Sidebar() {
         stiffness: 300,
         damping: 30,
       }}
-      className="hidden md:flex flex-col h-screen bg-slate-50/95 backdrop-blur-sm border-r border-slate-200 fixed left-0 top-0 z-40"
+      className="hidden md:flex flex-col h-screen bg-slate-50/95 backdrop-blur-sm border-r border-slate-200/80 fixed left-0 top-0 z-40"
     >
       {/* Logo and Brand */}
       <div className="p-6 border-b border-slate-200">
@@ -83,7 +84,7 @@ export function Sidebar() {
       <nav className="flex-1 p-4 space-y-2">
         {navItems.map((item) => {
           const isActive = pathname === item.href
-          return (
+          const linkContent = (
             <Link
               key={`${item.href}-${item.label}`}
               href={item.href}
@@ -95,6 +96,7 @@ export function Sidebar() {
                     ? 'bg-blue-50 border border-blue-200 text-blue-700'
                     : 'text-slate-600 hover:bg-slate-100'
                 }
+                ${isCollapsed ? 'justify-center' : ''}
               `}
             >
               <span
@@ -119,30 +121,50 @@ export function Sidebar() {
               </AnimatePresence>
             </Link>
           )
+
+          // Wrap with tooltip when collapsed
+          return isCollapsed ? (
+            <Tooltip key={`${item.href}-${item.label}`} content={item.label} position="right">
+              {linkContent}
+            </Tooltip>
+          ) : (
+            linkContent
+          )
         })}
       </nav>
 
       {/* Collapse Toggle Button */}
       <div className="p-4 border-t border-slate-200">
-        <button
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          className="
-            w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg
-            bg-white hover:bg-slate-100 border border-slate-300
-            text-slate-600 hover:text-blue-600
-            transition-all duration-200
-          "
-          aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        >
-          {isCollapsed ? (
-            <ChevronRight className="w-5 h-5" />
-          ) : (
-            <>
-              <ChevronLeft className="w-5 h-5" />
-              <span className="font-medium">Collapse</span>
-            </>
-          )}
-        </button>
+        {isCollapsed ? (
+          <Tooltip content="Expand sidebar" position="right">
+            <button
+              onClick={() => setIsCollapsed(!isCollapsed)}
+              className="
+                w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg
+                bg-white hover:bg-slate-100 border border-slate-300
+                text-slate-600 hover:text-blue-600
+                transition-all duration-200
+              "
+              aria-label="Expand sidebar"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </Tooltip>
+        ) : (
+          <button
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="
+              w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg
+              bg-white hover:bg-slate-100 border border-slate-300
+              text-slate-600 hover:text-blue-600
+              transition-all duration-200
+            "
+            aria-label="Collapse sidebar"
+          >
+            <ChevronLeft className="w-5 h-5" />
+            <span className="font-medium">Collapse</span>
+          </button>
+        )}
       </div>
     </motion.aside>
   )

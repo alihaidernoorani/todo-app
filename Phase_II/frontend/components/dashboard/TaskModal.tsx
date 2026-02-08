@@ -89,7 +89,7 @@ export function TaskModal({ open, onOpenChange, onSubmit }: TaskModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-end md:items-center justify-center md:p-4 bg-slate-900/50 backdrop-blur-sm"
       onClick={handleBackdropClick}
       role="dialog"
       aria-modal="true"
@@ -97,17 +97,18 @@ export function TaskModal({ open, onOpenChange, onSubmit }: TaskModalProps) {
     >
       <div
         ref={modalRef}
-        className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-white rounded-xl shadow-2xl border border-slate-200"
+        className="relative w-full md:max-w-2xl h-[85vh] md:h-auto md:max-h-[90vh] overflow-y-auto bg-white rounded-t-3xl md:rounded-xl shadow-2xl border border-slate-200 animate-slide-up"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
-        <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between z-10">
-          <h2 id="modal-title" className="text-xl font-semibold text-slate-900">
+        {/* FR-009b: Responsive typography */}
+        <div className="sticky top-0 bg-white border-b border-slate-200 px-5 md:px-6 py-4 flex items-center justify-between z-10">
+          <h2 id="modal-title" className="text-lg md:text-xl font-semibold text-slate-900">
             Add New Task
           </h2>
           <button
             onClick={() => onOpenChange(false)}
-            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-colors"
+            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
             aria-label="Close modal"
           >
             <X className="w-5 h-5" />
@@ -115,7 +116,8 @@ export function TaskModal({ open, onOpenChange, onSubmit }: TaskModalProps) {
         </div>
 
         {/* Modal Content */}
-        <div className="p-6">
+        {/* FR-008a: Generous spacing - p-5 to p-6 */}
+        <div className="p-5 md:p-6">
           <TaskForm
             onSubmit={handleSubmit}
             onCancel={() => onOpenChange(false)}

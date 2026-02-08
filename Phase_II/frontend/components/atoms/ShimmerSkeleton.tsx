@@ -121,3 +121,18 @@ export function MetricsGridSkeleton() {
     </div>
   )
 }
+
+/**
+ * Task Stream Skeleton
+ * Shows 5 task item skeletons in a list
+ * Prevents Cumulative Layout Shift (CLS) per SC-003
+ */
+export function TaskStreamSkeleton() {
+  return (
+    <div className="space-y-5">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <TaskItemSkeleton key={i} />
+      ))}
+    </div>
+  )
+}

@@ -83,9 +83,41 @@ export function MetricsGrid() {
     }
   }
 
+  // Initial fetch on mount
   useEffect(() => {
     fetchMetrics()
   }, [pathname, router])
+
+  // T046: Polling with tab visibility detection
+  // Refresh metrics every 30 seconds only when tab is active
+  useEffect(() => {
+    // Skip polling if no metrics loaded yet
+    if (!metrics) return
+
+    // Poll every 30 seconds
+    const pollInterval = setInterval(() => {
+      // Only fetch if document is visible (tab is active)
+      if (document.visibilityState === 'visible') {
+        fetchMetrics()
+      }
+    }, 30000) // 30 seconds
+
+    // Cleanup interval on unmount
+    return () => clearInterval(pollInterval)
+  }, [metrics])
+
+  // T046: Fetch fresh data when tab becomes visible after being hidden
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && metrics) {
+        // Fetch fresh data when user returns to tab
+        fetchMetrics()
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [metrics])
 
   // Error state
   if (error) {
@@ -119,8 +151,9 @@ export function MetricsGrid() {
   }
 
   // Metrics grid
+  // FR-008a: Generous spacing - gap-5 to gap-6 for grids (20-24px)
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 md:gap-6">
       {/* Total Tasks */}
       <MetricCard
         icon={<ListTodo />}

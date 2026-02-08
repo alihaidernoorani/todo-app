@@ -190,6 +190,7 @@
 
   /* =============================================================================
      TYPOGRAPHY - Playfair Display + Inter
+     FR-009b: Responsive typography with mobile/desktop sizes
      ============================================================================= */
 
   .text-heading {
@@ -198,6 +199,65 @@
 
   .text-body {
     font-family: var(--font-inter), sans-serif;
+  }
+
+  /* Responsive typography utilities */
+  .text-responsive-xs {
+    font-size: 0.75rem; /* 12px mobile */
+  }
+
+  .text-responsive-sm {
+    font-size: 0.875rem; /* 14px mobile */
+  }
+
+  .text-responsive-base {
+    font-size: 0.875rem; /* 14px mobile */
+  }
+
+  .text-responsive-lg {
+    font-size: 1rem; /* 16px mobile */
+  }
+
+  .text-responsive-xl {
+    font-size: 1.125rem; /* 18px mobile */
+  }
+
+  .text-responsive-2xl {
+    font-size: 1.25rem; /* 20px mobile */
+  }
+
+  .text-responsive-3xl {
+    font-size: 1.5rem; /* 24px mobile */
+  }
+
+  @media (min-width: 768px) {
+    .text-responsive-xs {
+      font-size: 0.75rem; /* 12px desktop */
+    }
+
+    .text-responsive-sm {
+      font-size: 0.875rem; /* 14px desktop */
+    }
+
+    .text-responsive-base {
+      font-size: 1rem; /* 16px desktop */
+    }
+
+    .text-responsive-lg {
+      font-size: 1.125rem; /* 18px desktop */
+    }
+
+    .text-responsive-xl {
+      font-size: 1.25rem; /* 20px desktop */
+    }
+
+    .text-responsive-2xl {
+      font-size: 1.5rem; /* 24px desktop */
+    }
+
+    .text-responsive-3xl {
+      font-size: 1.875rem; /* 30px desktop */
+    }
   }
 
   /* =============================================================================
@@ -447,6 +507,17 @@
   }
 }
 
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
 .animate-shimmer {
   animation: shimmer 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
@@ -457,4 +528,8 @@
 
 .animate-spring {
   animation: spring 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }

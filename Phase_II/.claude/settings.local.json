@@ -21,7 +21,8 @@
       "Bash(python3 -m py_compile:*)",
       "Bash(find:*)",
       "mcp__better-auth__ask-question-about-better-auth",
-      "Bash(node -e:*)"
+      "Bash(node -e:*)",
+      "Bash(git add:*)"
     ]
   }
 }

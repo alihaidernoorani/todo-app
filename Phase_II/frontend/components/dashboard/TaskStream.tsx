@@ -38,6 +38,7 @@ import { TaskModal } from "./TaskModal"
 import { PrimaryButton } from "@/components/atoms/PrimaryButton"
 import { EmptyState } from "./EmptyState"
 import { TaskItemSkeleton } from "@/components/atoms/ShimmerSkeleton"
+import { Toast } from "@/components/atoms/Toast"
 import type { TaskRead, TaskCreate, TaskUpdate } from "@/lib/api/types"
 
 export function TaskStream() {
@@ -45,6 +46,7 @@ export function TaskStream() {
   const [isLoading, setIsLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
+  const [toastMessage, setToastMessage] = useState<string | null>(null)
   const router = useRouter()
   const pathname = usePathname()
 
@@ -97,30 +99,45 @@ export function TaskStream() {
 
   // Handle create task
   const handleCreate = async (taskData: TaskCreate) => {
-    await createTask(taskData)
-    // Modal will close automatically on success
+    try {
+      await createTask(taskData)
+      setToastMessage("Task created successfully")
+      // Modal will close automatically on success
+    } catch (error) {
+      // Error is already handled by optimistic hook
+    }
   }
 
   // Handle update task
   const handleUpdate = async (taskData: TaskCreate | TaskUpdate) => {
     if (!editingTaskId) return
-    // TaskForm in edit mode always provides TaskUpdate
-    await updateTask(editingTaskId, taskData as TaskUpdate)
-    setEditingTaskId(null)
+    try {
+      // TaskForm in edit mode always provides TaskUpdate
+      await updateTask(editingTaskId, taskData as TaskUpdate)
+      setToastMessage("Task updated successfully")
+      setEditingTaskId(null)
+    } catch (error) {
+      // Error is already handled by optimistic hook
+    }
   }
 
   // Handle delete task
   const handleDelete = async (taskId: string) => {
     // Confirm before delete
     if (confirm("Are you sure you want to delete this task?")) {
-      await deleteTask(taskId)
+      try {
+        await deleteTask(taskId)
+        setToastMessage("Task deleted successfully")
+      } catch (error) {
+        // Error is already handled by optimistic hook
+      }
     }
   }
 
   // Loading state
   if (isLoading) {
     return (
-      <div className="space-y-3">
+      <div className="space-y-4">
         {Array.from({ length: 3 }).map((_, i) => (
           <TaskItemSkeleton key={i} />
         ))}
@@ -134,14 +151,26 @@ export function TaskStream() {
   }
 
   return (
-    <div className="space-y-4">
+    <>
+      {/* Success Toast Notification */}
+      <Toast
+        message={toastMessage || ""}
+        variant="success"
+        show={!!toastMessage}
+        onClose={() => setToastMessage(null)}
+        duration={2000}
+      />
+
+      <div className="space-y-5">
       {/* Create Task Button */}
+      {/* FR-005b: Touch-friendly button with min-height 48px */}
       {!editingTaskId && (
         <div className="flex justify-end">
           <PrimaryButton
             variant="primary"
             icon={<Plus className="w-4 h-4" />}
             onClick={() => setIsModalOpen(true)}
+            className="min-h-[48px]"
           >
             Add Task
           </PrimaryButton>
@@ -166,7 +195,23 @@ export function TaskStream() {
       )}
 
       {/* Task List */}
-      <motion.div layout className="space-y-3">
+      {/* FR-008a: Generous spacing - space-y-4 to space-y-5 for lists (16-20px) */}
+      {/* FR-011: Staggered entrance animation with 50ms delay between items */}
+      <motion.div
+        layout
+        className="space-y-5"
+        initial="hidden"
+        animate="visible"
+        variants={{
+          hidden: { opacity: 0 },
+          visible: {
+            opacity: 1,
+            transition: {
+              staggerChildren: 0.05, // 50ms delay between items
+            },
+          },
+        }}
+      >
         <AnimatePresence mode="popLayout">
           {tasks.map((task) => (
             <TaskItem
@@ -185,6 +230,7 @@ export function TaskStream() {
       {tasks.length === 0 && !isModalOpen && (
         <EmptyState onCreateTask={() => setIsModalOpen(true)} />
       )}
-    </div>
+      </div>
+    </>
   )
 }

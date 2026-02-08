@@ -43,7 +43,7 @@ export function EmptyState({ onCreateTask }: EmptyStateProps) {
       transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
       className="flex items-center justify-center min-h-[400px] p-8"
     >
-      <div className="bg-white rounded-lg border border-slate-200 max-w-md text-center p-8 shadow-sm">
+      <div className="bg-white rounded-lg border border-slate-200 max-w-md text-center p-12 shadow-sm">
         {/* Animated Icon */}
         <motion.div
           initial={{ y: -10 }}
@@ -79,7 +79,7 @@ export function EmptyState({ onCreateTask }: EmptyStateProps) {
         </h2>
 
         {/* Description */}
-        <p className="text-slate-600 mb-6 text-sm leading-relaxed">
+        <p className="text-slate-600 mb-8 text-sm leading-relaxed">
           No tasks found. Start organizing your work by creating your first task.
           Track progress, set priorities, and stay in control.
         </p>

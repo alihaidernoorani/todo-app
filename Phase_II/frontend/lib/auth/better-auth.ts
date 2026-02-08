@@ -125,7 +125,7 @@ function createAuth(): ReturnType<typeof betterAuth> | null {
           jwks: {
             // Key pair algorithm configuration
             keyPairConfig: {
-              alg: "HS256", // HS256: HMAC-SHA256 symmetric key algorithm
+              alg: "RS256", // RS256: RSA-SHA256 asymmetric key algorithm for JWT signing
             },
             // Disable private key encryption to avoid key decryption issues
             // This is fine for development; keys are still stored securely in database

@@ -8,7 +8,7 @@
  */
 
 import { getAuth } from "@/lib/auth/better-auth"
-import { NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import { headers } from "next/headers"
 
 export const runtime = "nodejs"
@@ -19,7 +19,7 @@ export const runtime = "nodejs"
  * Returns the current user's session if authenticated, null otherwise.
  * Includes JWT access token when available.
  */
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const auth = getAuth()
 

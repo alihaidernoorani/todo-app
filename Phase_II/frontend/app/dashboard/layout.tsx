@@ -15,10 +15,10 @@
 
 "use client"
 
-import { Sidebar } from '@/components/layout/Sidebar'
-import { Topbar } from '@/components/layout/Topbar'
+import { TopBar } from '@/components/dashboard/TopBar'
 import { MobileNav } from '@/components/layout/MobileNav'
 import { AuthGuard } from '@/components/auth/AuthGuard'
+import { TasksProvider } from '@/contexts/TasksContext'
 
 export default function DashboardLayout({
   children,
@@ -27,25 +27,24 @@ export default function DashboardLayout({
 }) {
   return (
     <AuthGuard>
-      {/* Desktop Layout (md+) */}
-      <div className="min-h-screen flex">
-        {/* T064: Sidebar - Desktop only, collapsible */}
-        <Sidebar />
+      <TasksProvider>
+        {/* Desktop Layout (md+) */}
+        <div className="min-h-screen flex">
+          {/* Main content area - No Sidebar on desktop */}
+          <main className="flex-1 flex flex-col">
+            {/* T065: Topbar - Desktop only */}
+            <TopBar />
 
-        {/* Main content area - Adjusts for Sidebar on desktop */}
-        <main className="flex-1 flex flex-col md:ml-[280px] transition-all duration-300">
-          {/* T065: Topbar - Desktop only */}
-          <Topbar />
+            {/* Page content */}
+            <div className="flex-1 p-6 pb-24 md:pb-6">
+              {children}
+            </div>
+          </main>
+        </div>
 
-          {/* Page content - Add bottom padding on mobile for MobileNav */}
-          <div className="flex-1 p-6 pb-24 md:pb-6">
-            {children}
-          </div>
-        </main>
-      </div>
-
-      {/* T066: MobileNav - Mobile only, sticky bottom */}
-      <MobileNav />
+        {/* T066: MobileNav - Mobile only, sticky bottom */}
+        <MobileNav />
+      </TasksProvider>
     </AuthGuard>
   )
 }

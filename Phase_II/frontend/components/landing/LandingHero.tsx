@@ -48,7 +48,7 @@ export function LandingHero() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.1 }}
-          className="text-5xl md:text-7xl font-bold text-slate-900 font-serif leading-tight"
+          className="text-5xl md:text-7xl font-bold text-slate-900 font-heading leading-tight"
         >
           Welcome to{" "}
           <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">

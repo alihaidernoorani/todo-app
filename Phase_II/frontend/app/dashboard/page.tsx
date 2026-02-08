@@ -20,28 +20,16 @@
  * - Tasks: Server Action → Backend API → Optimistic updates
  */
 
-import { redirect } from "next/navigation"
-import { headers } from "next/headers"
-import { auth } from "@/lib/auth/better-auth"
-import { DashboardContent } from "@/components/dashboard/DashboardContent"
-import { PageTransition } from "@/components/layout/PageTransition"
+"use client"
 
-// Server Component - no "use client" directive
-export default async function DashboardPage() {
-  // Server-side session validation
-  const requestHeaders = await headers()
+import { OverviewSection } from '@/components/dashboard/OverviewSection'
+import { AddTaskPanel } from '@/components/dashboard/AddTaskPanel'
+import { PageTransition } from '@/components/layout/PageTransition'
+import { useAuth } from '@/contexts/AuthContext'
 
-  const session = await auth.api.getSession({
-    headers: requestHeaders
-  })
-
-  // Redirect to sign in if not authenticated
-  if (!session) {
-    redirect("/login")
-  }
-
-  // Extract user info for display
-  const userName = session.user?.name?.split(' ')[0] || 'there'
+export default function DashboardPage() {
+  const { user } = useAuth()
+  const userName = user?.name || 'there'
 
   return (
     <PageTransition>
@@ -50,20 +38,35 @@ export default async function DashboardPage() {
       {/* FR-012b: Mobile bottom padding pb-28 (112px) + safe-area-inset-bottom */}
       <main
         id="main-content"
-        className="space-y-8 p-6 md:p-10 pb-28 md:pb-10"
+        className="space-y-8 px-6 md:px-10 py-6 md:py-10 pb-28 md:pb-10 bg-slate-50 dark:bg-slate-900 transition-colors duration-300"
         style={{ paddingBottom: "calc(7rem + env(safe-area-inset-bottom, 0px))" }}
       >
         {/* Page header */}
         {/* FR-009b: Responsive typography - smaller on mobile, larger on desktop */}
         <div>
-          <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-slate-900 mb-2 font-serif">
+          <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-slate-900 dark:text-slate-50 mb-3 font-heading">
             Welcome back, {userName}
           </h1>
-          <p className="text-sm md:text-base text-slate-600 text-body">Task overview and management</p>
+          <p className="text-base md:text-lg text-slate-600 dark:text-slate-300 text-body">Task overview and management</p>
         </div>
 
         {/* Dashboard Content with Metrics and Tasks */}
-        <DashboardContent />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Left Column: Overview */}
+          <div className="lg:col-span-3/5 space-y-6">
+            <OverviewSection />
+          </div>
+
+          {/* Right Column: Add Task */}
+          <div className="lg:col-span-2/5 space-y-6">
+            <section aria-labelledby="add-task-heading">
+              <h2 id="add-task-heading" className="text-lg md:text-xl font-semibold text-slate-700 dark:text-slate-200 mb-5">
+                Create Task
+              </h2>
+              <AddTaskPanel />
+            </section>
+          </div>
+        </div>
       </main>
     </PageTransition>
   )

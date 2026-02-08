@@ -28,14 +28,10 @@
 
 import { useEffect, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Plus } from "lucide-react"
 import { listTasks } from "@/lib/api/tasks"
 import { useOptimisticTask } from "@/lib/hooks/use-optimistic-task"
 import { TaskItem } from "./TaskItem"
 import { TaskForm } from "./TaskForm"
-import { TaskModal } from "./TaskModal"
-import { PrimaryButton } from "@/components/atoms/PrimaryButton"
-import { EmptyState } from "./EmptyState"
 import { TaskItemSkeleton } from "@/components/atoms/ShimmerSkeleton"
 import { Toast } from "@/components/atoms/Toast"
 import type { TaskRead, TaskCreate, TaskUpdate } from "@/lib/api/types"
@@ -50,13 +46,11 @@ interface TaskStreamProps {
 export function TaskStream({ onTasksChange }: TaskStreamProps = {}) {
   const [initialTasks, setInitialTasks] = useState<TaskRead[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
 
   const {
     tasks,
-    createTask,
     toggleComplete,
     updateTask,
     deleteTask,
@@ -84,27 +78,6 @@ export function TaskStream({ onTasksChange }: TaskStreamProps = {}) {
     fetchTasks()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // Run only on mount
-
-  // Handle create task
-  const handleCreate = async (taskData: TaskCreate) => {
-    try {
-      const newTask = await createTask(taskData)
-      if (newTask) {
-        setToastMessage("Task created successfully")
-        // Update initialTasks after server confirms (removes temp task, adds real one)
-        setInitialTasks(prev => {
-          // Remove any temp tasks and add the new real task at the beginning
-          const withoutTemp = prev.filter(t => !t.id.startsWith('temp-'))
-          const updatedTasks = [newTask, ...withoutTemp]
-          // Notify parent immediately with the updated task list
-          onTasksChange?.(updatedTasks)
-          return updatedTasks
-        })
-      }
-    } catch (error) {
-      // Error is already handled by optimistic hook
-    }
-  }
 
   // Handle update task
   const handleUpdate = async (taskData: TaskCreate | TaskUpdate) => {
@@ -180,9 +153,13 @@ export function TaskStream({ onTasksChange }: TaskStreamProps = {}) {
     )
   }
 
-  // Empty state (no tasks and no modal open)
-  if (tasks.length === 0 && !isModalOpen) {
-    return <EmptyState onCreateTask={() => setIsModalOpen(true)} />
+  // Empty state
+  if (tasks.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-slate-500 text-lg">No tasks yet. Use the form on the right to add your first task!</p>
+      </div>
+    )
   }
 
   return (
@@ -197,27 +174,6 @@ export function TaskStream({ onTasksChange }: TaskStreamProps = {}) {
       />
 
       <div className="space-y-5">
-      {/* Create Task Button */}
-      {/* FR-005b: Touch-friendly button with min-height 48px */}
-      {!editingTaskId && (
-        <div className="flex justify-end">
-          <PrimaryButton
-            variant="primary"
-            icon={<Plus className="w-4 h-4" />}
-            onClick={() => setIsModalOpen(true)}
-            className="min-h-[48px]"
-          >
-            Add Task
-          </PrimaryButton>
-        </div>
-      )}
-
-      {/* Task Modal */}
-      <TaskModal
-        open={isModalOpen}
-        onOpenChange={setIsModalOpen}
-        onSubmit={handleCreate}
-      />
 
       {/* Edit Form */}
       {editingTaskId && (
@@ -262,8 +218,10 @@ export function TaskStream({ onTasksChange }: TaskStreamProps = {}) {
       </motion.div>
 
       {/* Empty State (all tasks deleted) */}
-      {tasks.length === 0 && !isModalOpen && (
-        <EmptyState onCreateTask={() => setIsModalOpen(true)} />
+      {tasks.length === 0 && (
+        <div className="text-center py-12">
+          <p className="text-slate-500 text-lg">No tasks yet. Use the form on the right to add your first task!</p>
+        </div>
       )}
       </div>
     </>

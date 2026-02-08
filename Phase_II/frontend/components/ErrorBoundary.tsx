@@ -111,7 +111,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
               </div>
 
               {/* Error title */}
-              <h1 className="text-3xl md:text-4xl font-serif font-bold text-white text-center mb-4">
+              <h1 className="text-3xl md:text-4xl font-heading font-bold text-white text-center mb-4">
                 Something went wrong
               </h1>
 

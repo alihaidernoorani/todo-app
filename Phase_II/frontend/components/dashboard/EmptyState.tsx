@@ -74,7 +74,7 @@ export function EmptyState({ onCreateTask }: EmptyStateProps) {
         </motion.div>
 
         {/* Heading */}
-        <h2 className="text-2xl font-bold text-slate-900 mb-3 font-serif">
+        <h2 className="text-2xl font-bold text-slate-900 mb-3 font-heading">
           Welcome to TaskFlow
         </h2>
 

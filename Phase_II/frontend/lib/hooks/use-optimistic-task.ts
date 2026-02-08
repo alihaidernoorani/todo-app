@@ -44,6 +44,7 @@ import {
   updateTask as apiUpdateTask,
   deleteTask as apiDeleteTask,
 } from "@/lib/api/tasks"
+import { trackActionTiming } from "@/lib/utils/performance"
 import type { TaskRead, TaskCreate, TaskUpdate, OptimisticTask } from "@/lib/api/types"
 
 type OptimisticAction =
@@ -123,6 +124,12 @@ export function useOptimisticTask(initialTasks: TaskRead[]) {
    * Create a new task with optimistic update
    */
   const createTask = async (taskData: TaskCreate) => {
+    // Start performance tracking
+    const stopTracking = trackActionTiming('createTask', {
+      title: taskData.title,
+      priority: taskData.priority,
+    })
+
     // Generate temporary ID for optimistic task
     const tempId = `temp-${Date.now()}`
     const optimisticTask: OptimisticTask = {
@@ -166,15 +173,13 @@ export function useOptimisticTask(initialTasks: TaskRead[]) {
 
       const createdTask = result.data
 
-      // Replace optimistic task with real task
+      // Remove optimistic task (parent will update initialTasks with real task)
       startTransition(() => {
         updateOptimisticTasks({ type: "DELETE", taskId: tempId })
-        updateOptimisticTasks({
-          type: "CREATE",
-          task: { ...createdTask, _optimistic: false },
-        })
       })
 
+      // Track successful completion
+      stopTracking()
       return createdTask
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Failed to create task"
@@ -188,6 +193,8 @@ export function useOptimisticTask(initialTasks: TaskRead[]) {
         })
       })
 
+      // Track error completion
+      stopTracking()
       throw error
     }
   }
@@ -196,6 +203,9 @@ export function useOptimisticTask(initialTasks: TaskRead[]) {
    * Toggle task completion with optimistic update
    */
   const toggleComplete = async (taskId: string) => {
+    // Start performance tracking
+    const stopTracking = trackActionTiming('toggleComplete', { taskId })
+
     const retryFn = async () => {
       updateOptimisticTasks({ type: "CLEAR_ERROR", taskId })
       await toggleComplete(taskId)
@@ -228,15 +238,17 @@ export function useOptimisticTask(initialTasks: TaskRead[]) {
 
       const updatedTask = result.data
 
-      // Reconcile with server response
+      // Clear optimistic flag (parent will update initialTasks with real data)
       startTransition(() => {
         updateOptimisticTasks({
           type: "UPDATE",
           taskId,
-          updates: { ...updatedTask, _optimistic: false },
+          updates: { _optimistic: false },
         })
       })
 
+      // Track successful completion
+      stopTracking()
       return updatedTask
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Failed to toggle task"
@@ -252,6 +264,8 @@ export function useOptimisticTask(initialTasks: TaskRead[]) {
         })
       })
 
+      // Track error completion
+      stopTracking()
       throw error
     }
   }
@@ -260,6 +274,8 @@ export function useOptimisticTask(initialTasks: TaskRead[]) {
    * Update task with optimistic update
    */
   const updateTask = async (taskId: string, updates: TaskUpdate) => {
+    // Start performance tracking
+    const stopTracking = trackActionTiming('updateTask', { taskId, updates })
     const retryFn = async () => {
       updateOptimisticTasks({ type: "CLEAR_ERROR", taskId })
       await updateTask(taskId, updates)
@@ -290,15 +306,17 @@ export function useOptimisticTask(initialTasks: TaskRead[]) {
 
       const updatedTask = result.data
 
-      // Reconcile with server response
+      // Clear optimistic flag (parent will update initialTasks with real data)
       startTransition(() => {
         updateOptimisticTasks({
           type: "UPDATE",
           taskId,
-          updates: { ...updatedTask, _optimistic: false },
+          updates: { _optimistic: false },
         })
       })
 
+      // Track successful completion
+      stopTracking()
       return updatedTask
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Failed to update task"
@@ -312,6 +330,8 @@ export function useOptimisticTask(initialTasks: TaskRead[]) {
         })
       })
 
+      // Track error completion
+      stopTracking()
       throw error
     }
   }
@@ -320,6 +340,8 @@ export function useOptimisticTask(initialTasks: TaskRead[]) {
    * Delete task with optimistic update
    */
   const deleteTask = async (taskId: string) => {
+    // Start performance tracking
+    const stopTracking = trackActionTiming('deleteTask', { taskId })
     // Store original task for rollback
     const originalTask = optimisticTasks.find((t) => t.id === taskId)
     if (!originalTask) return
@@ -356,6 +378,7 @@ export function useOptimisticTask(initialTasks: TaskRead[]) {
       }
 
       // Success - task stays deleted
+      stopTracking()
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Failed to delete task"
 
@@ -372,6 +395,8 @@ export function useOptimisticTask(initialTasks: TaskRead[]) {
         })
       })
 
+      // Track error completion
+      stopTracking()
       throw error
     }
   }

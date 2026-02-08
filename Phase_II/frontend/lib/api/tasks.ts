@@ -132,6 +132,11 @@ async function makeAuthenticatedRequest<T>(
       };
     }
 
+    // Handle 204 No Content (e.g., DELETE operations)
+    if (response.status === 204) {
+      return { success: true, data: undefined as T };
+    }
+
     const data = await response.json();
     return { success: true, data };
 

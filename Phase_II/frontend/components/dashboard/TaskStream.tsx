@@ -27,7 +27,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useRouter, usePathname } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import { Plus } from "lucide-react"
 import { listTasks } from "@/lib/api/tasks"
@@ -41,14 +40,19 @@ import { TaskItemSkeleton } from "@/components/atoms/ShimmerSkeleton"
 import { Toast } from "@/components/atoms/Toast"
 import type { TaskRead, TaskCreate, TaskUpdate } from "@/lib/api/types"
 
-export function TaskStream() {
+interface TaskStreamProps {
+  /**
+   * Callback to notify parent when tasks change (for metrics calculation)
+   */
+  onTasksChange?: (tasks: TaskRead[]) => void
+}
+
+export function TaskStream({ onTasksChange }: TaskStreamProps = {}) {
   const [initialTasks, setInitialTasks] = useState<TaskRead[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
-  const router = useRouter()
-  const pathname = usePathname()
 
   const {
     tasks,
@@ -59,50 +63,44 @@ export function TaskStream() {
     clearError,
   } = useOptimisticTask(initialTasks)
 
-  // Fetch initial tasks on mount
-  // CRITICAL: This useEffect must handle the case where it runs before session is ready
+  // Fetch tasks on mount
   useEffect(() => {
     const fetchTasks = async () => {
       try {
-        console.log('[TaskStream] Starting task fetch...')
-
         const result = await listTasks()
-
-        console.log('[TaskStream] Task fetch result:', {
-          success: result.success,
-          error: result.success ? null : result.error
-        })
-
-        // Handle API response failure
-        if (!result.success) {
-          console.error("Failed to fetch tasks:", result.error.message)
-          console.error("Error code:", result.error.code)
-          console.error("Error status:", result.error.status)
-
-          // For other errors, continue with empty task list
-          setInitialTasks([])
-          return
+        if (result.success) {
+          const tasks = result.data.items
+          setInitialTasks(tasks)
+          // Notify parent immediately with fetched tasks
+          onTasksChange?.(tasks)
         }
-
-        // Success - set tasks from response data
-        setInitialTasks(result.data.items)
       } catch (error) {
         console.error("Failed to fetch tasks:", error)
-        setInitialTasks([])
       } finally {
         setIsLoading(false)
       }
     }
 
     fetchTasks()
-  }, [pathname, router])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Run only on mount
 
   // Handle create task
   const handleCreate = async (taskData: TaskCreate) => {
     try {
-      await createTask(taskData)
-      setToastMessage("Task created successfully")
-      // Modal will close automatically on success
+      const newTask = await createTask(taskData)
+      if (newTask) {
+        setToastMessage("Task created successfully")
+        // Update initialTasks after server confirms (removes temp task, adds real one)
+        setInitialTasks(prev => {
+          // Remove any temp tasks and add the new real task at the beginning
+          const withoutTemp = prev.filter(t => !t.id.startsWith('temp-'))
+          const updatedTasks = [newTask, ...withoutTemp]
+          // Notify parent immediately with the updated task list
+          onTasksChange?.(updatedTasks)
+          return updatedTasks
+        })
+      }
     } catch (error) {
       // Error is already handled by optimistic hook
     }
@@ -112,10 +110,36 @@ export function TaskStream() {
   const handleUpdate = async (taskData: TaskCreate | TaskUpdate) => {
     if (!editingTaskId) return
     try {
-      // TaskForm in edit mode always provides TaskUpdate
-      await updateTask(editingTaskId, taskData as TaskUpdate)
-      setToastMessage("Task updated successfully")
-      setEditingTaskId(null)
+      const updated = await updateTask(editingTaskId, taskData as TaskUpdate)
+      if (updated) {
+        setToastMessage("Task updated successfully")
+        setEditingTaskId(null)
+        // Update initialTasks with the updated task
+        setInitialTasks(prev => {
+          const updatedTasks = prev.map(t => t.id === editingTaskId ? updated : t)
+          // Notify parent immediately with the updated task list
+          onTasksChange?.(updatedTasks)
+          return updatedTasks
+        })
+      }
+    } catch (error) {
+      // Error is already handled by optimistic hook
+    }
+  }
+
+  // Handle toggle complete
+  const handleToggle = async (taskId: string) => {
+    try {
+      const updated = await toggleComplete(taskId)
+      if (updated) {
+        // Update initialTasks with the toggled task
+        setInitialTasks(prev => {
+          const updatedTasks = prev.map(t => t.id === taskId ? updated : t)
+          // Notify parent immediately with the updated task list
+          onTasksChange?.(updatedTasks)
+          return updatedTasks
+        })
+      }
     } catch (error) {
       // Error is already handled by optimistic hook
     }
@@ -123,14 +147,25 @@ export function TaskStream() {
 
   // Handle delete task
   const handleDelete = async (taskId: string) => {
-    // Confirm before delete
-    if (confirm("Are you sure you want to delete this task?")) {
-      try {
-        await deleteTask(taskId)
-        setToastMessage("Task deleted successfully")
-      } catch (error) {
-        // Error is already handled by optimistic hook
-      }
+    // Prevent deleting tasks with temporary IDs (not yet confirmed by server)
+    if (taskId.startsWith('temp-')) {
+      setToastMessage("Please wait for the task to be created before deleting")
+      return
+    }
+
+    try {
+      await deleteTask(taskId)
+      setToastMessage("Task deleted successfully")
+      // Update initialTasks by removing the deleted task
+      setInitialTasks(prev => {
+        const updatedTasks = prev.filter(t => t.id !== taskId)
+        // Notify parent immediately with the updated task list
+        onTasksChange?.(updatedTasks)
+        return updatedTasks
+      })
+    } catch (error) {
+      // Error is already handled by optimistic hook
+      console.error('Delete error:', error)
     }
   }
 
@@ -217,7 +252,7 @@ export function TaskStream() {
             <TaskItem
               key={task.id}
               task={task}
-              onToggle={() => toggleComplete(task.id)}
+              onToggle={() => handleToggle(task.id)}
               onEdit={() => setEditingTaskId(task.id)}
               onDelete={() => handleDelete(task.id)}
               onClearError={() => clearError(task.id)}

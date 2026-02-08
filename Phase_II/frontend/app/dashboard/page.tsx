@@ -20,13 +20,10 @@
  * - Tasks: Server Action → Backend API → Optimistic updates
  */
 
-import { Suspense } from "react"
 import { redirect } from "next/navigation"
 import { headers } from "next/headers"
 import { auth } from "@/lib/auth/better-auth"
-import { MetricsGrid } from "@/components/dashboard/MetricsGrid"
-import { TaskStream } from "@/components/dashboard/TaskStream"
-import { MetricsGridSkeleton } from "@/components/atoms/ShimmerSkeleton"
+import { DashboardContent } from "@/components/dashboard/DashboardContent"
 import { PageTransition } from "@/components/layout/PageTransition"
 
 // Server Component - no "use client" directive
@@ -65,25 +62,8 @@ export default async function DashboardPage() {
           <p className="text-sm md:text-base text-slate-600 text-body">Task overview and management</p>
         </div>
 
-        {/* Metrics Grid (Phase 4 - User Story 2) */}
-        {/* FR-008a: Generous spacing with gap-5 to gap-6 for grids */}
-        <section aria-labelledby="metrics-heading">
-          <h2 id="metrics-heading" className="text-base md:text-lg font-semibold text-slate-700 mb-5">
-            System Status
-          </h2>
-          <Suspense fallback={<MetricsGridSkeleton />}>
-            <MetricsGrid />
-          </Suspense>
-        </section>
-
-        {/* Task Stream (Phase 5 - User Story 3) */}
-        {/* FR-008a: Generous spacing with space-y-4 to space-y-5 for lists */}
-        <section aria-labelledby="tasks-heading">
-          <h2 id="tasks-heading" className="text-base md:text-lg font-semibold text-slate-700 mb-5">
-            Active Tasks
-          </h2>
-          <TaskStream />
-        </section>
+        {/* Dashboard Content with Metrics and Tasks */}
+        <DashboardContent />
       </main>
     </PageTransition>
   )

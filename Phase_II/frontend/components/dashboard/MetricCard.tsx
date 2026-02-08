@@ -1,61 +1,14 @@
-/**
- * Metric Card Component
- *
- * Displays a single metric with icon, label, and value.
- * Features:
- * - Clean light mode styling with subtle shadows
- * - Icon with colored background
- * - Large value display with tech blue accents
- * - Staggered entry animation via Framer Motion
- *
- * Design:
- * - Follows "Slate & Snow" aesthetic
- * - Hover effects with subtle shadow enhancement
- * - Responsive sizing
- * - Zero layout shift (fixed dimensions)
- *
- * Usage:
- * ```tsx
- * <MetricCard
- *   icon={<CheckCircleIcon />}
- *   label="Completed"
- *   value={30}
- *   color="emerald"
- *   index={0}
- * />
- * ```
- */
-
 "use client"
 
 import { motion } from "framer-motion"
 import { ReactNode } from "react"
+import { formatNumber } from "@/lib/utils/formatNumber"
 
 interface MetricCardProps {
-  /**
-   * Icon element (Lucide React icon or SVG)
-   */
   icon: ReactNode
-
-  /**
-   * Metric label (e.g., "Total Tasks", "Completed")
-   */
   label: string
-
-  /**
-   * Numeric value to display
-   */
   value: number
-
-  /**
-   * Color theme for icon background and accents
-   */
   color: "amber" | "emerald" | "blue" | "purple" | "red"
-
-  /**
-   * Index for staggered animation delay
-   * Delay = index * 0.1s
-   */
   index?: number
 }
 
@@ -94,6 +47,7 @@ const colorClasses = {
 
 export function MetricCard({ icon, label, value, color, index = 0 }: MetricCardProps) {
   const colors = colorClasses[color]
+  const formatted = formatNumber(value)
 
   return (
     <motion.div
@@ -102,28 +56,29 @@ export function MetricCard({ icon, label, value, color, index = 0 }: MetricCardP
       transition={{
         duration: 0.5,
         delay: index * 0.1,
-        ease: [0.16, 1, 0.3, 1], // Custom ease for smooth spring-like motion
+        ease: [0.16, 1, 0.3, 1],
       }}
-      className={`bg-white rounded-lg border border-slate-200 h-32 transition-all duration-200 ${colors.hover} cursor-default group shadow-sm`}
+      className={`bg-white rounded-xl border border-slate-200 min-h-[132px] transition-all duration-200 ${colors.hover} cursor-default group shadow-sm overflow-hidden`}
     >
-      {/* FR-008a: Generous spacing - p-5 to p-6 for cards (20-24px) */}
-      <div className="p-5 md:p-6 space-y-3">
+      <div className="p-4 md:p-6 space-y-3 md:space-y-4 flex flex-col items-center justify-center text-center h-full">
         {/* Icon */}
         <div
-          className={`w-10 h-10 rounded-lg ${colors.bg} border ${colors.border} flex items-center justify-center transition-transform duration-300 group-hover:scale-110`}
+          className={`w-10 h-10 md:w-11 md:h-11 rounded-xl ${colors.bg} border ${colors.border} flex items-center justify-center transition-transform duration-300 group-hover:scale-105`}
         >
-          <div className={`w-6 h-6 ${colors.icon}`}>{icon}</div>
+          <div className={`w-5 h-5 md:w-6 md:h-6 ${colors.icon}`}>{icon}</div>
         </div>
 
-        {/* Label */}
-        {/* FR-009b: Responsive typography */}
-        <p className="text-xs md:text-sm font-medium text-slate-600 tracking-wide uppercase">
-          {label}
+        {/* Value */}
+        <p
+          className="text-3xl md:text-4xl font-bold text-slate-900 tracking-tight tabular-nums leading-none truncate w-full"
+          aria-label={`${label}: ${formatted.full}`}
+        >
+          {formatted.display}
         </p>
 
-        {/* Value */}
-        <p className="text-2xl md:text-3xl font-bold text-slate-900 font-mono tracking-tight">
-          {value.toLocaleString()}
+        {/* Label */}
+        <p className="text-xs md:text-sm font-medium text-slate-500 tracking-wide uppercase truncate w-full">
+          {label}
         </p>
       </div>
     </motion.div>

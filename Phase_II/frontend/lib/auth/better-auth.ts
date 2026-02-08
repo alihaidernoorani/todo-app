@@ -121,23 +121,29 @@ function createAuth(): ReturnType<typeof betterAuth> | null {
 
         // JWT plugin for stateless authentication across different domains
         jwt({
-          // JWT configuration for cross-domain deployment (Vercel + HuggingFace)
-          // RS256: Public/private key cryptography for signature verification
-          algorithm: "HS256",
+          // JWKS configuration for key pair generation and storage
+          jwks: {
+            // Key pair algorithm configuration
+            keyPairConfig: {
+              alg: "HS256", // HS256: HMAC-SHA256 symmetric key algorithm
+            },
+            // Disable private key encryption to avoid key decryption issues
+            // This is fine for development; keys are still stored securely in database
+            disablePrivateKeyEncryption: true,
+          },
 
-          // Token expiration: 15 minutes for security (matches session expiry)
-          expiresIn: 60 * 15,
+          // JWT token configuration
+          jwt: {
+            // Issuer claim: identifies the Better Auth instance that issued the token
+            issuer: baseURL,
 
-          // Issuer claim: identifies the Better Auth instance that issued the token
-          issuer: baseURL,
+            // Audience claim: identifies the intended recipient (backend API)
+            // Optional - can be used for additional validation
+            audience: process.env.NEXT_PUBLIC_API_URL || undefined,
 
-          // Audience claim: identifies the intended recipient (backend API)
-          // Optional - can be used for additional validation
-          audience: process.env.NEXT_PUBLIC_API_URL || undefined,
-
-          // Disable private key encryption to avoid key decryption issues
-          // This is fine for development; keys are still stored securely in database
-          disablePrivateKeyEncryption: true,
+            // Token expiration: 15 minutes for security (matches session expiry)
+            expirationTime: "15m",
+          },
         }),
       ],
     })

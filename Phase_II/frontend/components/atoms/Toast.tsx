@@ -64,6 +64,7 @@ export function Toast({
       const timer = setTimeout(onClose, duration)
       return () => clearTimeout(timer)
     }
+    return undefined
   }, [show, duration, onClose])
 
   const variantStyles = {

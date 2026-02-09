@@ -9,27 +9,16 @@ from typing import Optional, List
 
 
 class AgentChatRequest(BaseModel):
-    """Request schema for POST /api/v1/agent/chat endpoint.
+    """Request schema for POST /api/{user_id}/chat endpoint.
 
     Attributes:
-        user_id: User ID from JWT authentication
         message: User's natural language message
-        conversation_id: Optional conversation ID (0 or None creates new conversation)
     """
-    user_id: int = Field(
-        ...,
-        gt=0,
-        description="User ID from JWT authentication"
-    )
     message: str = Field(
         ...,
         min_length=1,
         max_length=2000,
         description="User's natural language message"
-    )
-    conversation_id: Optional[int] = Field(
-        None,
-        description="Existing conversation ID (None or 0 creates new)"
     )
 
     @validator('message')
@@ -41,14 +30,13 @@ class AgentChatRequest(BaseModel):
 
 
 class AgentChatResponse(BaseModel):
-    """Response schema for POST /api/v1/agent/chat endpoint.
+    """Response schema for POST /api/{user_id}/chat endpoint.
 
     Attributes:
         conversation_id: Conversation ID (new or existing)
         user_message_id: Stored user message ID
         agent_message_id: Stored agent response message ID
         agent_response: Agent's natural language response
-        tool_calls: Optional debug info about tool invocations
     """
     conversation_id: int = Field(
         ...,
@@ -67,10 +55,6 @@ class AgentChatResponse(BaseModel):
         min_length=1,
         max_length=5000,
         description="Agent's natural language response"
-    )
-    tool_calls: Optional[List[dict]] = Field(
-        None,
-        description="Optional debug info about tool invocations"
     )
 
 

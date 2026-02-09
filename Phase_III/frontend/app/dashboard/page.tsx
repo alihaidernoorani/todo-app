@@ -22,14 +22,18 @@
 
 "use client"
 
+import { useState } from 'react'
 import { OverviewSection } from '@/components/dashboard/OverviewSection'
 import { AddTaskPanel } from '@/components/dashboard/AddTaskPanel'
 import { PageTransition } from '@/components/layout/PageTransition'
 import { useAuth } from '@/contexts/AuthContext'
+import { ChatWidget } from '@/components/chat/ChatWidget'
+import { ChatToggleButton } from '@/components/chat/ChatToggleButton'
 
 export default function DashboardPage() {
   const { user } = useAuth()
   const userName = user?.name || 'there'
+  const [isChatOpen, setIsChatOpen] = useState(false)
 
   return (
     <PageTransition>
@@ -68,6 +72,17 @@ export default function DashboardPage() {
           </div>
         </div>
       </main>
+
+      {/* Chat Widget and Toggle Button */}
+      <ChatWidget
+        userId={user?.id ?? null}
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+      />
+      <ChatToggleButton
+        isOpen={isChatOpen}
+        onClick={() => setIsChatOpen(!isChatOpen)}
+      />
     </PageTransition>
   )
 }

@@ -12,11 +12,11 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/agent", tags=["agent"])
+router = APIRouter(prefix="/api", tags=["agent"])
 
 
-@router.post("/chat", response_model=AgentChatResponse, status_code=status.HTTP_200_OK)
-async def agent_chat(request: AgentChatRequest) -> AgentChatResponse:
+@router.post("/{user_id}/chat", response_model=AgentChatResponse, status_code=status.HTTP_200_OK)
+async def agent_chat(user_id: int, request: AgentChatRequest) -> AgentChatResponse:
     """Process a chat message through the AI agent.
 
     This endpoint receives a user message, processes it through the OpenAI Agents SDK,
@@ -64,13 +64,13 @@ async def agent_chat(request: AgentChatRequest) -> AgentChatResponse:
         ```
     """
     logger.info(
-        f"Agent chat request: user_id={request.user_id}, "
+        f"Agent chat request: user_id={user_id}, "
         f"conversation_id={request.conversation_id}"
     )
 
     try:
         # Validate request
-        if not request.user_id or request.user_id <= 0:
+        if not user_id or user_id <= 0:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="user_id must be a positive integer"
@@ -84,7 +84,7 @@ async def agent_chat(request: AgentChatRequest) -> AgentChatResponse:
 
         # Process request through agent handler
         handler = AgentRequestHandler()
-        response = await handler.process_chat_request(request)
+        response = await handler.process_chat_request(user_id, request)
 
         logger.info(f"Agent chat completed: conversation_id={response.conversation_id}")
         return response

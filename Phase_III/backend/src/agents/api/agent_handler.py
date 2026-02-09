@@ -37,12 +37,13 @@ class AgentRequestHandler:
         )
 
     async def process_chat_request(
-        self, request: AgentChatRequest
+        self, user_id: int, request: AgentChatRequest
     ) -> AgentChatResponse:
         """Process an agent chat request.
 
         Args:
-            request: AgentChatRequest with user_id, message, conversation_id
+            user_id: User ID from path parameter
+            request: AgentChatRequest with message and conversation_id
 
         Returns:
             AgentChatResponse with agent response and message IDs
@@ -52,7 +53,7 @@ class AgentRequestHandler:
             Exception: If agent execution fails
         """
         logger.info(
-            f"Processing chat request: user_id={request.user_id}, "
+            f"Processing chat request: user_id={user_id}, "
             f"conversation_id={request.conversation_id}, "
             f"message={request.message[:50]}..."
         )
@@ -61,13 +62,13 @@ class AgentRequestHandler:
         async with BackendClient(self.backend_base_url) as mcp_client:
             # Load conversation history from database
             conversation_history = await self._load_conversation_history(
-                mcp_client, request.user_id, request.conversation_id
+                mcp_client, request.conversation_id
             )
 
             # Build context for agent
             context = {
                 "mcp_client": mcp_client,
-                "user_id": request.user_id,
+                "user_id": user_id,
             }
 
             # Execute agent with Runner.run()
@@ -80,7 +81,6 @@ class AgentRequestHandler:
             # Persist user message and agent response to database
             conversation_id, user_msg_id, agent_msg_id = await self._persist_messages(
                 mcp_client,
-                request.user_id,
                 request.conversation_id,
                 request.message,
                 agent_response,
@@ -104,14 +104,12 @@ class AgentRequestHandler:
     async def _load_conversation_history(
         self,
         mcp_client: BackendClient,
-        user_id: int,
         conversation_id: Optional[int],
     ) -> List:
         """Load conversation history from database via MCP client.
 
         Args:
             mcp_client: Backend API client
-            user_id: User ID
             conversation_id: Conversation ID (None for new conversation)
 
         Returns:
@@ -134,7 +132,6 @@ class AgentRequestHandler:
     async def _persist_messages(
         self,
         mcp_client: BackendClient,
-        user_id: int,
         conversation_id: Optional[int],
         user_message: str,
         agent_response: str,
@@ -143,7 +140,6 @@ class AgentRequestHandler:
 
         Args:
             mcp_client: Backend API client
-            user_id: User ID
             conversation_id: Existing conversation ID or None
             user_message: User's message text
             agent_response: Agent's response text

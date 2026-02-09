@@ -1,0 +1,158 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Authentication Error Contracts",
+    "description": "Standardized error response schemas for JWT authentication and authorization failures",
+    "version": "1.0.0"
+  },
+  "paths": {},
+  "components": {
+    "schemas": {
+      "AuthErrorResponse": {
+        "type": "object",
+        "description": "Standardized error response for authentication (401) and authorization (403) failures",
+        "required": ["detail", "error_code", "status_code"],
+        "properties": {
+          "detail": {
+            "type": "string",
+            "description": "Human-readable error message for debugging",
+            "example": "Token expired"
+          },
+          "error_code": {
+            "type": "string",
+            "description": "Machine-readable error identifier for client-side handling",
+            "enum": [
+              "MISSING_TOKEN",
+              "INVALID_HEADER_FORMAT",
+              "INVALID_TOKEN_SIGNATURE",
+              "TOKEN_EXPIRED",
+              "MALFORMED_TOKEN",
+              "MISSING_UID_CLAIM",
+              "FORBIDDEN_USER_ACCESS"
+            ],
+            "example": "TOKEN_EXPIRED"
+          },
+          "status_code": {
+            "type": "integer",
+            "description": "HTTP status code (401 for authentication, 403 for authorization)",
+            "enum": [401, 403],
+            "example": 401
+          }
+        }
+      },
+      "AuthErrorCode": {
+        "type": "string",
+        "description": "Machine-readable error codes for authentication and authorization failures",
+        "enum": [
+          "MISSING_TOKEN",
+          "INVALID_HEADER_FORMAT",
+          "INVALID_TOKEN_SIGNATURE",
+          "TOKEN_EXPIRED",
+          "MALFORMED_TOKEN",
+          "MISSING_UID_CLAIM",
+          "FORBIDDEN_USER_ACCESS"
+        ]
+      }
+    },
+    "responses": {
+      "401Unauthorized": {
+        "description": "Authentication failed - invalid or missing JWT token",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/AuthErrorResponse"
+            },
+            "examples": {
+              "missing_token": {
+                "summary": "Missing Authorization Header",
+                "value": {
+                  "detail": "Missing authentication token",
+                  "error_code": "MISSING_TOKEN",
+                  "status_code": 401
+                }
+              },
+              "invalid_format": {
+                "summary": "Invalid Header Format",
+                "value": {
+                  "detail": "Invalid authorization header format",
+                  "error_code": "INVALID_HEADER_FORMAT",
+                  "status_code": 401
+                }
+              },
+              "invalid_signature": {
+                "summary": "Invalid Token Signature",
+                "value": {
+                  "detail": "Invalid token signature",
+                  "error_code": "INVALID_TOKEN_SIGNATURE",
+                  "status_code": 401
+                }
+              },
+              "expired_token": {
+                "summary": "Expired Token",
+                "value": {
+                  "detail": "Token expired",
+                  "error_code": "TOKEN_EXPIRED",
+                  "status_code": 401
+                }
+              },
+              "malformed_token": {
+                "summary": "Malformed Token",
+                "value": {
+                  "detail": "Malformed token",
+                  "error_code": "MALFORMED_TOKEN",
+                  "status_code": 401
+                }
+              },
+              "missing_uid": {
+                "summary": "Missing UID Claim",
+                "value": {
+                  "detail": "Invalid token: missing or malformed user ID claim",
+                  "error_code": "MISSING_UID_CLAIM",
+                  "status_code": 401
+                }
+              }
+            }
+          }
+        }
+      },
+      "403Forbidden": {
+        "description": "Authorization failed - authenticated user attempting to access another user's resources",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/AuthErrorResponse"
+            },
+            "examples": {
+              "forbidden_access": {
+                "summary": "Cross-User Access Denied",
+                "value": {
+                  "detail": "Access denied: cannot access another user's resources",
+                  "error_code": "FORBIDDEN_USER_ACCESS",
+                  "status_code": 403
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "JWT token from Better Auth signed with HS256 using shared secret (BETTER_AUTH_SECRET)"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Authentication",
+      "description": "JWT token validation and user identity extraction"
+    },
+    {
+      "name": "Authorization",
+      "description": "User-scoped access control based on JWT uid claim"
+    }
+  ]
+}

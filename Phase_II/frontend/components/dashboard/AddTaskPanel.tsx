@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { Plus, Sparkles } from 'lucide-react'
 import { useTasks } from '@/contexts/TasksContext'
+import { createTask } from '@/lib/api/tasks'
+import type { TaskCreate } from '@/lib/api/types'
 
 export function AddTaskPanel() {
   const { addTask } = useTasks()
@@ -11,32 +13,43 @@ export function AddTaskPanel() {
   const [description, setDescription] = useState('')
   const [priority, setPriority] = useState<'Low' | 'Medium' | 'High'>('Medium')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!title.trim()) return
 
     setIsSubmitting(true)
+    setError(null)
 
-    // Add task to context (will update metrics)
-    const newTask = {
-      id: `task-${Date.now()}`,
-      title: title.trim(),
-      description: description.trim(),
-      is_completed: false,
-      priority,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      user_id: 'temp-user-id',
+    try {
+      // Create task via API
+      const taskData: TaskCreate = {
+        title: title.trim(),
+        description: description.trim() || null,
+        priority,
+      }
+
+      const result = await createTask(taskData)
+
+      if (result.success && result.data) {
+        // Add task to context (will update metrics)
+        addTask(result.data)
+
+        // Clear form
+        setTitle('')
+        setDescription('')
+        setPriority('Medium')
+      } else {
+        // Handle API error
+        setError(result.error?.message || 'Failed to create task')
+      }
+    } catch (err) {
+      setError('An unexpected error occurred')
+      console.error('Task creation error:', err)
+    } finally {
+      setIsSubmitting(false)
     }
-
-    addTask(newTask)
-
-    // Clear form
-    setTitle('')
-    setDescription('')
-    setPriority('Medium')
-    setIsSubmitting(false)
   }
 
   return (
@@ -65,6 +78,13 @@ export function AddTaskPanel() {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Error Display */}
+          {error && (
+            <div className="p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800">
+              <p className="text-sm font-medium text-red-700 dark:text-red-300">{error}</p>
+            </div>
+          )}
+
           {/* Title Input */}
           <div>
             <label htmlFor="task-title" className="block text-base font-semibold text-slate-700 dark:text-slate-200 mb-2.5">

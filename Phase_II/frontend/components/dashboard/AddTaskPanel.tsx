@@ -32,7 +32,7 @@ export function AddTaskPanel() {
 
       const result = await createTask(taskData)
 
-      if (result.success && result.data) {
+      if (result.success) {
         // Add task to context (will update metrics)
         addTask(result.data)
 
@@ -42,7 +42,7 @@ export function AddTaskPanel() {
         setPriority('Medium')
       } else {
         // Handle API error
-        setError(result.error?.message || 'Failed to create task')
+        setError(result.error.message || 'Failed to create task')
       }
     } catch (err) {
       setError('An unexpected error occurred')

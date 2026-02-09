@@ -5,6 +5,7 @@ import { motion } from 'framer-motion'
 import { Plus, Sparkles } from 'lucide-react'
 import { useTasks } from '@/contexts/TasksContext'
 import { createTask } from '@/lib/api/tasks'
+import { Toast } from '@/components/atoms/Toast'
 import type { TaskCreate } from '@/lib/api/types'
 
 export function AddTaskPanel() {
@@ -14,6 +15,7 @@ export function AddTaskPanel() {
   const [priority, setPriority] = useState<'Low' | 'Medium' | 'High'>('Medium')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -36,6 +38,9 @@ export function AddTaskPanel() {
         // Add task to context (will update metrics)
         addTask(result.data)
 
+        // Show success message
+        setSuccessMessage('Task created successfully!')
+
         // Clear form
         setTitle('')
         setDescription('')
@@ -53,14 +58,24 @@ export function AddTaskPanel() {
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, x: 20 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ duration: 0.3 }}
-      className="sticky top-24"
-    >
-      {/* Add Task Form Card */}
-      <div className="bg-gradient-to-br from-blue-50 via-purple-50/30 to-blue-50 dark:from-slate-800 dark:via-slate-800/50 dark:to-slate-800 rounded-2xl border-2 border-blue-200/50 dark:border-slate-600/50 shadow-lg p-6 md:p-8">
+    <>
+      {/* Success Toast Notification */}
+      <Toast
+        message={successMessage || ""}
+        variant="success"
+        show={!!successMessage}
+        onClose={() => setSuccessMessage(null)}
+        duration={2000}
+      />
+
+      <motion.div
+        initial={{ opacity: 0, x: 20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.3 }}
+        className="sticky top-24"
+      >
+        {/* Add Task Form Card */}
+        <div className="bg-gradient-to-br from-blue-50 via-purple-50/30 to-blue-50 dark:from-slate-800 dark:via-slate-800/50 dark:to-slate-800 rounded-2xl border-2 border-blue-200/50 dark:border-slate-600/50 shadow-lg p-6 md:p-8">
         {/* Header */}
         <div className="flex items-center gap-3 mb-6">
           <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
@@ -165,6 +180,7 @@ export function AddTaskPanel() {
         </div>
       </div>
     </motion.div>
+    </>
   )
 }
 

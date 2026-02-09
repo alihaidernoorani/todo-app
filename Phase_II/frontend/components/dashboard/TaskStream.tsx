@@ -34,6 +34,7 @@ import { TaskItem } from "./TaskItem"
 import { TaskForm } from "./TaskForm"
 import { TaskItemSkeleton } from "@/components/atoms/ShimmerSkeleton"
 import { Toast } from "@/components/atoms/Toast"
+import { useTasks } from "@/contexts/TasksContext"
 import type { TaskRead, TaskCreate, TaskUpdate } from "@/lib/api/types"
 
 interface TaskStreamProps {
@@ -44,7 +45,7 @@ interface TaskStreamProps {
 }
 
 export function TaskStream({ onTasksChange }: TaskStreamProps = {}) {
-  const [initialTasks, setInitialTasks] = useState<TaskRead[]>([])
+  const { tasks: contextTasks, setTasks: setContextTasks } = useTasks()
   const [isLoading, setIsLoading] = useState(true)
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
@@ -55,18 +56,18 @@ export function TaskStream({ onTasksChange }: TaskStreamProps = {}) {
     updateTask,
     deleteTask,
     clearError,
-  } = useOptimisticTask(initialTasks)
+  } = useOptimisticTask(contextTasks)
 
-  // Fetch tasks on mount
+  // Fetch tasks on mount and sync with context
   useEffect(() => {
     const fetchTasks = async () => {
       try {
         const result = await listTasks()
         if (result.success) {
-          const tasks = result.data.items
-          setInitialTasks(tasks)
+          const fetchedTasks = result.data.items
+          setContextTasks(fetchedTasks)
           // Notify parent immediately with fetched tasks
-          onTasksChange?.(tasks)
+          onTasksChange?.(fetchedTasks)
         }
       } catch (error) {
         console.error("Failed to fetch tasks:", error)
@@ -87,13 +88,11 @@ export function TaskStream({ onTasksChange }: TaskStreamProps = {}) {
       if (updated) {
         setToastMessage("Task updated successfully")
         setEditingTaskId(null)
-        // Update initialTasks with the updated task
-        setInitialTasks(prev => {
-          const updatedTasks = prev.map(t => t.id === editingTaskId ? updated : t)
-          // Notify parent immediately with the updated task list
-          onTasksChange?.(updatedTasks)
-          return updatedTasks
-        })
+        // Update context with the updated task
+        const updatedTasks = contextTasks.map(t => t.id === editingTaskId ? updated : t)
+        setContextTasks(updatedTasks)
+        // Notify parent immediately with the updated task list
+        onTasksChange?.(updatedTasks)
       }
     } catch (error) {
       // Error is already handled by optimistic hook
@@ -105,13 +104,11 @@ export function TaskStream({ onTasksChange }: TaskStreamProps = {}) {
     try {
       const updated = await toggleComplete(taskId)
       if (updated) {
-        // Update initialTasks with the toggled task
-        setInitialTasks(prev => {
-          const updatedTasks = prev.map(t => t.id === taskId ? updated : t)
-          // Notify parent immediately with the updated task list
-          onTasksChange?.(updatedTasks)
-          return updatedTasks
-        })
+        // Update context with the toggled task
+        const updatedTasks = contextTasks.map(t => t.id === taskId ? updated : t)
+        setContextTasks(updatedTasks)
+        // Notify parent immediately with the updated task list
+        onTasksChange?.(updatedTasks)
       }
     } catch (error) {
       // Error is already handled by optimistic hook
@@ -129,13 +126,11 @@ export function TaskStream({ onTasksChange }: TaskStreamProps = {}) {
     try {
       await deleteTask(taskId)
       setToastMessage("Task deleted successfully")
-      // Update initialTasks by removing the deleted task
-      setInitialTasks(prev => {
-        const updatedTasks = prev.filter(t => t.id !== taskId)
-        // Notify parent immediately with the updated task list
-        onTasksChange?.(updatedTasks)
-        return updatedTasks
-      })
+      // Update context by removing the deleted task
+      const updatedTasks = contextTasks.filter(t => t.id !== taskId)
+      setContextTasks(updatedTasks)
+      // Notify parent immediately with the updated task list
+      onTasksChange?.(updatedTasks)
     } catch (error) {
       // Error is already handled by optimistic hook
       console.error('Delete error:', error)

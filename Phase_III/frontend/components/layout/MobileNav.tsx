@@ -63,7 +63,7 @@ export function MobileNav() {
                   onClick={item.action}
                   className={`
                     flex flex-col items-center justify-center
-                    min-w-[64px] min-h-[48px] gap-1
+                    min-w-[64px] min-h-[48px]
                     rounded-lg transition-all duration-200
                     ${
                       isActive
@@ -81,14 +81,6 @@ export function MobileNav() {
                   >
                     {item.icon}
                   </span>
-                  <span
-                    className={`
-                      text-xs font-medium
-                      ${isActive ? 'text-blue-600' : 'text-slate-500'}
-                    `}
-                  >
-                    {item.label}
-                  </span>
                 </button>
               )
             }
@@ -99,8 +91,8 @@ export function MobileNav() {
                 key={`${item.href}-${item.label}`}
                 href={item.href!}
                 className={`
-                  flex flex-col items-center justify-center
-                  min-w-[64px] min-h-[48px] gap-1
+                  flex flex-col items-center justify-center relative
+                  min-w-[64px] min-h-[48px]
                   rounded-lg transition-all duration-200
                   ${
                     isActive
@@ -118,19 +110,11 @@ export function MobileNav() {
                 >
                   {item.icon}
                 </span>
-                <span
-                  className={`
-                    text-xs font-medium
-                    ${isActive ? 'text-blue-600' : 'text-slate-500'}
-                  `}
-                >
-                  {item.label}
-                </span>
                 {/* Active indicator */}
                 {isActive && (
                   <span
                     className="
-                      absolute bottom-0 left-1/2 -translate-x-1/2
+                      absolute bottom-2 left-1/2 -translate-x-1/2
                       w-1 h-1 rounded-full
                       bg-blue-600
                     "

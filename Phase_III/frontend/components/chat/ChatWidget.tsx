@@ -42,12 +42,12 @@ export function ChatWidget({ userId, isOpen, onClose }: ChatWidgetProps) {
           /* Mobile: Full screen */
           inset-0 md:inset-auto
 
-          /* Desktop: Floating bottom-right */
-          md:bottom-24 md:right-6
-          md:w-96 md:h-[32rem]
+          /* Desktop: Floating bottom-right with better positioning */
+          md:bottom-6 md:right-6 md:top-20
+          md:w-96 md:max-h-[calc(100vh-7rem)]
 
           bg-white dark:bg-gray-900
-          rounded-none md:rounded-lg
+          rounded-none md:rounded-xl
           shadow-2xl
 
           flex flex-col

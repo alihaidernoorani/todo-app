@@ -6,7 +6,7 @@ the MCP client and user_id.
 """
 
 from typing import Any, Optional
-from agents import function_tool, RunContextWrapper
+from openai.agents import function_tool, RunContextWrapper
 import logging
 
 logger = logging.getLogger(__name__)

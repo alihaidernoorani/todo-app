@@ -5,9 +5,9 @@ the agent with conversation history and context.
 """
 
 from typing import Any, Dict, List
-from agents import Runner, Agent
+from openai.agents import Runner, Agent
 from agents.items import UserMessageItem, AssistantMessageItem
-from backend.src.agents.core.agent import create_task_agent
+from src.agents.core.agent import create_task_agent
 import logging
 
 logger = logging.getLogger(__name__)
@@ -37,7 +37,7 @@ async def run_agent(
 
     Example:
         ```python
-        from backend.src.agents.core.runner import run_agent
+        from src.agents.core.runner import run_agent
 
         context = {
             "mcp_client": mcp_client_instance,

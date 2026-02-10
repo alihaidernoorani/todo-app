@@ -5,7 +5,7 @@ helpers are optional and mainly for consistency/debugging.
 """
 
 from typing import Dict, Any
-from backend.src.agents.api.schemas import AgentChatResponse
+from src.agents.api.schemas import AgentChatResponse
 import datetime
 
 

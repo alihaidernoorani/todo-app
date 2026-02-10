@@ -4,9 +4,9 @@ This module creates the task management agent using the Agent() pattern
 from OpenAI Agents SDK with configured instructions and MCP tools.
 """
 
-from agents import Agent
-from backend.src.agents.config.agent_config import AGENT_INSTRUCTIONS
-from backend.src.agents.mcp.mcp_tools import (
+from openai.agents import Agent
+from src.agents.config.agent_config import AGENT_INSTRUCTIONS
+from src.agents.mcp.mcp_tools import (
     add_task,
     list_tasks,
     complete_task,
@@ -23,7 +23,7 @@ def create_task_agent() -> Agent:
 
     Example:
         ```python
-        from backend.src.agents.core.agent import create_task_agent
+        from src.agents.core.agent import create_task_agent
         from agents import Runner
 
         agent = create_task_agent()

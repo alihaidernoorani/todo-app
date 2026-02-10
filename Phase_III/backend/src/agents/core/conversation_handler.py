@@ -1,11 +1,10 @@
 """Conversation history management for OpenAI Agents SDK.
 
 This module provides helper functions to build conversation history from database
-messages into UserMessageItem and AssistantMessageItem format required by the SDK.
+messages into the dictionary format required by the SDK.
 """
 
-from typing import List
-from agents.items import UserMessageItem, AssistantMessageItem
+from typing import List, Dict, Any
 from datetime import datetime, timedelta
 from src.agents.config.agent_config import MAX_HISTORY_MESSAGES, MAX_HISTORY_MINUTES
 import logging
@@ -17,7 +16,7 @@ def build_conversation_history(
     messages: List[dict],
     max_messages: int = MAX_HISTORY_MESSAGES,
     max_minutes: int = MAX_HISTORY_MINUTES,
-) -> List[UserMessageItem | AssistantMessageItem]:
+) -> List[Dict[str, Any]]:
     """Build conversation history from database messages.
 
     Converts database message records into SDK message items, applying
@@ -29,7 +28,7 @@ def build_conversation_history(
         max_minutes: Only include messages from last N minutes (default: 60)
 
     Returns:
-        List of UserMessageItem and AssistantMessageItem objects for SDK
+        List of message dictionaries with 'role' and 'content' keys
 
     Example:
         ```python
@@ -38,7 +37,7 @@ def build_conversation_history(
             {"role": "assistant", "content": "Hello!", "created_at": "2025-01-01T12:00:05"},
         ]
         history = build_conversation_history(db_messages)
-        # Returns: [UserMessageItem(...), AssistantMessageItem(...)]
+        # Returns: [{"role": "user", "content": "Hi"}, {"role": "assistant", "content": "Hello!"}]
         ```
     """
     if not messages:
@@ -54,32 +53,30 @@ def build_conversation_history(
     # Limit by count (take most recent)
     limited_messages = recent_messages[-max_messages:]
 
-    # Convert to SDK message items
+    # Convert to SDK message format (plain dictionaries)
     history = []
     for msg in limited_messages:
         role = msg.get("role", "user")
         content = msg.get("content", "")
 
-        if role == "user":
-            history.append(UserMessageItem(content=content))
-        elif role == "assistant":
-            history.append(AssistantMessageItem(content=content))
+        if role in ["user", "assistant"]:
+            history.append({"role": role, "content": content})
         else:
             logger.warning(f"Unknown message role: {role}, treating as user message")
-            history.append(UserMessageItem(content=content))
+            history.append({"role": "user", "content": content})
 
     logger.info(f"Built conversation history: {len(history)} messages from {len(messages)} total")
     return history
 
 
-def create_user_message(content: str) -> UserMessageItem:
-    """Create a single user message item.
+def create_user_message(content: str) -> Dict[str, str]:
+    """Create a single user message dictionary.
 
     Args:
         content: User message text
 
     Returns:
-        UserMessageItem for use with Runner.run()
+        Dictionary with 'role' and 'content' for use with Runner.run()
 
     Example:
         ```python
@@ -87,17 +84,17 @@ def create_user_message(content: str) -> UserMessageItem:
         result = await Runner.run(agent, user_msg, context=ctx)
         ```
     """
-    return UserMessageItem(content=content)
+    return {"role": "user", "content": content}
 
 
-def create_assistant_message(content: str) -> AssistantMessageItem:
-    """Create a single assistant message item.
+def create_assistant_message(content: str) -> Dict[str, str]:
+    """Create a single assistant message dictionary.
 
     Args:
         content: Assistant response text
 
     Returns:
-        AssistantMessageItem for conversation history
+        Dictionary with 'role' and 'content' for conversation history
 
     Example:
         ```python
@@ -107,13 +104,13 @@ def create_assistant_message(content: str) -> AssistantMessageItem:
         ]
         ```
     """
-    return AssistantMessageItem(content=content)
+    return {"role": "assistant", "content": content}
 
 
 def append_to_history(
-    history: List[UserMessageItem | AssistantMessageItem],
-    message: UserMessageItem | AssistantMessageItem,
-) -> List[UserMessageItem | AssistantMessageItem]:
+    history: List[Dict[str, Any]],
+    message: Dict[str, str],
+) -> List[Dict[str, Any]]:
     """Append a message to existing conversation history.
 
     Args:

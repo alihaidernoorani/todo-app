@@ -5,8 +5,7 @@ the agent with conversation history and context.
 """
 
 from typing import Any, Dict, List
-from openai.agents import Runner, Agent
-from agents.items import UserMessageItem, AssistantMessageItem
+from agents import Runner, Agent
 from src.agents.core.agent import create_task_agent
 import logging
 
@@ -15,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 async def run_agent(
     user_message: str,
-    conversation_history: List[UserMessageItem | AssistantMessageItem] | None = None,
+    conversation_history: List[Dict[str, str]] | None = None,
     context: Dict[str, Any] | None = None,
 ) -> tuple[str, Any]:
     """Run the task management agent with user message and context.
@@ -70,8 +69,7 @@ async def run_agent(
         conversation_history = []
 
     # Append current user message
-    from agents.items import UserMessageItem
-    current_message = UserMessageItem(content=user_message)
+    current_message = {"role": "user", "content": user_message}
     messages = conversation_history + [current_message]
 
     logger.info(f"Running agent with {len(conversation_history)} history messages + 1 new message")
@@ -95,7 +93,7 @@ async def run_agent(
 
 async def run_agent_with_streaming(
     user_message: str,
-    conversation_history: List[UserMessageItem | AssistantMessageItem] | None = None,
+    conversation_history: List[Dict[str, str]] | None = None,
     context: Dict[str, Any] | None = None,
 ):
     """Run the agent with streaming responses (for future use).
@@ -136,8 +134,7 @@ async def run_agent_with_streaming(
         conversation_history = []
 
     # Append current user message
-    from agents.items import UserMessageItem
-    current_message = UserMessageItem(content=user_message)
+    current_message = {"role": "user", "content": user_message}
     messages = conversation_history + [current_message]
 
     logger.info(f"Running agent with streaming, {len(conversation_history)} history messages")

@@ -113,7 +113,7 @@ class AgentRequestHandler:
             conversation_id: Conversation ID (None for new conversation)
 
         Returns:
-            List of UserMessageItem and AssistantMessageItem objects
+            List of message dictionaries with 'role' and 'content' keys
         """
         if not conversation_id:
             logger.info("New conversation - no history to load")

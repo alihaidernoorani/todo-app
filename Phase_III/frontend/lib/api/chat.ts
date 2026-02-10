@@ -33,7 +33,8 @@ export async function sendMessage(
   message: string
 ): Promise<SendMessageResponse> {
   try {
-    const response = await fetch(`http://localhost:8000/api/${userId}/chat`, {
+    const baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+    const response = await fetch(`${baseURL}/${userId}/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

@@ -42,11 +42,9 @@ export default function DashboardPage() {
     <PageTransition>
       {/* T077: Main landmark for accessibility and skip link target */}
       {/* FR-008a: Generous spacing - p-8 to p-10 for main layout (32-40px) */}
-      {/* FR-012b: Mobile bottom padding pb-28 (112px) + safe-area-inset-bottom */}
       <main
         id="main-content"
-        className="space-y-8 px-6 md:px-10 py-6 md:py-10 pb-28 md:pb-10 bg-slate-50 dark:bg-slate-900 transition-colors duration-300"
-        style={{ paddingBottom: "calc(7rem + env(safe-area-inset-bottom, 0px))" }}
+        className="space-y-8 px-6 md:px-10 py-6 md:py-10 bg-slate-50 dark:bg-slate-900 transition-colors duration-300"
       >
         {/* Page header */}
         {/* FR-009b: Responsive typography - smaller on mobile, larger on desktop */}

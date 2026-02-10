@@ -20,7 +20,7 @@ dependencies = [
     "pyjwt>=2.8.0",
     "cryptography>=41.0.0",
     "mcp>=1.0.0",
-    "openai[agents]>=1.0.0",
+    "openai-agents>=0.7.0",
 ]
 
 [project.optional-dependencies]

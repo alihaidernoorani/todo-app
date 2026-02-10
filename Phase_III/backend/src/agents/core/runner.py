@@ -5,7 +5,7 @@ the agent with conversation history and context.
 """
 
 from typing import Any, Dict, List
-from openai.agents import Runner, Agent
+from agents import Runner, Agent
 from agents.items import UserMessageItem, AssistantMessageItem
 from src.agents.core.agent import create_task_agent
 import logging

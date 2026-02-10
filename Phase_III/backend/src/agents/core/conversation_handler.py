@@ -7,7 +7,7 @@ messages into UserMessageItem and AssistantMessageItem format required by the SD
 from typing import List
 from agents.items import UserMessageItem, AssistantMessageItem
 from datetime import datetime, timedelta
-from backend.src.agents.config.agent_config import MAX_HISTORY_MESSAGES, MAX_HISTORY_MINUTES
+from src.agents.config.agent_config import MAX_HISTORY_MESSAGES, MAX_HISTORY_MINUTES
 import logging
 
 logger = logging.getLogger(__name__)

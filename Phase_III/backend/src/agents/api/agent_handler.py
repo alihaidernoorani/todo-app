@@ -8,15 +8,15 @@ This module handles incoming agent chat requests by:
 """
 
 from typing import List, Dict, Any, Optional
-from backend.src.agents.core.agent import create_task_agent
-from backend.src.agents.core.conversation_handler import (
+from src.agents.core.agent import create_task_agent
+from src.agents.core.conversation_handler import (
     build_conversation_history,
     create_user_message,
 )
-from backend.src.agents.core.runner import run_agent
-from backend.src.agents.api.schemas import AgentChatRequest, AgentChatResponse
-from backend.src.mcp.client.backend_client import BackendClient
-from backend.src.agents.config.agent_config import OPENROUTER_BASE_URL
+from src.agents.core.runner import run_agent
+from src.agents.api.schemas import AgentChatRequest, AgentChatResponse
+from src.mcp.client.backend_client import BackendClient
+from src.agents.config.agent_config import OPENROUTER_BASE_URL
 import logging
 import os
 

@@ -3,7 +3,7 @@
 This module configures agent tracing for debugging and monitoring.
 """
 
-from agents import enable_tracing, set_trace_handler
+from openai.agents import enable_tracing, set_trace_handler
 import logging
 import json
 from datetime import datetime

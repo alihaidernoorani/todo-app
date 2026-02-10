@@ -5,14 +5,14 @@ with the AI agent using natural language.
 """
 
 from fastapi import APIRouter, HTTPException, Depends, status
-from backend.src.agents.api.schemas import AgentChatRequest, AgentChatResponse
-from backend.src.agents.api.agent_handler import AgentRequestHandler
-from backend.src.agents.api.serializers import format_error_response
+from src.agents.api.schemas import AgentChatRequest, AgentChatResponse
+from src.agents.api.agent_handler import AgentRequestHandler
+from src.agents.api.serializers import format_error_response
 import logging
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api", tags=["agent"])
+router = APIRouter(tags=["agent"])
 
 
 @router.post("/{user_id}/chat", response_model=AgentChatResponse, status_code=status.HTTP_200_OK)

@@ -35,6 +35,9 @@ export default function DashboardPage() {
   const userName = user?.name || 'there'
   const [isChatOpen, setIsChatOpen] = useState(false)
 
+  // Convert string ID to number for backend API
+  const userId = user?.id ? parseInt(user.id, 10) : null
+
   return (
     <PageTransition>
       {/* T077: Main landmark for accessibility and skip link target */}
@@ -75,7 +78,7 @@ export default function DashboardPage() {
 
       {/* Chat Widget and Toggle Button */}
       <ChatWidget
-        userId={user?.id ?? null}
+        userId={userId}
         isOpen={isChatOpen}
         onClose={() => setIsChatOpen(false)}
       />

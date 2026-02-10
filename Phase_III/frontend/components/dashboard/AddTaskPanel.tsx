@@ -101,13 +101,13 @@ export function AddTaskPanel() {
             <label className="block text-base font-semibold text-slate-700 dark:text-slate-200 mb-3">
               Priority
             </label>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-3 gap-2 sm:gap-3">
               {(['Low', 'Medium', 'High'] as const).map((priorityOption) => (
                 <button
                   key={priorityOption}
                   type="button"
                   onClick={() => setPriority(priorityOption)}
-                  className={`px-5 py-3 rounded-lg font-semibold text-base transition-all ${
+                  className={`px-2 sm:px-4 md:px-5 py-2.5 sm:py-3 rounded-lg font-semibold text-sm sm:text-base transition-all ${
                     priority === priorityOption
                       ? priorityOption === 'High'
                         ? 'bg-red-100 dark:bg-red-900/30 border-2 border-red-400 dark:border-red-600 text-red-700 dark:text-red-300 shadow-sm'

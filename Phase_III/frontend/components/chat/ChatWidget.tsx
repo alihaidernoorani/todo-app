@@ -6,7 +6,6 @@
 
 'use client';
 
-import { useState } from 'react';
 import { ChatKitWrapper } from './ChatKitWrapper';
 import { useChatMessages } from '@/lib/hooks/useChatMessages';
 

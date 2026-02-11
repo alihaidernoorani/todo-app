@@ -13,6 +13,9 @@ from src.agents.mcp.mcp_tools import (
     update_task,
     delete_task,
 )
+from src.config import get_settings
+
+settings = get_settings()
 
 
 def create_task_agent() -> Agent:
@@ -42,6 +45,8 @@ def create_task_agent() -> Agent:
             update_task,
             delete_task,
         ],
+        model=settings.agent_model,
+        model_params={"max_tokens": settings.agent_max_tokens},
     )
 
     return agent

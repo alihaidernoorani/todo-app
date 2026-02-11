@@ -25,7 +25,8 @@ if settings.openrouter_api_key:
     os.environ["OPENAI_API_KEY"] = settings.openrouter_api_key
     os.environ["OPENAI_BASE_URL"] = settings.openrouter_base_url
     os.environ["OPENAI_MODEL"] = settings.agent_model
-    logger.info(f"✅ OpenAI SDK configured to use OpenRouter API with model: {settings.agent_model}")
+    os.environ["OPENAI_MAX_TOKENS"] = str(settings.agent_max_tokens)
+    logger.info(f"✅ OpenAI SDK configured - Model: {settings.agent_model}, Max Tokens: {settings.agent_max_tokens}")
 else:
     logger.warning("⚠️  OPENROUTER_API_KEY not set - AI agent will not be available")
 

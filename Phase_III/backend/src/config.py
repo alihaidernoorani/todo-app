@@ -65,6 +65,11 @@ class Settings(BaseSettings):
         alias="AGENT_MODEL",
         description="Model to use for AI agent (OpenRouter format)",
     )
+    agent_max_tokens: int = Field(
+        default=2000,
+        alias="AGENT_MAX_TOKENS",
+        description="Maximum tokens for agent responses (default: 2000)",
+    )
 
     @field_validator("allowed_origins", mode="before")
     @classmethod

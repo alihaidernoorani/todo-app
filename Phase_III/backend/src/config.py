@@ -107,6 +107,20 @@ class Settings(BaseSettings):
         """
         return f"{self.better_auth_url}/api/auth/jwks"
 
+    @property
+    def agent_model_name(self) -> str:
+        """Get the agent model name with OpenRouter prefix stripped.
+
+        Since we configure a custom OpenAI client with OpenRouter's base URL,
+        we need to strip the 'openrouter/' prefix from the model name to avoid
+        the OpenAI Agents SDK trying to resolve 'openrouter' as a provider.
+
+        Returns:
+            str: Model name without 'openrouter/' prefix
+                 (e.g., 'anthropic/claude-3.5-sonnet' instead of 'openrouter/anthropic/claude-3.5-sonnet')
+        """
+        return self.agent_model.removeprefix("openrouter/")
+
 
 @lru_cache
 def get_settings() -> Settings:

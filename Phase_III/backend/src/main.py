@@ -35,7 +35,7 @@ if settings.openrouter_api_key:
 
     logger.info(
         f"✅ OpenAI Agents SDK configured for OpenRouter - "
-        f"Model: {settings.agent_model}, Max Tokens: {settings.agent_max_tokens}, "
+        f"Model: {settings.agent_model_name}, Max Tokens: {settings.agent_max_tokens}, "
         f"Base URL: {settings.openrouter_base_url}"
     )
 else:

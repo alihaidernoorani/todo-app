@@ -10,6 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from jwt import PyJWKClient
 from sqlalchemy.exc import OperationalError
+from openai import AsyncOpenAI
+from agents import set_default_openai_client, set_tracing_disabled
 
 from src.api.v1.router import router as v1_router
 from src.config import get_settings
@@ -18,13 +20,24 @@ from src.exceptions import DatabaseError, NotFoundError, ValidationError
 
 logger = logging.getLogger(__name__)
 
-# Configure OpenAI SDK environment variables from OpenRouter config
-# The OpenAI SDK expects OPENAI_API_KEY and OPENAI_BASE_URL
+# Configure OpenAI Agents SDK for OpenRouter
 settings = get_settings()
 if settings.openrouter_api_key:
-    os.environ["OPENAI_API_KEY"] = settings.openrouter_api_key
-    os.environ["OPENAI_BASE_URL"] = settings.openrouter_base_url
-    logger.info("✅ OpenAI SDK configured to use OpenRouter API")
+    # Create custom AsyncOpenAI client for OpenRouter
+    custom_client = AsyncOpenAI(
+        base_url=settings.openrouter_base_url,
+        api_key=settings.openrouter_api_key,
+    )
+    set_default_openai_client(custom_client)
+
+    # Disable tracing to prevent 401 errors (tracing requires OpenAI API key)
+    set_tracing_disabled(True)
+
+    logger.info(
+        f"✅ OpenAI Agents SDK configured for OpenRouter - "
+        f"Model: {settings.agent_model}, Max Tokens: {settings.agent_max_tokens}, "
+        f"Base URL: {settings.openrouter_base_url}"
+    )
 else:
     logger.warning("⚠️  OPENROUTER_API_KEY not set - AI agent will not be available")
 

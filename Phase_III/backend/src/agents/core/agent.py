@@ -4,7 +4,7 @@ This module creates the task management agent using the Agent() pattern
 from OpenAI Agents SDK with configured instructions and MCP tools.
 """
 
-from agents import Agent
+from agents import Agent, ModelSettings
 from src.agents.config.agent_config import AGENT_INSTRUCTIONS
 from src.agents.mcp.mcp_tools import (
     add_task,
@@ -46,7 +46,7 @@ def create_task_agent() -> Agent:
             delete_task,
         ],
         model=settings.agent_model,
-        model_params={"max_tokens": settings.agent_max_tokens},
+        model_settings=ModelSettings(extra_args={"max_tokens": settings.agent_max_tokens}),
     )
 
     return agent

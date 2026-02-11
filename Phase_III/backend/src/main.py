@@ -19,12 +19,13 @@ from src.exceptions import DatabaseError, NotFoundError, ValidationError
 logger = logging.getLogger(__name__)
 
 # Configure OpenAI SDK environment variables from OpenRouter config
-# The OpenAI SDK expects OPENAI_API_KEY and OPENAI_BASE_URL
+# The OpenAI SDK expects OPENAI_API_KEY, OPENAI_BASE_URL, and OPENAI_MODEL
 settings = get_settings()
 if settings.openrouter_api_key:
     os.environ["OPENAI_API_KEY"] = settings.openrouter_api_key
     os.environ["OPENAI_BASE_URL"] = settings.openrouter_base_url
-    logger.info("✅ OpenAI SDK configured to use OpenRouter API")
+    os.environ["OPENAI_MODEL"] = settings.agent_model
+    logger.info(f"✅ OpenAI SDK configured to use OpenRouter API with model: {settings.agent_model}")
 else:
     logger.warning("⚠️  OPENROUTER_API_KEY not set - AI agent will not be available")
 

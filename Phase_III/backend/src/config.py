@@ -49,6 +49,23 @@ class Settings(BaseSettings):
         description="Comma-separated list of allowed CORS origins",
     )
 
+    # OpenAI Agents SDK Configuration (OpenRouter)
+    openrouter_api_key: Optional[str] = Field(
+        default=None,
+        alias="OPENROUTER_API_KEY",
+        description="OpenRouter API key for AI agent",
+    )
+    openrouter_base_url: str = Field(
+        default="https://openrouter.ai/api/v1",
+        alias="OPENROUTER_BASE_URL",
+        description="OpenRouter API base URL",
+    )
+    agent_model: str = Field(
+        default="openai/gpt-4o",
+        alias="AGENT_MODEL",
+        description="Model to use for AI agent (OpenRouter format)",
+    )
+
     @field_validator("allowed_origins", mode="before")
     @classmethod
     def parse_cors_origins(cls, v: str | list[str]) -> list[str]:

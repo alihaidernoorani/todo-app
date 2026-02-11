@@ -13,12 +13,17 @@ class AgentChatRequest(BaseModel):
 
     Attributes:
         message: User's natural language message
+        conversation_id: Optional conversation ID for continuing existing conversation
     """
     message: str = Field(
         ...,
         min_length=1,
         max_length=2000,
         description="User's natural language message"
+    )
+    conversation_id: Optional[int] = Field(
+        default=None,
+        description="Optional conversation ID (null for new conversation)"
     )
 
     @validator('message')
@@ -37,6 +42,7 @@ class AgentChatResponse(BaseModel):
         user_message_id: Stored user message ID
         agent_message_id: Stored agent response message ID
         agent_response: Agent's natural language response
+        tool_calls: Optional debug info about tool calls made
     """
     conversation_id: int = Field(
         ...,
@@ -55,6 +61,10 @@ class AgentChatResponse(BaseModel):
         min_length=1,
         max_length=5000,
         description="Agent's natural language response"
+    )
+    tool_calls: Optional[List['ToolCallInfo']] = Field(
+        default=None,
+        description="Optional debug information about tool calls"
     )
 
 

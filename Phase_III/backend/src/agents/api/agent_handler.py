@@ -16,7 +16,6 @@ from src.agents.core.conversation_handler import (
 from src.agents.core.runner import run_agent
 from src.agents.api.schemas import AgentChatRequest, AgentChatResponse
 from src.mcp.client.backend_client import BackendClient
-from src.agents.config.agent_config import OPENROUTER_BASE_URL
 import logging
 import os
 

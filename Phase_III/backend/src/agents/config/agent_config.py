@@ -53,9 +53,11 @@ Assistant: "You have several tasks. Which one would you like to delete? You can 
 - Build on previous conversation turns naturally
 """
 
-# Model configuration (to be used when initializing OpenAI client)
-DEFAULT_MODEL = "openai/gpt-4o"
-OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+# Model configuration is now loaded from environment variables
+# See src/config.py Settings class for:
+# - OPENAI_API_KEY (required)
+# - OPENAI_BASE_URL (default: https://openrouter.ai/api/v1)
+# - AGENT_MODEL (default: openai/gpt-4o)
 
 # Conversation context limits
 MAX_HISTORY_MESSAGES = 20  # Load last N messages from database

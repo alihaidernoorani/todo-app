@@ -7,9 +7,11 @@ the agent with conversation history and context.
 from typing import Any, Dict, List
 from agents import Runner, Agent
 from src.agents.core.agent import create_task_agent
+from src.config import get_settings
 import logging
 
 logger = logging.getLogger(__name__)
+settings = get_settings()
 
 
 async def run_agent(
@@ -76,13 +78,19 @@ async def run_agent(
     logger.info(f"User message: {user_message[:100]}...")
 
     try:
-        # Execute agent with Runner.run()
-        result = await Runner.run(agent, messages, context=context)
+        # Execute agent with Runner.run() using configured model
+        result = await Runner.run(
+            agent,
+            messages,
+            context=context,
+            model=settings.agent_model
+        )
 
         # Extract response text
         response_text = result.final_output
 
         logger.info(f"Agent response: {response_text[:100]}...")
+        logger.info(f"Model used: {settings.agent_model}")
 
         return response_text, result
 
@@ -140,8 +148,13 @@ async def run_agent_with_streaming(
     logger.info(f"Running agent with streaming, {len(conversation_history)} history messages")
 
     try:
-        # Execute agent with streaming
-        async for event in Runner.run_streamed(agent, messages, context=context):
+        # Execute agent with streaming using configured model
+        async for event in Runner.run_streamed(
+            agent,
+            messages,
+            context=context,
+            model=settings.agent_model
+        ):
             yield event
 
     except Exception as e:

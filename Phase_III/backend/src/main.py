@@ -1,6 +1,7 @@
 """FastAPI application entry point."""
 
 import logging
+import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -17,6 +18,16 @@ from src.exceptions import DatabaseError, NotFoundError, ValidationError
 
 logger = logging.getLogger(__name__)
 
+# Configure OpenAI SDK environment variables from OpenRouter config
+# The OpenAI SDK expects OPENAI_API_KEY and OPENAI_BASE_URL
+settings = get_settings()
+if settings.openrouter_api_key:
+    os.environ["OPENAI_API_KEY"] = settings.openrouter_api_key
+    os.environ["OPENAI_BASE_URL"] = settings.openrouter_base_url
+    logger.info("✅ OpenAI SDK configured to use OpenRouter API")
+else:
+    logger.warning("⚠️  OPENROUTER_API_KEY not set - AI agent will not be available")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
@@ -28,7 +39,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
     JWKS client is cached in app.state for reuse if available.
     """
-    settings = get_settings()
+    # Use already loaded settings (cached)
 
     # Startup: Validate JWKS endpoint and cache client (optional)
     logger.info("Validating JWKS endpoint: %s", settings.better_auth_jwks_url)
@@ -81,9 +92,6 @@ app = FastAPI(
     version="2.0.0",
     lifespan=lifespan,
 )
-
-# Load settings for environment-driven configuration
-settings = get_settings()
 
 # Configure CORS for production deployment
 app.add_middleware(

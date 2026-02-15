@@ -1,26 +1,45 @@
 """Agent runner wrapper for OpenAI Agents SDK.
 
 This module provides a wrapper function around Runner.run() to execute
-the agent with conversation history and context.
+the agent with conversation history and context, returning both the
+response text and any tool calls made during the run.
 """
 
+import json
+from dataclasses import dataclass, field
 from typing import Any, Dict, List
-from agents import Runner, Agent
+
+from agents import Runner
+from agents.items import ToolCallItem, ToolCallOutputItem
+
 from src.agents.core.agent import create_task_agent
 import logging
 
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class AgentRunResult:
+    """Result of a single agent run.
+
+    Attributes:
+        response_text: The agent's final natural language response
+        tool_calls: List of tool calls made during the run (empty if none)
+    """
+    response_text: str
+    tool_calls: list[dict] = field(default_factory=list)
+
+
 async def run_agent(
     user_message: str,
     conversation_history: List[Dict[str, str]] | None = None,
     context: Dict[str, Any] | None = None,
-) -> tuple[str, Any]:
+) -> AgentRunResult:
     """Run the task management agent with user message and context.
 
-    This function wraps Runner.run() to execute the agent, handling conversation
-    history and returning the agent's response.
+    Executes the agent using Runner.run(), extracts tool calls from
+    result.new_items, and returns an AgentRunResult with both the
+    response text and the tool call list.
 
     Args:
         user_message: The user's current message
@@ -28,30 +47,12 @@ async def run_agent(
         context: Dict with mcp_client and user_id (required)
 
     Returns:
-        tuple: (agent_response_text, full_result_object)
+        AgentRunResult with response_text and tool_calls list
 
     Raises:
         ValueError: If context is missing mcp_client or user_id
         Exception: If agent execution fails
-
-    Example:
-        ```python
-        from src.agents.core.runner import run_agent
-
-        context = {
-            "mcp_client": mcp_client_instance,
-            "user_id": 123,
-        }
-
-        response, result = await run_agent(
-            user_message="Add a task to buy groceries",
-            context=context
-        )
-
-        print(response)  # "I've added 'buy groceries' to your task list."
-        ```
     """
-    # Validate context
     if not context:
         raise ValueError("Context is required with mcp_client and user_id")
 
@@ -61,99 +62,38 @@ async def run_agent(
     if "user_id" not in context:
         raise ValueError("user_id must be provided in context")
 
-    # Create agent
     agent = create_task_agent()
+    history = conversation_history or []
 
-    # Build message history
-    if conversation_history is None:
-        conversation_history = []
+    # Append current user message — confirmed SDK format
+    messages = history + [{"role": "user", "content": user_message}]
 
-    # Append current user message
-    current_message = {"role": "user", "content": user_message}
-    messages = conversation_history + [current_message]
+    logger.info(f"Running agent: {len(history)} history messages + current message")
 
-    logger.info(f"Running agent with {len(conversation_history)} history messages + 1 new message")
-    logger.info(f"User message: {user_message[:100]}...")
+    result = await Runner.run(agent, messages, context=context)
 
-    try:
-        # Execute agent with Runner.run()
-        # Model is configured via OPENAI_MODEL environment variable in main.py
-        result = await Runner.run(
-            agent,
-            messages,
-            context=context
-        )
+    # Extract tool calls from result.new_items using SDK-confirmed isinstance checks
+    tool_calls = []
+    for item in result.new_items:
+        if isinstance(item, ToolCallItem):
+            tool_calls.append({
+                "tool_name": item.raw_item.name,
+                "arguments": item.raw_item.arguments or {},
+                "result": {},
+            })
+        elif isinstance(item, ToolCallOutputItem) and tool_calls:
+            # item.output is a str — parse JSON if possible
+            output = item.output
+            try:
+                tool_calls[-1]["result"] = json.loads(output) if isinstance(output, str) else output
+            except (json.JSONDecodeError, TypeError):
+                tool_calls[-1]["result"] = {"output": str(output)}
 
-        # Extract response text
-        response_text = result.final_output
+    logger.info(
+        f"Agent complete: response={result.final_output[:80]!r}, tool_calls={len(tool_calls)}"
+    )
 
-        logger.info(f"Agent response: {response_text[:100]}...")
-
-        return response_text, result
-
-    except Exception as e:
-        logger.error(f"Agent execution failed: {str(e)}")
-        raise
-
-
-async def run_agent_with_streaming(
-    user_message: str,
-    conversation_history: List[Dict[str, str]] | None = None,
-    context: Dict[str, Any] | None = None,
-):
-    """Run the agent with streaming responses (for future use).
-
-    This function uses Runner.run_streamed() to yield agent responses as they
-    are generated, enabling real-time UI updates.
-
-    Args:
-        user_message: The user's current message
-        conversation_history: Optional list of previous messages for context
-        context: Dict with mcp_client and user_id (required)
-
-    Yields:
-        Event objects with streaming response data
-
-    Example:
-        ```python
-        async for event in run_agent_with_streaming("Add task", context=ctx):
-            if hasattr(event, "text"):
-                print(event.text, end="", flush=True)
-        ```
-    """
-    # Validate context
-    if not context:
-        raise ValueError("Context is required with mcp_client and user_id")
-
-    if "mcp_client" not in context:
-        raise ValueError("mcp_client must be provided in context")
-
-    if "user_id" not in context:
-        raise ValueError("user_id must be provided in context")
-
-    # Create agent
-    agent = create_task_agent()
-
-    # Build message history
-    if conversation_history is None:
-        conversation_history = []
-
-    # Append current user message
-    current_message = {"role": "user", "content": user_message}
-    messages = conversation_history + [current_message]
-
-    logger.info(f"Running agent with streaming, {len(conversation_history)} history messages")
-
-    try:
-        # Execute agent with streaming
-        # Model is configured via OPENAI_MODEL environment variable in main.py
-        async for event in Runner.run_streamed(
-            agent,
-            messages,
-            context=context
-        ):
-            yield event
-
-    except Exception as e:
-        logger.error(f"Agent streaming failed: {str(e)}")
-        raise
+    return AgentRunResult(
+        response_text=result.final_output,
+        tool_calls=tool_calls,
+    )

@@ -1,428 +1,670 @@
 # Implementation Plan: AI Agent Integration
 
-**Branch**: `008-ai-agent-integration` | **Date**: 2026-02-09 | **Spec**: [spec.md](./spec.md)
-**Input**: Feature specification from `/specs/008-ai-agent-integration/spec.md`
+**Branch**: `003-ai-todo-chatbot` | **Date**: 2026-02-13 | **Spec**: [spec.md](./spec.md)
+**Scope**: Hackathon — stateless endpoint, DB-backed conversation history, complete JSON response
+**SDK Verified**: All patterns verified against OpenAI Agents SDK v0.x official documentation
 
 ## Summary
 
-Integrate OpenAI Agents SDK with the existing MCP task management tools to enable natural language task management through conversational interactions. The agent will interpret user intent from natural language messages, call the appropriate MCP tools, and provide friendly confirmations. All conversation state will be persisted to PostgreSQL, maintaining stateless backend architecture.
+Wire the existing OpenAI Agents SDK scaffold to deliver a working chat endpoint:
+1. Authenticate via JWT at `POST /api/v1/agent/{user_id}/chat`
+2. Load conversation history from PostgreSQL on each request
+3. Persist user and assistant messages to the database
+4. Run the agent with MCP tools for all task operations
+5. Return `agent_response` + `tool_calls` list as complete JSON
 
-**Key Approach**: Connect OpenAI Agents SDK to the existing stateless MCP server (5 tools already implemented: add_task, list_tasks, complete_task, update_task, delete_task) to enable conversational task management.
+The MCP tools, BackendClient, agent config, and Conversation/Message DB models are **already implemented**. This plan closes the remaining gaps only.
 
 ## Technical Context
 
-**Language/Version**: Python 3.13+
-**Primary Dependencies**: OpenAI Agents SDK, MCP SDK (already installed), FastAPI, SQLModel, httpx
-**LLM Provider**: OpenRouter (OpenAI-compatible API) - **No OpenAI API key required**
-**LLM Access**: Via OpenRouter API using chat completions model (configured with custom base_url)
-**Storage**: PostgreSQL (Neon) via existing Conversation and Message models
-**Testing**: pytest with OpenAI Agents SDK test utilities
-**Target Platform**: Linux server (FastAPI backend)
-**Project Type**: Backend API integration
-**Performance Goals**: <2s response time for agent operations, support 100 concurrent conversations
-**Constraints**: Stateless backend (no in-memory state), all operations through MCP tools (no direct DB access from agent), conversation context reconstructed from database, OpenRouter API integration instead of direct OpenAI
-**Scale/Scope**: Single agent handling 5 MCP tools, multi-turn conversations up to 10+ messages with context
+| Item | Value |
+|------|-------|
+| Language | Python 3.13+ |
+| Agent Framework | OpenAI Agents SDK — `Runner.run(agent, input_list, context=dict)` |
+| LLM Provider | OpenRouter (OpenAI-compatible) |
+| Auth | Better Auth JWT — `get_current_user_with_path_validation` (already implemented) |
+| Endpoint | `POST /api/v1/agent/{user_id}/chat` |
+| Conversation History | List of dicts `[{"role": "user"|"assistant", "content": "..."}]` — confirmed SDK format |
+| DB | Neon PostgreSQL; `Conversation` + `Message` SQLModel tables (already exist) |
+| Response | Complete JSON (no streaming) |
+| Testing | pytest + pytest-asyncio |
+
+## SDK-Verified Patterns
+
+The following SDK patterns are confirmed correct by official documentation:
+
+```python
+# 1. Run agent with conversation history (list of dicts is valid SDK input)
+result = await Runner.run(
+    agent,
+    [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}],
+    context={"mcp_client": client, "user_id": "abc"},
+)
+response_text = result.final_output  # str
+
+# 2. Extract tool calls from result (confirmed SDK API)
+from agents.items import ToolCallItem, ToolCallOutputItem
+
+tool_calls = []
+for item in result.new_items:
+    if isinstance(item, ToolCallItem):
+        tool_calls.append({
+            "tool_name": item.raw_item.name,
+            "arguments": item.raw_item.arguments or {},
+            "result": {},
+        })
+    elif isinstance(item, ToolCallOutputItem) and tool_calls:
+        import json
+        output = item.output  # str
+        try:
+            tool_calls[-1]["result"] = json.loads(output)
+        except Exception:
+            tool_calls[-1]["result"] = {"output": str(output)}
+
+# 3. @function_tool with context (confirmed SDK pattern)
+@function_tool
+async def my_tool(ctx: RunContextWrapper[Any], param: str) -> dict:
+    value = ctx.context.get("my_key")  # access shared context
+```
 
 ## Constitution Check
 
-*GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
-
-### Phase III Principles Assessment
-
-✅ **VII. Agent-First Architecture**: This feature implements the conversational interface using OpenAI Agents SDK as required
-
-✅ **VIII. MCP Tool-Based System Design**: Agent will interact with existing MCP tools only (add_task, list_tasks, complete_task, update_task, delete_task)
-
-✅ **IX. Stateless Backend Principle**: Agent will not maintain in-memory state; conversation history will be reconstructed from Conversation and Message database models on each request
-
-✅ **X. ChatKit-Driven Conversational Interface**: Out of scope for this feature (frontend implementation separate)
-
-✅ **XI. Natural Language Task Management**: Core requirement - agent interprets natural language and maps to MCP tool calls
-
-✅ **XII. Spec-Driven AI Development**: Following `/sp.specify` → `/sp.plan` → `/sp.tasks` → `/sp.implement` workflow
-
-✅ **XIII. Tool Observability and Transparency**: Will log all tool invocations to database for debugging and audit
-
-### Cross-Phase Principles Assessment
-
-✅ **I. Multi-Tier Isolation**: Agent code will reside in `/backend/src/agent/` directory
-
-✅ **II. Persistence First**: All conversation state stored in PostgreSQL; no in-memory storage
-
-✅ **III. Secure by Design**: Agent will receive user_id from JWT and propagate to all MCP tool calls for user-scoped operations
-
-✅ **IV. Zero Manual Coding**: All code generated by Claude Code following Spec-Driven Development
-
-✅ **V. Test-First Discipline**: Will implement tests for agent tool selection and parameter extraction before agent logic
-
-✅ **VI. API Contract Enforcement**: Agent communicates with backend via MCP tools; will add new REST API endpoint for agent invocation
-
-## Project Structure
-
-### Documentation (this feature)
-
-```text
-specs/008-ai-agent-integration/
-├── plan.md              # This file
-├── research.md          # Phase 0 output: OpenAI Agents SDK integration patterns
-├── data-model.md        # Phase 1 output: No new models (uses existing Conversation/Message)
-├── quickstart.md        # Phase 1 output: Developer guide for agent setup and testing
-├── contracts/           # Phase 1 output: Agent API endpoint contract
-│   └── agent-api.yaml   # POST /api/v1/agent/chat endpoint specification
-└── tasks.md             # Phase 2 output (created by /sp.tasks command)
-```
-
-### Source Code (backend)
-
-```text
-backend/
-├── src/
-│   ├── agent/                          # NEW: OpenAI Agents SDK integration
-│   │   ├── __init__.py
-│   │   ├── config.py                   # Agent configuration (model, instructions)
-│   │   ├── agent.py                    # Agent initialization and runner
-│   │   ├── tools.py                    # MCP tool adapter for OpenAI Agents SDK
-│   │   └── context.py                  # Conversation history loader
-│   │
-│   ├── api/v1/
-│   │   ├── agent.py                    # NEW: POST /api/v1/agent/chat endpoint
-│   │   └── router.py                   # UPDATE: Register agent endpoint
-│   │
-│   ├── models/                         # EXISTING: No changes needed
-│   │   ├── conversation.py             # Already implemented
-│   │   └── message.py                  # Already implemented
-│   │
-│   ├── mcp/                            # EXISTING: No changes needed
-│   │   ├── server.py                   # Already implemented (5 tools)
-│   │   ├── tools/                      # Already implemented
-│   │   └── schemas/                    # Already implemented
-│   │
-│   └── services/
-│       ├── conversation_service.py     # NEW: Conversation CRUD operations
-│       └── message_service.py          # NEW: Message persistence
-│
-└── tests/
-    ├── agent/                          # NEW: Agent tests
-    │   ├── test_agent.py               # Agent tool selection and parameter extraction
-    │   ├── test_tools.py               # MCP tool adapter tests
-    │   └── test_context.py             # Conversation history reconstruction tests
-    │
-    └── api/v1/
-        └── test_agent_api.py           # NEW: Agent endpoint integration tests
-```
-
-**Structure Decision**: Backend-only implementation following existing FastAPI + SQLModel architecture. Agent code in new `/src/agent/` directory alongside existing `/src/mcp/` MCP server. Agent integrates with existing MCP tools via MCP client connection. No frontend changes in this feature (ChatKit integration is separate).
-
-## Complexity Tracking
-
-> **Fill ONLY if Constitution Check has violations that must be justified**
-
-No constitution violations. All principles satisfied.
-
-## Phase 0: Research & Technical Decisions
-
-### Research Tasks
-
-1. **OpenAI Agents SDK MCP Integration Pattern**
-   - **Question**: How does OpenAI Agents SDK connect to external MCP servers?
-   - **Research**: Review OpenAI Agents SDK documentation for MCP client integration
-   - **Decision**: Determine if using MCP client within agent or wrapping MCP tools as agent-native tools
-   - **Output**: Integration pattern and code examples
-
-2. **Conversation History Management**
-   - **Question**: How to efficiently reconstruct conversation context from database for each request?
-   - **Research**: Optimal message window size, pagination strategy, performance considerations
-   - **Decision**: Load last N messages vs. time-windowed vs. token-budget-based
-   - **Output**: Context loading strategy with rationale
-
-3. **Agent System Prompt Design**
-   - **Question**: What instructions enable accurate natural language → tool selection mapping?
-   - **Research**: Best practices for prompt engineering with OpenAI Agents SDK
-   - **Decision**: System prompt structure, tool descriptions, error handling instructions
-   - **Output**: Initial system prompt template
-
-4. **MCP Tool Error Handling**
-   - **Question**: How should agent handle MCP tool failures or invalid responses?
-   - **Research**: OpenAI Agents SDK error handling patterns, retry logic, user-facing error messages
-   - **Decision**: Error propagation strategy, user-friendly message templates
-   - **Output**: Error handling architecture
-
-5. **Agent Response Streaming**
-   - **Question**: Should agent responses be streamed to frontend or sent as complete messages?
-   - **Research**: OpenAI Agents SDK streaming capabilities, FastAPI SSE support
-   - **Decision**: Immediate vs. streaming response delivery
-   - **Output**: Response delivery architecture (for future ChatKit integration)
-
-### Expected Outcomes
-
-All research findings will be documented in `research.md` with:
-- **Decision**: Clear choice made
-- **Rationale**: Why this choice over alternatives
-- **Alternatives Considered**: What other options were evaluated
-- **Implementation Notes**: Key technical details for tasks
-
-## Phase 1: Design & Contracts
-
-### Design Artifacts
-
-#### 1. Data Model (`data-model.md`)
-
-**No new database models required**. Uses existing models:
-
-- **Conversation** (already implemented in `src/models/conversation.py`)
-  - Fields: id, user_id, created_at, updated_at
-  - Relationship: One-to-many with Message
-
-- **Message** (already implemented in `src/models/message.py`)
-  - Fields: id, conversation_id, user_id, role, content, created_at
-  - Relationship: Many-to-one with Conversation
-
-**Rationale**: Conversation and Message models already provide required structure for storing chat history. Agent reads/writes messages through these models without needing new tables.
-
-**Document will include**:
-- Entity relationship diagram showing Conversation → Messages
-- Field validation rules (message content max length, role enum)
-- Query patterns for efficient conversation history retrieval
-- Index strategy for user_id and conversation_id lookups
-
-#### 2. API Contracts (`contracts/agent-api.yaml`)
-
-**New Endpoint**: POST /api/v1/agent/chat
-
-**Request Schema**:
-```yaml
-AgentChatRequest:
-  type: object
-  required:
-    - conversation_id
-    - message
-  properties:
-    conversation_id:
-      type: integer
-      description: Existing conversation ID (0 to create new conversation)
-    message:
-      type: string
-      maxLength: 2000
-      description: User message in natural language
-```
-
-**Response Schema**:
-```yaml
-AgentChatResponse:
-  type: object
-  properties:
-    conversation_id:
-      type: integer
-      description: Conversation ID (new or existing)
-    user_message_id:
-      type: integer
-      description: Stored user message ID
-    agent_message_id:
-      type: integer
-      description: Stored agent response message ID
-    agent_response:
-      type: string
-      description: Agent's natural language response
-    tool_calls:
-      type: array
-      items:
-        $ref: '#/components/schemas/ToolCall'
-      description: Optional array of tool invocations for debugging
-
-ToolCall:
-  type: object
-  properties:
-    tool_name:
-      type: string
-      enum: [add_task, list_tasks, complete_task, update_task, delete_task]
-    arguments:
-      type: object
-      description: Tool input parameters
-    result:
-      type: object
-      description: Tool output
-```
-
-**Error Responses**:
-- 400: Invalid request (malformed message, missing required fields)
-- 401: Unauthorized (missing or invalid JWT)
-- 403: Forbidden (conversation_id belongs to different user)
-- 404: Conversation not found
-- 500: Internal server error (MCP tool failure, agent error)
-
-**Document will include**:
-- Complete OpenAPI 3.0 specification
-- Example requests and responses for each tool operation
-- Error response formats with user-friendly messages
-- Authentication requirements (Better Auth JWT in Authorization header)
-
-#### 3. Developer Quickstart (`quickstart.md`)
-
-**Contents**:
-1. **Setup Instructions**
-   - Install OpenAI Agents SDK via uv
-   - Configure OPENROUTER_API_KEY in .env (not OPENAI_API_KEY)
-   - Configure OpenRouter base URL (https://openrouter.ai/api/v1)
-   - Run database migrations (already complete for Conversation/Message)
-   - Start MCP server (existing process)
-   - Start FastAPI backend
-
-2. **Testing Agent Locally**
-   - curl examples for POST /api/v1/agent/chat
-   - Example conversations demonstrating each tool
-   - Debugging tool invocations via optional tool_calls response field
-
-3. **Configuration Options**
-   - Agent model selection via OpenRouter (e.g., openai/gpt-4o, anthropic/claude-3-5-sonnet)
-   - OpenRouter base URL configuration
-   - System prompt customization
-   - MCP server connection settings
-   - Conversation history window size
-
-4. **Troubleshooting**
-   - Common errors and solutions
-   - MCP server connection issues
-   - Agent not selecting correct tools
-   - Database query performance optimization
-
-### Agent Context Update
-
-After Phase 1 design completion, run:
-```bash
-.specify/scripts/bash/update-agent-context.sh claude
-```
-
-This will update `.claude/context.md` with:
-- OpenAI Agents SDK integration patterns
-- MCP tool adapter architecture
-- Conversation history loading strategy
-- Agent system prompt template
-- New API endpoint routes
-
-## Phase 2: Implementation Steps (High-Level)
-
-*Note: Detailed tasks will be generated by `/sp.tasks` command*
-
-### Step 1: Agent Foundation
-- Install OpenAI Agents SDK dependency
-- Create agent configuration module
-- Define system prompt for task management
-- Initialize agent with MCP tool connections
-
-### Step 2: MCP Tool Integration
-- Create MCP client adapter for OpenAI Agents SDK
-- Connect to existing MCP server (5 tools)
-- Test tool invocation from agent
-- Validate tool parameter extraction
-
-### Step 3: Conversation Context Management
-- Implement conversation service (CRUD operations)
-- Implement message service (persistence)
-- Create conversation history loader
-- Optimize database queries for history retrieval
-
-### Step 4: Agent API Endpoint
-- Create POST /api/v1/agent/chat endpoint
-- Integrate JWT authentication
-- Implement request validation
-- Connect agent runner with conversation persistence
-
-### Step 5: Error Handling
-- Implement MCP tool error handling
-- Create user-friendly error messages
-- Add logging for debugging
-- Handle edge cases (timeouts, invalid inputs)
-
-### Step 6: Testing
-- Write agent tool selection tests
-- Write parameter extraction tests
-- Write conversation flow integration tests
-- Write API endpoint tests
-- Test with representative user messages
-
-### Step 7: Documentation
-- Update backend README with agent setup
-- Document agent configuration options
-- Add example conversations
-- Document debugging procedures
-
-## Non-Functional Requirements
-
-### Performance
-- Agent response time: <2 seconds for simple operations (<3 tool calls)
-- Conversation history loading: <200ms for last 20 messages
-- Concurrent conversation support: 100+ simultaneous agent requests
-- Database connection pooling configured for agent traffic
-
-### Security
-- All MCP tool calls include user_id from JWT for authorization
-- Agent cannot access tasks belonging to other users
-- Conversation access validated (conversation.user_id == JWT.user_id)
-- Rate limiting on agent endpoint to prevent abuse
-
-### Reliability
-- Graceful handling of MCP server unavailability
-- Retry logic for transient MCP tool failures
-- Agent errors do not crash FastAPI server
-- All errors logged with sufficient context for debugging
-
-### Observability
-- Log all agent requests with conversation_id and user_id
-- Log all MCP tool invocations with parameters and results
-- Track agent response latency
-- Monitor tool selection accuracy (manual review initially)
-
-## Dependencies
-
-### Existing Infrastructure
-- ✅ PostgreSQL database with Conversation and Message tables
-- ✅ MCP server with 5 task management tools
-- ✅ FastAPI backend with JWT authentication
-- ✅ Better Auth integration for user authentication
-
-### New Dependencies
-- OpenAI Agents SDK (Python package)
-- MCP Python SDK (already installed)
-- httpx (for MCP server communication, may already be installed)
-
-### External Services
-- OpenRouter API (for LLM calls via Agents SDK - OpenAI-compatible endpoint)
-- Neon PostgreSQL (existing)
-
-## Risk Assessment
-
-### High Risk
-- **Agent not selecting correct tools**: Mitigate with comprehensive system prompt engineering and testing
-- **MCP tool parameter extraction errors**: Mitigate with clear tool descriptions and validation in tests
-
-### Medium Risk
-- **Performance degradation with long conversations**: Mitigate with conversation history window limit
-- **OpenRouter API rate limits or costs**: Mitigate with request caching and usage monitoring
-- **OpenRouter API compatibility**: Mitigate by testing OpenAI Agents SDK with OpenRouter base_url configuration
-
-### Low Risk
-- **MCP server availability**: Existing infrastructure, minimal risk
-- **Database performance**: Existing models with proper indexes
-
-## Success Metrics
-
-- ✅ Agent successfully calls all 5 MCP tools based on natural language input
-- ✅ 95%+ accuracy for tool selection on clear user requests
-- ✅ <2 second average response time for single-tool operations
-- ✅ All conversation history persisted and retrievable after server restart
-- ✅ Zero cross-user data leakage (enforced by tests)
-- ✅ Agent provides friendly, conversational responses (not robotic)
-- ✅ Error messages are actionable and user-friendly
-
-## Next Steps
-
-1. **Run `/sp.tasks`** to generate detailed implementation tasks from this plan
-2. **Execute Phase 0 research** to resolve all technical decisions
-3. **Generate Phase 1 design artifacts** (research.md, data-model.md, contracts/, quickstart.md)
-4. **Begin implementation** following dependency-ordered tasks
+✅ **I. Multi-Tier Isolation**: Agent code in `/backend/src/agents/`
+✅ **II. Persistence First**: Messages persisted to `conversations` / `messages` tables per request
+✅ **III. Secure by Design**: JWT required; path `user_id` validated against JWT `sub`; propagated to all MCP tool calls
+✅ **VI. API Contract Enforcement**: Agent calls backend via MCP tools only (no direct DB for task CRUD)
+✅ **VII. Agent-First Architecture**: OpenAI Agents SDK + `Runner.run()`
+✅ **VIII. MCP Tool-Based System Design**: 5 tools (add/list/complete/update/delete task)
+✅ **IX. Stateless Backend**: No in-memory session; context reconstructed from DB per request
+✅ **XIII. Tool Observability**: `tool_calls` list returned in every response
+
+## Current Implementation State
+
+### Implemented ✅ (do not re-implement)
+
+| File | What exists |
+|------|-------------|
+| `src/agents/core/agent.py` | `create_task_agent()` — 5 tools configured |
+| `src/agents/mcp/mcp_tools.py` | 5 `@function_tool` with `RunContextWrapper` — context access correct |
+| `src/agents/core/runner.py` | `run_agent()` using `Runner.run()` — returns `(str, result)` |
+| `src/agents/core/conversation_handler.py` | `build_conversation_history()` — DB dicts → SDK list format |
+| `src/agents/config/agent_config.py` | System prompt, `MAX_HISTORY_MESSAGES=20` |
+| `src/mcp/client/backend_client.py` | HTTP client wrapping all 5 REST task endpoints |
+| `src/models/conversation.py` | `Conversation(id, user_id: str, created_at, updated_at)` |
+| `src/models/message.py` | `Message(id, conversation_id, user_id: str, role, content, created_at)` |
+| `src/auth/dependencies.py` | `get_current_user_with_path_validation` — validates JWT AND path `user_id` match |
+
+### Gaps to Fix ❌
+
+| # | Gap | File | Impact |
+|---|-----|------|--------|
+| 1 | No JWT auth on route; `user_id: int` | `agent_routes.py` | Unauthenticated access; type error |
+| 2 | `_load_conversation_history()` stub | `agent_handler.py` | Always `[]` — no context |
+| 3 | `_persist_messages()` stub | `agent_handler.py` | Mock IDs — nothing saved |
+| 4 | No `tool_calls` extracted | `runner.py`, `agent_handler.py` | FR-024 violated |
+| 5 | No new conversation created | `agent_handler.py` | FR-025 violated |
+| 6 | `task_id: int` in MCP tools | `mcp_tools.py` | Runtime crash — needs UUID string |
 
 ---
 
-**Plan Status**: ✅ Ready for task generation
-**Prerequisites Met**: Conversation/Message models implemented, MCP server operational, JWT auth configured
-**Estimated Complexity**: Medium (agent integration with existing tools, no new data models)
+## Conversation Flow
+
+```
+POST /api/v1/agent/{user_id}/chat
+  Authorization: Bearer <jwt>
+  Body: {"message": "...", "conversation_id": null | int}
+
+  [1] JWT validation → verify token, check path user_id == JWT sub → 401/403 if fails
+  [2] Parse + validate request body (message non-empty)
+  [3] conversation_id == null  → INSERT Conversation(user_id) → get new conversation.id
+      conversation_id == int   → SELECT Conversation, verify owner → 403/404 if wrong
+  [4] SELECT last 20 Messages WHERE conversation_id=X ORDER BY created_at DESC
+      → reverse → build [{"role": ..., "content": ...}, ...] list
+  [5] INSERT Message(conversation_id, user_id, role="user", content=message) → user_msg_id
+  [6] context = {"mcp_client": BackendClient(), "user_id": user_id}
+      input = history + [{"role": "user", "content": message}]
+  [7] result = await Runner.run(agent, input, context=context)
+      → agent calls MCP tools as needed (add_task, list_tasks, etc.)
+  [8] response_text = result.final_output
+      tool_calls = extract from result.new_items (ToolCallItem, ToolCallOutputItem)
+  [9] INSERT Message(conversation_id, user_id, role="assistant", content=response_text) → agent_msg_id
+  [10] Return AgentChatResponse(conversation_id, user_msg_id, agent_msg_id, response_text, tool_calls)
+```
+
+---
+
+## Implementation Steps
+
+> Dependency-ordered. Each step has file targets, exact changes, and acceptance checks.
+
+---
+
+### Step 1 — Fix `task_id` type in MCP tools (`int` → `str`)
+
+**Target**: `backend/src/agents/mcp/mcp_tools.py`
+
+**Why first**: Blocks all integration tests — LLM passes UUID strings from `list_tasks` output but functions declare `int`.
+
+**Change**:
+```python
+# Before
+async def complete_task(ctx: RunContextWrapper[Any], task_id: int) -> dict:
+async def update_task(ctx: RunContextWrapper[Any], task_id: int, ...) -> dict:
+async def delete_task(ctx: RunContextWrapper[Any], task_id: int) -> dict:
+
+# After
+async def complete_task(ctx: RunContextWrapper[Any], task_id: str) -> dict:
+    """...task_id: UUID string returned by list_tasks (e.g. '3f8a-...')"""
+async def update_task(ctx: RunContextWrapper[Any], task_id: str, ...) -> dict:
+async def delete_task(ctx: RunContextWrapper[Any], task_id: str) -> dict:
+```
+
+**Acceptance**: `complete_task(ctx, task_id="uuid-string")` calls `BackendClient.complete_task(user_id, "uuid-string")` without `TypeError`.
+
+---
+
+### Step 2 — Implement `conversation_service.py`
+
+**Target**: `backend/src/services/conversation_service.py` (new)
+
+```python
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
+from fastapi import HTTPException, status
+from src.models.conversation import Conversation
+
+async def get_or_create_conversation(
+    db: AsyncSession,
+    user_id: str,
+    conversation_id: int | None,
+) -> Conversation:
+    if conversation_id is None:
+        conversation = Conversation(user_id=user_id)
+        db.add(conversation)
+        await db.commit()
+        await db.refresh(conversation)
+        return conversation
+
+    result = await db.exec(
+        select(Conversation).where(Conversation.id == conversation_id)
+    )
+    conversation = result.first()
+
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    if conversation.user_id != user_id:
+        raise HTTPException(status_code=403, detail="Access denied: conversation belongs to another user")
+
+    return conversation
+```
+
+**Acceptance**:
+- `conversation_id=None` → new row in `conversations` with non-null `id`
+- Existing conversation with wrong owner → 403
+- Non-existent `conversation_id` → 404
+
+---
+
+### Step 3 — Implement `message_service.py`
+
+**Target**: `backend/src/services/message_service.py` (new)
+
+```python
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
+from src.models.message import Message
+
+async def load_conversation_history(
+    db: AsyncSession,
+    conversation_id: int,
+    limit: int = 20,
+) -> list[dict]:
+    """Load last `limit` messages ordered oldest-first (correct order for agent history)."""
+    result = await db.exec(
+        select(Message)
+        .where(Message.conversation_id == conversation_id)
+        .order_by(Message.created_at.desc())
+        .limit(limit)
+    )
+    messages = list(reversed(result.all()))
+    return [
+        {
+            "role": msg.role,
+            "content": msg.content,
+            "created_at": msg.created_at.isoformat(),
+        }
+        for msg in messages
+    ]
+
+
+async def persist_message(
+    db: AsyncSession,
+    conversation_id: int,
+    user_id: str,
+    role: str,
+    content: str,
+) -> int:
+    """Insert a message row and return its ID."""
+    message = Message(
+        conversation_id=conversation_id,
+        user_id=user_id,
+        role=role,
+        content=content,
+    )
+    db.add(message)
+    await db.commit()
+    await db.refresh(message)
+    return message.id
+```
+
+**Acceptance**:
+- New conversation → `load_conversation_history()` returns `[]`
+- 25 messages → returns 20, oldest-first order
+- `persist_message()` returns integer `id`; row exists in DB after call
+
+---
+
+### Step 4 — Update `runner.py` to extract `tool_calls`
+
+**Target**: `backend/src/agents/core/runner.py`
+
+**SDK-confirmed pattern** (using `isinstance` checks with imported item types):
+
+```python
+import json
+from dataclasses import dataclass, field
+from agents.items import ToolCallItem, ToolCallOutputItem
+
+@dataclass
+class AgentRunResult:
+    response_text: str
+    tool_calls: list[dict] = field(default_factory=list)
+
+
+async def run_agent(
+    user_message: str,
+    conversation_history: list[dict] | None = None,
+    context: dict | None = None,
+) -> AgentRunResult:
+    if not context or "mcp_client" not in context or "user_id" not in context:
+        raise ValueError("Context must contain mcp_client and user_id")
+
+    agent = create_task_agent()
+    history = conversation_history or []
+
+    # Append current user message — confirmed SDK format
+    messages = history + [{"role": "user", "content": user_message}]
+
+    logger.info(f"Running agent: {len(history)} history messages + current message")
+
+    result = await Runner.run(agent, messages, context=context)
+
+    # Extract tool calls — confirmed SDK API (result.new_items, ToolCallItem, ToolCallOutputItem)
+    tool_calls = []
+    for item in result.new_items:
+        if isinstance(item, ToolCallItem):
+            tool_calls.append({
+                "tool_name": item.raw_item.name,
+                "arguments": item.raw_item.arguments or {},
+                "result": {},
+            })
+        elif isinstance(item, ToolCallOutputItem) and tool_calls:
+            # item.output is a str — parse JSON if possible
+            output = item.output
+            try:
+                tool_calls[-1]["result"] = json.loads(output) if isinstance(output, str) else output
+            except (json.JSONDecodeError, TypeError):
+                tool_calls[-1]["result"] = {"output": str(output)}
+
+    logger.info(f"Agent complete: response={result.final_output[:80]!r}, tool_calls={len(tool_calls)}")
+
+    return AgentRunResult(
+        response_text=result.final_output,
+        tool_calls=tool_calls,
+    )
+```
+
+**Acceptance**:
+- "Add task to buy milk" → `tool_calls` has 1 entry: `{"tool_name": "add_task", "arguments": {"title": "buy milk"}, "result": {...}}`
+- Greeting with no tool use → `tool_calls == []`
+- `result.final_output` is non-empty string
+
+---
+
+### Step 5 — Wire DB services into `agent_handler.py`
+
+**Target**: `backend/src/agents/api/agent_handler.py`
+
+Replace both `TODO` stubs with real service calls:
+
+```python
+from sqlmodel.ext.asyncio.session import AsyncSession
+from src.services.conversation_service import get_or_create_conversation
+from src.services.message_service import load_conversation_history, persist_message
+from src.agents.core.conversation_handler import build_conversation_history
+from src.agents.core.runner import run_agent, AgentRunResult
+from src.agents.api.schemas import AgentChatRequest, AgentChatResponse, ToolCallInfo
+
+
+class AgentRequestHandler:
+
+    def __init__(self, backend_base_url: str = None):
+        self.backend_base_url = backend_base_url or os.getenv(
+            "BACKEND_BASE_URL", "http://localhost:8000"
+        )
+
+    async def process_chat_request(
+        self,
+        user_id: str,
+        request: AgentChatRequest,
+        db: AsyncSession,
+    ) -> AgentChatResponse:
+
+        # [3] Get or create conversation
+        conversation = await get_or_create_conversation(db, user_id, request.conversation_id)
+
+        # [4] Load conversation history from DB
+        raw_messages = await load_conversation_history(db, conversation.id)
+        conversation_history = build_conversation_history(raw_messages)
+
+        # [5] Persist user message BEFORE running agent
+        user_msg_id = await persist_message(db, conversation.id, user_id, "user", request.message)
+
+        # [6] + [7] Run agent with MCP tools
+        async with BackendClient(self.backend_base_url) as mcp_client:
+            context = {"mcp_client": mcp_client, "user_id": user_id}
+            run_result: AgentRunResult = await run_agent(
+                user_message=request.message,
+                conversation_history=conversation_history,
+                context=context,
+            )
+
+        # [9] Persist assistant response
+        agent_msg_id = await persist_message(
+            db, conversation.id, user_id, "assistant", run_result.response_text
+        )
+
+        # [10] Return response
+        return AgentChatResponse(
+            conversation_id=conversation.id,
+            user_message_id=user_msg_id,
+            agent_message_id=agent_msg_id,
+            agent_response=run_result.response_text,
+            tool_calls=[
+                ToolCallInfo(
+                    tool_name=tc["tool_name"],
+                    arguments=tc["arguments"],
+                    result=tc["result"],
+                )
+                for tc in run_result.tool_calls
+            ],
+        )
+```
+
+**Acceptance**:
+- 2 new `messages` rows after each turn
+- Second turn with same `conversation_id` has prior messages in history
+- `conversation.id` consistent in response
+
+---
+
+### Step 6 — Add JWT auth + DB session to agent route
+
+**Target**: `backend/src/agents/api/agent_routes.py`
+
+```python
+from typing import Annotated
+from fastapi import APIRouter, HTTPException, Depends, status
+from sqlmodel.ext.asyncio.session import AsyncSession
+from src.agents.api.schemas import AgentChatRequest, AgentChatResponse
+from src.agents.api.agent_handler import AgentRequestHandler
+from src.agents.api.serializers import format_error_response
+from src.auth.dependencies import get_current_user_with_path_validation
+from src.auth.models import AuthenticatedUser
+from src.database import get_db  # existing session dependency
+
+router = APIRouter(tags=["agent"])
+
+
+@router.post("/{user_id}/chat", response_model=AgentChatResponse, status_code=200)
+async def agent_chat(
+    user_id: str,
+    request: AgentChatRequest,
+    current_user: Annotated[AuthenticatedUser, Depends(get_current_user_with_path_validation)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> AgentChatResponse:
+    """POST /api/v1/agent/{user_id}/chat — process a natural language task management request."""
+    if not request.message or not request.message.strip():
+        raise HTTPException(status_code=400, detail="message cannot be empty")
+
+    try:
+        handler = AgentRequestHandler()
+        return await handler.process_chat_request(user_id, request, db)
+
+    except HTTPException:
+        raise  # Re-raise 403/404 from conversation_service
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    except Exception as e:
+        logger.error(f"Agent chat failed: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=format_error_response(
+                "Agent is currently unavailable. Please try again later.", 500
+            )
+        )
+
+
+@router.get("/health", status_code=200)
+async def health_check():
+    return {"status": "healthy", "service": "agent-chat"}
+```
+
+**Why `get_current_user_with_path_validation`**: Existing dependency that (1) validates JWT signature, (2) extracts `user_id` from `sub` claim, (3) checks path `{user_id}` matches JWT `sub` — returns 403 if mismatch. This is exactly what's needed without duplicating auth logic.
+
+**Acceptance**:
+- No `Authorization` header → 401
+- JWT `sub` ≠ path `{user_id}` → 403
+- Valid JWT matching path → `process_chat_request` called with `user_id: str`
+
+---
+
+### Step 7 — Update `AgentChatResponse` schema
+
+**Target**: `backend/src/agents/api/schemas.py`
+
+Ensure `tool_calls` defaults to empty list (never `null`):
+
+```python
+class AgentChatResponse(BaseModel):
+    conversation_id: int
+    user_message_id: int
+    agent_message_id: int
+    agent_response: str = Field(..., min_length=1, max_length=5000)
+    tool_calls: list[ToolCallInfo] = Field(
+        default_factory=list,
+        description="MCP tools invoked this turn (empty list if none)"
+    )
+```
+
+**Acceptance**: Response always has `"tool_calls": [...]`, never `null`.
+
+---
+
+### Step 8 — Verify router prefix
+
+**Target**: `backend/src/main.py` or `backend/src/api/v1/router.py`
+
+Verify or add:
+```python
+from src.agents.api.agent_routes import router as agent_router
+app.include_router(agent_router, prefix="/api/v1/agent")
+# → POST /api/v1/agent/{user_id}/chat
+```
+
+**Acceptance**: `GET /api/v1/agent/health` → `{"status": "healthy"}`.
+
+---
+
+### Step 9 — Tests
+
+**Target**: `backend/tests/agents/`
+
+#### `test_mcp_tools.py`
+```python
+async def test_complete_task_accepts_uuid_string(mock_mcp_client):
+    ctx = build_mock_context(mcp_client=mock_mcp_client, user_id="user-1")
+    await complete_task(ctx, task_id="3f8a2b-uuid")
+    mock_mcp_client.complete_task.assert_called_with(user_id="user-1", task_id="3f8a2b-uuid")
+
+async def test_add_task_raises_on_client_error(mock_mcp_client):
+    mock_mcp_client.create_task.side_effect = BackendClientError("Network error")
+    with pytest.raises(BackendClientError):
+        await add_task(build_mock_context(mcp_client=mock_mcp_client, user_id="u1"), title="test")
+```
+
+#### `test_conversation_service.py`
+```python
+async def test_creates_new_conversation(db):
+    conv = await get_or_create_conversation(db, user_id="user-1", conversation_id=None)
+    assert conv.id is not None and conv.user_id == "user-1"
+
+async def test_returns_403_for_wrong_owner(db, existing_conv):
+    with pytest.raises(HTTPException) as exc:
+        await get_or_create_conversation(db, user_id="user-2", conversation_id=existing_conv.id)
+    assert exc.value.status_code == 403
+
+async def test_returns_404_for_missing(db):
+    with pytest.raises(HTTPException) as exc:
+        await get_or_create_conversation(db, user_id="user-1", conversation_id=99999)
+    assert exc.value.status_code == 404
+```
+
+#### `test_message_service.py`
+```python
+async def test_load_empty_for_new_conversation(db, conversation):
+    assert await load_conversation_history(db, conversation.id) == []
+
+async def test_load_returns_last_20_of_25(db, conversation_with_25_messages):
+    history = await load_conversation_history(db, conversation_with_25_messages.id)
+    assert len(history) == 20
+    assert history[0]["role"] in ("user", "assistant")  # oldest-first
+
+async def test_persist_message_returns_id(db, conversation):
+    msg_id = await persist_message(db, conversation.id, "user-1", "user", "Hello")
+    assert isinstance(msg_id, int) and msg_id > 0
+```
+
+#### `test_agent_api.py`
+```python
+async def test_requires_auth(client):
+    resp = await client.post("/api/v1/agent/user-1/chat", json={"message": "hi"})
+    assert resp.status_code == 401
+
+async def test_rejects_wrong_user_id_in_path(client, auth_headers_user_a):
+    resp = await client.post("/api/v1/agent/user-B/chat",
+                             json={"message": "hi"}, headers=auth_headers_user_a)
+    assert resp.status_code == 403
+
+async def test_creates_new_conversation_on_null_id(client, auth_headers):
+    resp = await client.post("/api/v1/agent/user-1/chat",
+                             json={"message": "Add task buy milk", "conversation_id": None},
+                             headers=auth_headers)
+    body = resp.json()
+    assert resp.status_code == 200
+    assert isinstance(body["conversation_id"], int)
+    assert body["agent_response"] != ""
+    assert isinstance(body["tool_calls"], list)
+
+async def test_second_turn_uses_history(client, auth_headers, existing_conversation):
+    resp = await client.post("/api/v1/agent/user-1/chat",
+                             json={"message": "What tasks do I have?",
+                                   "conversation_id": existing_conversation.id},
+                             headers=auth_headers)
+    assert resp.status_code == 200
+
+async def test_tool_calls_empty_list_for_chitchat(client, auth_headers):
+    resp = await client.post("/api/v1/agent/user-1/chat",
+                             json={"message": "Hello!", "conversation_id": None},
+                             headers=auth_headers)
+    assert resp.json()["tool_calls"] == []
+
+async def test_messages_persisted_after_turn(client, auth_headers, db):
+    resp = await client.post("/api/v1/agent/user-1/chat",
+                             json={"message": "hi", "conversation_id": None},
+                             headers=auth_headers)
+    conv_id = resp.json()["conversation_id"]
+    history = await load_conversation_history(db, conv_id)
+    assert len(history) == 2  # user + assistant
+```
+
+---
+
+## API Contract
+
+### `POST /api/v1/agent/{user_id}/chat`
+
+**Auth**: `Authorization: Bearer <jwt>` — JWT `sub` must equal path `{user_id}`
+
+**Request**:
+```json
+{ "message": "Add a task to buy groceries", "conversation_id": null }
+```
+
+**Response 200**:
+```json
+{
+  "conversation_id": 42,
+  "user_message_id": 101,
+  "agent_message_id": 102,
+  "agent_response": "I've added 'buy groceries' to your task list.",
+  "tool_calls": [
+    {
+      "tool_name": "add_task",
+      "arguments": { "title": "buy groceries" },
+      "result": { "id": "uuid-...", "title": "buy groceries", "is_completed": false }
+    }
+  ]
+}
+```
+
+**Error codes**:
+
+| Code | Condition |
+|------|-----------|
+| 400 | Empty/missing message |
+| 401 | Missing or invalid JWT |
+| 403 | JWT sub ≠ path user_id, or conversation belongs to another user |
+| 404 | conversation_id not found |
+| 500 | Agent execution failure |
+
+---
+
+## Files to Create
+
+| File | Purpose |
+|------|---------|
+| `src/services/conversation_service.py` | `get_or_create_conversation()` |
+| `src/services/message_service.py` | `load_conversation_history()`, `persist_message()` |
+| `tests/agents/test_mcp_tools.py` | MCP tool unit tests |
+| `tests/agents/test_conversation_service.py` | Service tests |
+| `tests/agents/test_message_service.py` | Service tests |
+| `tests/agents/test_agent_api.py` | End-to-end API tests |
+
+## Files to Modify
+
+| File | Change |
+|------|--------|
+| `src/agents/mcp/mcp_tools.py` | `task_id: int` → `task_id: str` (Step 1) |
+| `src/agents/core/runner.py` | Extract `tool_calls` from `result.new_items` (Step 4) |
+| `src/agents/api/agent_handler.py` | Replace stubs with DB service calls (Step 5) |
+| `src/agents/api/agent_routes.py` | Add JWT auth + DB session (Step 6) |
+| `src/agents/api/schemas.py` | `tool_calls` defaults to `[]` (Step 7) |
+
+---
+
+**Plan Status**: ✅ Ready for `/sp.tasks`
+**SDK Verification**: All patterns confirmed against official OpenAI Agents SDK documentation
+**Endpoint**: `POST /api/v1/agent/{user_id}/chat`

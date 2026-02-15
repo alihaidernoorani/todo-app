@@ -35,8 +35,7 @@ export default function DashboardPage() {
   const userName = user?.name || 'there'
   const [isChatOpen, setIsChatOpen] = useState(false)
 
-  // Convert string ID to number for backend API
-  const userId = user?.id ? parseInt(user.id, 10) : null
+  const userId = user?.id ?? null
 
   return (
     <PageTransition>

@@ -28,7 +28,7 @@ export interface UseChatMessagesReturn {
  * @param userId - User ID from authenticated session
  * @returns Chat messages state and handlers
  */
-export function useChatMessages(userId: number | null): UseChatMessagesReturn {
+export function useChatMessages(userId: string | null): UseChatMessagesReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

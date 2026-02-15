@@ -10,7 +10,7 @@ import { ChatKitWrapper } from './ChatKitWrapper';
 import { useChatMessages } from '@/lib/hooks/useChatMessages';
 
 export interface ChatWidgetProps {
-  userId: number | null;
+  userId: string | null;
   isOpen: boolean;
   onClose: () => void;
 }

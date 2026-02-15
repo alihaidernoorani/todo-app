@@ -62,9 +62,9 @@ class AgentChatResponse(BaseModel):
         max_length=5000,
         description="Agent's natural language response"
     )
-    tool_calls: Optional[List['ToolCallInfo']] = Field(
-        default=None,
-        description="Optional debug information about tool calls"
+    tool_calls: List['ToolCallInfo'] = Field(
+        default_factory=list,
+        description="MCP tools invoked this turn (empty list if none)"
     )
 
 

@@ -43,12 +43,12 @@ async def add_task(
 
         logger.info(f"add_task: title={title}, user_id={user_id}")
 
-        # Call MCP tool
-        result = await mcp_client.call_tool("add_task", {
-            "title": title,
-            "description": description,
-            "user_id": user_id
-        })
+        # Call BackendClient method
+        result = await mcp_client.create_task(
+            user_id=str(user_id),
+            title=title,
+            description=description,
+        )
 
         logger.info(f"add_task success: task_id={result.get('task_id')}")
         return result
@@ -87,13 +87,13 @@ async def list_tasks(
 
         logger.info(f"list_tasks: status={status}, user_id={user_id}")
 
-        # Call MCP tool
-        result = await mcp_client.call_tool("list_tasks", {
-            "status": status,
-            "user_id": user_id
-        })
+        # Call BackendClient method
+        result = await mcp_client.list_tasks(
+            user_id=str(user_id),
+            status=status or "all",
+        )
 
-        task_count = len(result.get('tasks', []))
+        task_count = len(result.get('items', result.get('tasks', [])))
         logger.info(f"list_tasks success: found {task_count} tasks")
         return result
 
@@ -105,19 +105,19 @@ async def list_tasks(
 @function_tool
 async def complete_task(
     ctx: RunContextWrapper[Any],
-    task_id: int,
+    task_id: str,
 ) -> dict:
     """Mark a task as complete by ID.
 
     Args:
-        task_id: The task ID to mark as complete
+        task_id: The task UUID string returned by list_tasks (e.g. '3f8a2b-uuid-string')
 
     Returns:
         dict: Updated task with task_id and status="completed"
 
     Example:
         User: "Mark task 123 as done"
-        Tool call: complete_task(task_id=123)
+        Tool call: complete_task(task_id="3f8a2b-uuid-string")
     """
     try:
         # Get MCP client and user_id from context
@@ -131,11 +131,11 @@ async def complete_task(
 
         logger.info(f"complete_task: task_id={task_id}, user_id={user_id}")
 
-        # Call MCP tool
-        result = await mcp_client.call_tool("complete_task", {
-            "task_id": task_id,
-            "user_id": user_id
-        })
+        # Call BackendClient method
+        result = await mcp_client.complete_task(
+            user_id=str(user_id),
+            task_id=task_id,
+        )
 
         logger.info(f"complete_task success: task_id={result.get('task_id')}")
         return result
@@ -148,14 +148,14 @@ async def complete_task(
 @function_tool
 async def update_task(
     ctx: RunContextWrapper[Any],
-    task_id: int,
+    task_id: str,
     title: Optional[str] = None,
     description: Optional[str] = None,
 ) -> dict:
     """Update task title and/or description by ID.
 
     Args:
-        task_id: The task ID to update
+        task_id: The task UUID string returned by list_tasks (e.g. '3f8a2b-uuid-string')
         title: Optional new title
         description: Optional new description
 
@@ -178,13 +178,13 @@ async def update_task(
 
         logger.info(f"update_task: task_id={task_id}, user_id={user_id}")
 
-        # Call MCP tool
-        result = await mcp_client.call_tool("update_task", {
-            "task_id": task_id,
-            "title": title,
-            "description": description,
-            "user_id": user_id
-        })
+        # Call BackendClient method
+        result = await mcp_client.update_task(
+            user_id=str(user_id),
+            task_id=task_id,
+            title=title,
+            description=description,
+        )
 
         logger.info(f"update_task success: task_id={result.get('task_id')}")
         return result
@@ -197,12 +197,12 @@ async def update_task(
 @function_tool
 async def delete_task(
     ctx: RunContextWrapper[Any],
-    task_id: int,
+    task_id: str,
 ) -> dict:
     """Delete a task by ID.
 
     Args:
-        task_id: The task ID to delete
+        task_id: The task UUID string returned by list_tasks (e.g. '3f8a2b-uuid-string')
 
     Returns:
         dict: Deletion confirmation with task_id and deleted=True
@@ -223,11 +223,11 @@ async def delete_task(
 
         logger.info(f"delete_task: task_id={task_id}, user_id={user_id}")
 
-        # Call MCP tool
-        result = await mcp_client.call_tool("delete_task", {
-            "task_id": task_id,
-            "user_id": user_id
-        })
+        # Call BackendClient method
+        result = await mcp_client.delete_task(
+            user_id=str(user_id),
+            task_id=task_id,
+        )
 
         logger.info(f"delete_task success: task_id={result.get('task_id')}, deleted={result.get('deleted')}")
         return result

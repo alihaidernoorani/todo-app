@@ -16,5 +16,5 @@ router.include_router(auth_router, tags=["Authentication"])
 router.include_router(tasks_router, prefix="/{user_id}/tasks", tags=["Tasks"])
 
 # Include agent chat router
-# Route will be: /api/{user_id}/chat
+# Routes will be: /api/{user_id}/chat, /api/agent/health
 router.include_router(agent_router, tags=["Agent"])

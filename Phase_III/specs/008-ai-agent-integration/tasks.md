@@ -1,156 +1,139 @@
-# Tasks: AI Agent Integration using OpenAI Agents SDK
+# Tasks: AI Agent Integration (008)
 
-**Input**: Design documents from `Phase_III/specs/ai-agent-integration/`
-**Prerequisites**: plan.md, spec.md
-
-**Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
-
-**Tests**: Not explicitly requested in spec - tests are optional and not included in this task list.
-
-## Format: `[ID] [P?] [Story] Description`
-
-- **[P]**: Can run in parallel (different files, no dependencies)
-- **[Story]**: Which user story this task belongs to (e.g., US1, US2, US3)
-- Include exact file paths in descriptions
-
-## Path Conventions
-
-All paths are relative to `Phase_III/` directory:
-- Agent tier: `backend/src/agents/`
-- Backend (external dependency): `backend/` (via REST API only)
-- MCP server: `backend/src/mcp/` (already implemented)
-- Database models: `backend/src/models/` (already implemented)
+**Feature**: `008-ai-agent-integration` | **Branch**: `003-ai-todo-chatbot`
+**Date**: 2026-02-15 | **Spec**: [spec.md](./spec.md) | **Plan**: [plan.md](./plan.md)
+**Scope**: Hackathon — stateless endpoint, DB-backed conversation history, complete JSON response
 
 ---
 
-## Phase 1: Setup (Shared Infrastructure)
+## Format: `[ID] [P?] [Story?] Description`
 
-**Purpose**: Project initialization and basic agent structure. Follow OpenAI Agents SDK patterns for all setup tasks.
+- **[P]**: Can run in parallel (different files, no incomplete dependencies)
+- **[Story]**: Which user story this task belongs to (US1–US6)
+- All file paths relative to `backend/`
 
-- [X] T001 Create agent tier directory structure: `Phase_III/backend/src/agents/`, `Phase_III/backend/src/agents/config/`, `Phase_III/backend/src/agents/mcp/`, `Phase_III/backend/src/agents/core/`, `Phase_III/backend/src/agents/api/`, `Phase_III/backend/tests/agents/`
-- [X] T002 Initialize Python project dependencies - Add `openai[agents]` to backend pyproject.toml dependencies
-- [X] T003 [P] Create __init__.py files in all agent directories
-- [X] T004 [P] Create README.md in `Phase_III/backend/src/agents/` with quickstart instructions
-- [X] T005 Create .env.example - Update `Phase_III/backend/.env.example` with OPENAI_API_KEY configuration
+---
+
+## Phase 1: Setup (Verify Existing Scaffold)
+
+**Purpose**: Confirm all pre-built files are present and identify any missing imports or syntax issues before implementation begins.
+
+**Checkpoint**: All scaffold files exist and are importable.
+
+- [X] T001 Audit existing agent scaffold — confirm `src/agents/core/agent.py`, `src/agents/mcp/mcp_tools.py`, `src/agents/core/runner.py`, `src/agents/api/agent_handler.py`, `src/agents/api/agent_routes.py`, `src/agents/api/schemas.py`, `src/mcp/client/backend_client.py` exist and import without errors
 
 ---
 
 ## Phase 2: Foundational (Blocking Prerequisites)
 
-**Purpose**: Core infrastructure that MUST be complete before ANY user story can be implemented. Follow OpenAI Agents SDK patterns for all foundational tasks.
+**Purpose**: Wire the shared infrastructure that every user story depends on. No user story can be validated until this phase is complete.
 
-**⚠️ CRITICAL**: No user story work can begin until this phase is complete
+**⚠️ CRITICAL**: Complete this phase before any user story work.
 
-- [X] T006 Create agent configuration module in `backend/src/agents/config/agent_config.py` - Define system instructions for the agent (NOT AgentConfig class - use simple Agent() initialization per SDK)
-- [X] T007 Create MCP tool functions in `backend/src/agents/mcp/mcp_tools.py` - Implement @function_tool decorated functions for all 5 MCP tools following OpenAI Agents SDK patterns
-- [X] T008 Create main agent in `backend/src/agents/core/agent.py` - Initialize Agent using Agent(name, instructions, tools) pattern from OpenAI Agents SDK
-- [X] T009 Create conversation handler in `backend/src/agents/core/conversation_handler.py` - Build conversation history using UserMessageItem and AssistantMessageItem from SDK
-- [X] T010 Create agent runner in `backend/src/agents/core/runner.py` - Use Runner.run() to execute agent with conversation history
+**Checkpoint**: `POST /api/v1/agent/{user_id}/chat` returns 401 for unauthenticated requests and 200 with `{agent_response, tool_calls, conversation_id, user_message_id, agent_message_id}` for valid authenticated requests.
 
-**Checkpoint**: ✅ Foundation ready - user story implementation can now begin in parallel
+### Parallel group (T002–T007 have no mutual dependencies — run simultaneously):
 
----
+- [X] T002 [P] Fix `task_id` type from `int` to `str` in `complete_task`, `update_task`, and `delete_task` function signatures in `src/agents/mcp/mcp_tools.py` — prevents runtime `TypeError` when LLM passes UUID strings from `list_tasks` output
+- [X] T003 [P] Update `AgentChatResponse` in `src/agents/api/schemas.py` — change `tool_calls` field to `default_factory=list` so response always contains `"tool_calls": []` (never `null`); verify `ToolCallInfo` dataclass has `tool_name`, `arguments`, `result` fields
+- [X] T004 [P] Verify router registration in `src/main.py` — confirm `app.include_router(agent_router, prefix="/api/v1/agent")` is present; add if missing; smoke-test `GET /api/v1/agent/health` returns `{"status": "healthy"}`
+- [X] T005 [P] Rewrite `run_agent()` in `src/agents/core/runner.py` — introduce `AgentRunResult` dataclass (`response_text: str`, `tool_calls: list[dict]`); extract tool calls from `result.new_items` using `isinstance(item, ToolCallItem)` / `isinstance(item, ToolCallOutputItem)` (import from `agents.items`); `item.output` is `str` — use `json.loads()` to convert; return `AgentRunResult` instead of tuple `(str, result)`
+- [X] T006 [P] Create `src/services/conversation_service.py` — implement `get_or_create_conversation(db: AsyncSession, user_id: str, conversation_id: int | None) -> Conversation`; `None` → INSERT new row; existing ID → SELECT + verify `conversation.user_id == user_id` (403 if mismatch, 404 if not found)
+- [X] T007 [P] Create `src/services/message_service.py` — implement `load_conversation_history(db, conversation_id, limit=20) -> list[dict]` (SELECT last 20 DESC, reverse to oldest-first, return `[{"role": ..., "content": ...}]`); implement `persist_message(db, conversation_id, user_id, role, content) -> int` (INSERT + return `message.id`)
 
-## Phase 3: User Story 1 - AI Agent Creates Task (Priority: P1) 🎯 MVP
+### Sequential group (T008–T009 require T006 and T007 to be complete first):
 
-**Goal**: Enable AI agent to create new tasks via natural language using add_task MCP tool. Tasks persist to database with proper user_id scoping.
-
-**Independent Test**: Ask agent "Create a task to review code today". Verify task appears in database with correct user_id. Ask agent to create another task with different user and verify isolation.
-
-### Implementation for User Story 1
-
-- [X] T011 [US1] Implement add_task function tool in `backend/src/agents/mcp/mcp_tools.py` - Create @function_tool decorated async function that calls add_task MCP tool
-- [X] T012 [US1] Update main agent to include add_task tool - Add add_task to the agent's tools list
-- [X] T013 [US1] Add verification script at `backend/tests/agents/verify_task_creation.py` - Test using Runner.run() with task creation messages
-
-**Checkpoint**: ✅ User Story 1 is fully functional - AI agent can create tasks via natural language
+- [X] T008 Rewrite `AgentRequestHandler.process_chat_request()` in `src/agents/api/agent_handler.py` — replace both TODO stubs: call `get_or_create_conversation()`, `load_conversation_history()`, `persist_message()` (user then assistant); call `run_agent()` with `AgentRunResult`; build `AgentChatResponse` with `tool_calls` list from `ToolCallInfo` objects; pass `db: AsyncSession` as parameter; depends on T005, T006, T007
+- [X] T009 Add JWT auth and DB session to `src/agents/api/agent_routes.py` — inject `Depends(get_current_user_with_path_validation)` and `Depends(get_db)`; change `user_id` parameter type to `str`; validate `request.message` is non-empty (400); re-raise `HTTPException` from services (403/404); catch `Exception` → 500 with safe message; depends on T005, T008
 
 ---
 
-## Phase 4: User Story 2 - AI Agent Lists User's Tasks (Priority: P1) 🎯 MVP
+## Phase 3: User Story 1 — Task Creation via Natural Language (Priority: P1) 🎯 MVP
 
-**Goal**: Enable AI agent to retrieve tasks via natural language using list_tasks MCP tool with optional status filtering (all, pending, completed).
+**Goal**: Users can create tasks by describing them in plain English via the chat endpoint.
 
-**Independent Test**: Ask agent "Show me my pending tasks". Verify only pending tasks returned. Ask "Show me all tasks" and verify all tasks returned. Ask second user to view tasks and verify no data leakage.
+**Independent Test**: `POST /api/v1/agent/{user_id}/chat` with `{"message": "Add a task to buy groceries", "conversation_id": null}` → 200 response, new task visible in `list_tasks`, `tool_calls` contains `add_task` entry.
 
-### Implementation for User Story 2
+**Depends on**: Phase 2 complete (all foundational tasks T001–T009)
 
-- [X] T014 [US2] Implement list_tasks function tool in `backend/src/agents/mcp/mcp_tools.py` - Create @function_tool decorated async function that calls list_tasks MCP tool
-- [X] T015 [US2] Update main agent to include list_tasks tool - Add list_tasks to the agent's tools list
-- [X] T016 [US2] Add verification script at `backend/tests/agents/verify_task_listing.py` - Test using Runner.run() with task listing messages
-
-**Checkpoint**: ✅ User Stories 1 AND 2 both work independently - AI agent can create and list tasks via natural language
+- [X] T010 [P] [US1] Write unit test `tests/agents/test_mcp_tools.py::test_add_task_calls_backend_client` — mock `BackendClient.create_task`, call `add_task(ctx, title="buy groceries")`, assert mock called with correct `user_id` and `title`
+- [X] T011 [US1] Write integration test `tests/agents/test_agent_api.py::test_create_task_via_chat` — post message "Add a task to buy groceries" with valid auth + `conversation_id: null`; assert `status_code == 200`, `body["conversation_id"]` is int, `body["agent_response"]` is non-empty string, `body["tool_calls"]` contains entry with `tool_name == "add_task"`
 
 ---
 
-## Phase 5: User Story 3 - AI Agent Completes Task (Priority: P2)
+## Phase 4: User Story 2 — Task Listing and Retrieval (Priority: P2)
 
-**Goal**: Enable AI agent to mark tasks as complete via natural language using complete_task MCP tool.
+**Goal**: Users can ask about their tasks in natural language and receive a formatted response.
 
-**Independent Test**: Ask agent "Complete task #123". Verify task status changes to completed in database. Ask agent to complete task belonging to different user and verify operation fails with authorization error.
+**Independent Test**: `POST /api/v1/agent/{user_id}/chat` with `{"message": "What tasks do I have?"}` → 200, `tool_calls` contains `list_tasks` entry, `agent_response` lists tasks or says none exist.
 
-### Implementation for User Story 3
+**Depends on**: Phase 2 complete
 
-- [X] T017 [US3] Implement complete_task function tool in `backend/src/agents/mcp/mcp_tools.py` - Create @function_tool decorated async function that calls complete_task MCP tool
-- [X] T018 [US3] Update main agent to include complete_task tool - Add complete_task to the agent's tools list
-- [X] T019 [US3] Add verification script at `backend/tests/agents/verify_task_completion.py` - Test using Runner.run() with task completion messages
-
-**Checkpoint**: ✅ User Stories 1, 2, AND 3 all work independently - AI agent can create, list, and complete tasks via natural language
+- [X] T012 [US2] Write integration test `tests/agents/test_agent_api.py::test_list_tasks_via_chat` — post "What tasks do I have?" with valid auth; assert `status_code == 200`, `body["tool_calls"]` contains entry with `tool_name == "list_tasks"`, `body["agent_response"]` is a non-empty string
 
 ---
 
-## Phase 6: User Story 4 - AI Agent Updates Task Details (Priority: P3)
+## Phase 5: User Story 3 — Task Completion (Priority: P2)
 
-**Goal**: Enable AI agent to modify task title or description via natural language using update_task MCP tool.
+**Goal**: Users can mark tasks complete by referring to them by description without needing task IDs.
 
-**Independent Test**: Ask agent "Change task #123 title to 'Review PRs' and add description 'Check all open PRs'". Verify title and description update correctly. Ask agent to update task belonging to different user and verify operation fails.
+**Independent Test**: Post "Mark 'buy groceries' as done" → 200, `tool_calls` contains `complete_task` entry with a UUID `task_id` string.
 
-### Implementation for User Story 4
+**Depends on**: Phase 2 complete
 
-- [X] T020 [US4] Implement update_task function tool in `backend/src/agents/mcp/mcp_tools.py` - Create @function_tool decorated async function that calls update_task MCP tool
-- [X] T021 [US4] Update main agent to include update_task tool - Add update_task to the agent's tools list
-- [X] T022 [US4] Add verification script at `backend/tests/agents/verify_task_update.py` - Test using Runner.run() with task update messages
-
-**Checkpoint**: ✅ User Stories 1-4 all work independently - AI agent can create, list, complete, and update tasks via natural language
+- [X] T013 [P] [US3] Write unit test `tests/agents/test_mcp_tools.py::test_complete_task_accepts_uuid_string` — mock `BackendClient.complete_task`; call `complete_task(ctx, task_id="3f8a2b-uuid-string")`; assert mock called with `task_id="3f8a2b-uuid-string"` (confirms string type accepted, not int)
+- [X] T014 [US3] Write integration test `tests/agents/test_agent_api.py::test_complete_task_via_chat` — post "Mark buy groceries as done" with valid auth; assert `status_code == 200`, `body["tool_calls"]` contains entry with `tool_name == "complete_task"`
 
 ---
 
-## Phase 7: User Story 5 - AI Agent Deletes Task (Priority: P3)
+## Phase 6: User Story 6 — Conversational Context Awareness (Priority: P2)
 
-**Goal**: Enable AI agent to remove tasks via natural language using delete_task MCP tool.
+**Goal**: The backend loads and passes conversation history to the agent, enabling multi-turn context without the client sending history.
 
-**Independent Test**: Ask agent "Delete task #123". Verify task no longer exists in database. Ask agent to delete task belonging to different user and verify operation fails. Ask agent to delete non-existent task and verify appropriate error message.
+**Independent Test**: Send two messages in the same conversation: "Create a task to call mom" then "Actually, make it call dad instead" — assert agent resolves "it" from DB-loaded history, `body["conversation_id"]` is consistent across both turns.
 
-### Implementation for User Story 5
+**Depends on**: Phase 2 complete (message persistence, conversation loading)
 
-- [X] T023 [US5] Implement delete_task function tool in `backend/src/agents/mcp/mcp_tools.py` - Create @function_tool decorated async function that calls delete_task MCP tool
-- [X] T024 [US5] Update main agent to include delete_task tool - Add delete_task to the agent's tools list
-- [X] T025 [US5] Add verification script at `backend/tests/agents/verify_task_deletion.py` - Test using Runner.run() with task deletion messages
-
-**Checkpoint**: ✅ All user stories are independently functional - Full natural language task management works!
+- [X] T015 [P] [US6] Write service test `tests/agents/test_message_service.py::test_load_empty_for_new_conversation` — create blank conversation; call `load_conversation_history(db, conv.id)`; assert returns `[]`
+- [X] T016 [P] [US6] Write service test `tests/agents/test_message_service.py::test_load_returns_last_20_of_25` — insert 25 messages; call `load_conversation_history(db, conv.id)`; assert `len(result) == 20` and messages are oldest-first order
+- [X] T017 [US6] Write integration test `tests/agents/test_agent_api.py::test_second_turn_uses_db_history` — post first message with `conversation_id: null` → extract returned `conversation_id`; post second message with that `conversation_id`; assert `status_code == 200`, `body["user_message_id"]` is new ID; assert DB has 4 rows for that conversation (2 turns × 2 messages each)
 
 ---
 
-## Phase 8: API Integration
+## Phase 7: User Story 4 — Task Updates and Modifications (Priority: P3)
 
-**Purpose**: Create API endpoints for agent interaction and final integration.
+**Goal**: Users can modify task titles or details by describing the change in natural language.
 
-- [X] T026 Create agent API endpoint in `backend/src/agents/api/agent_routes.py` - Implement POST /api/agent/message endpoint that uses Runner.run() to execute agent
-- [X] T027 Implement agent request handler in `backend/src/agents/api/agent_handler.py` - Build conversation history and call Runner.run() with proper context
-- [X] T028 Add request validation in `backend/src/agents/api/schemas.py` - Create Pydantic schemas for agent API requests and responses
-- [X] T029 Add response serialization in `backend/src/agents/api/serializers.py` - Format Runner.run() results for API consumption
+**Independent Test**: Post "Change 'buy milk' to 'buy almond milk'" → 200, `tool_calls` contains `update_task` entry with a UUID `task_id` string.
+
+**Depends on**: Phase 2 complete
+
+- [X] T018 [P] [US4] Write unit test `tests/agents/test_mcp_tools.py::test_update_task_accepts_uuid_string` — mock `BackendClient.update_task`; call `update_task(ctx, task_id="uuid-str", title="buy almond milk")`; assert mock called with `task_id="uuid-str"` (string, not int)
+- [X] T019 [US4] Write integration test `tests/agents/test_agent_api.py::test_update_task_via_chat` — post "Change buy milk to buy almond milk" with valid auth; assert `status_code == 200`, `body["tool_calls"]` contains entry with `tool_name == "update_task"`
 
 ---
 
-## Phase 9: Polish & Cross-Cutting Concerns
+## Phase 8: User Story 5 — Task Deletion (Priority: P3)
 
-**Purpose**: Improvements that affect multiple user stories and final validation.
+**Goal**: Users can remove tasks by describing what to delete in natural language.
 
-- [X] T030 Add comprehensive logging using SDK tracing - Use enable_tracing() and set_trace_handler() for observability
-- [X] T031 Create integration test suite in `backend/tests/agents/test_agent_integration.py` - Test Runner.run() with various conversation scenarios
-- [X] T032 Add guardrails for input/output validation - Implement InputGuardrail and output_guardrail decorators per SDK patterns
-- [X] T033 Add documentation and usage examples - Document Agent, function_tool, and Runner.run() usage patterns
-- [X] T034 Validate stateless behavior - Test agent works correctly across multiple Runner.run() calls with conversation history
+**Independent Test**: Post "Delete the task about buying milk" → 200, `tool_calls` contains `delete_task` entry with a UUID `task_id` string.
+
+**Depends on**: Phase 2 complete
+
+- [X] T020 [P] [US5] Write unit test `tests/agents/test_mcp_tools.py::test_delete_task_accepts_uuid_string` — mock `BackendClient.delete_task`; call `delete_task(ctx, task_id="uuid-str")`; assert mock called with `task_id="uuid-str"` (confirms string type accepted)
+- [X] T021 [US5] Write integration test `tests/agents/test_agent_api.py::test_delete_task_via_chat` — post "Delete the buy milk task" with valid auth; assert `status_code == 200`, `body["tool_calls"]` contains entry with `tool_name == "delete_task"`
+
+---
+
+## Final Phase: Polish & Cross-Cutting Concerns
+
+**Purpose**: Auth edge cases, service-layer unit tests, and final contract validation.
+
+- [X] T022 Write service tests `tests/agents/test_conversation_service.py` — three cases: (1) `conversation_id=None` → new `Conversation` row with non-null `id`; (2) existing conversation with wrong `user_id` → `HTTPException 403`; (3) non-existent `conversation_id=99999` → `HTTPException 404`
+- [X] T023 Write auth edge-case tests in `tests/agents/test_agent_api.py` — two cases: (1) no `Authorization` header → 401; (2) valid JWT but path `{user_id}` ≠ JWT `sub` → 403
+- [X] T024 Write message persistence test `tests/agents/test_agent_api.py::test_messages_persisted_after_turn` — post one message; call `load_conversation_history(db, conv_id)` directly; assert `len == 2` (one user row + one assistant row) confirming FR-023
+- [X] T025 [P] Write service test `tests/agents/test_message_service.py::test_persist_message_returns_integer_id` — call `persist_message(db, conv.id, "user-1", "user", "Hello")`; assert `isinstance(msg_id, int)` and `msg_id > 0`
 
 ---
 
@@ -158,139 +141,107 @@ All paths are relative to `Phase_III/` directory:
 
 ### Phase Dependencies
 
-- **Setup (Phase 1)**: No dependencies - can start immediately
-- **Foundational (Phase 2)**: Depends on Setup completion - BLOCKS all user stories
-- **User Stories (Phase 3-7)**: All depend on Foundational phase completion
-  - User stories can then proceed in parallel (if staffed)
-  - Or sequentially in priority order (P1 → P1 → P2 → P3 → P3)
-- **API Integration (Phase 8)**: Depends on user stories being complete
-- **Polish (Phase 9)**: Depends on all desired user stories being complete
+```
+Phase 1 (Setup)
+    ↓
+Phase 2 (Foundational) ←— BLOCKS everything below
+    ├── Phase 3 (US1 - Task Creation)      P1
+    ├── Phase 4 (US2 - Task Listing)       P2
+    ├── Phase 5 (US3 - Task Completion)    P2
+    ├── Phase 6 (US6 - Context Awareness)  P2
+    ├── Phase 7 (US4 - Task Updates)       P3
+    └── Phase 8 (US5 - Task Deletion)      P3
+                ↓
+          Final Phase (Polish)
+```
+
+### Within Phase 2 (Foundational)
+
+```
+T002, T003, T004, T005, T006, T007  ← all independent, run in parallel
+                ↓
+             T008  ← requires T006 + T007
+                ↓
+             T009  ← requires T005 + T008
+```
 
 ### User Story Dependencies
 
-- **User Story 1 (P1)**: Can start after Foundational (Phase 2) - No dependencies on other stories
-- **User Story 2 (P1)**: Can start after Foundational (Phase 2) - Independent of US1 but complements it
-- **User Story 3 (P2)**: Can start after Foundational (Phase 2) - Independent but requires tasks to exist (can use US1 to create test data)
-- **User Story 4 (P3)**: Can start after Foundational (Phase 2) - Independent but requires tasks to exist (can use US1 to create test data)
-- **User Story 5 (P3)**: Can start after Foundational (Phase 2) - Independent but requires tasks to exist (can use US1 to create test data)
-
-### Within Each User Story
-
-- Tool wrapper implementation before handler implementation
-- Handler implementation before verification script
-- All components must follow OpenAI Agents SDK patterns
-
-### Parallel Opportunities
-
-- **Setup Phase**: T003 (create __init__.py files) and T004 (README) can run in parallel
-- **Foundational Phase**: T008-T010 can run in parallel after T006-T007
-- **Once Foundational completes**: All user stories (US1-US5) can start in parallel if team capacity allows
-- **API Integration**: T026-T029 can run in parallel (different files)
-- **Polish Phase**: T030-T034 can all run in parallel (different files)
+All Phase 3–8 stories depend only on Phase 2 being complete — they are **independent of each other** and can be worked in parallel.
 
 ---
 
-## Parallel Example: After Foundational Phase
+## Parallel Execution Examples
+
+### Phase 2 Parallel Group
 
 ```bash
-# With sufficient team capacity, launch all user stories in parallel:
-Task: "Implement add_task wrapper in backend/src/agents/mcp/mcp_tools.py" (US1)
-Task: "Implement list_tasks wrapper in backend/src/agents/mcp/mcp_tools.py" (US2)
-Task: "Implement complete_task wrapper in backend/src/agents/mcp/mcp_tools.py" (US3)
-Task: "Implement update_task wrapper in backend/src/agents/mcp/mcp_tools.py" (US4)
-Task: "Implement delete_task wrapper in backend/src/agents/mcp/mcp_tools.py" (US5)
+# All 6 tasks can execute simultaneously (different files):
+T002  →  src/agents/mcp/mcp_tools.py
+T003  →  src/agents/api/schemas.py
+T004  →  src/main.py
+T005  →  src/agents/core/runner.py
+T006  →  src/services/conversation_service.py
+T007  →  src/services/message_service.py
+```
 
-# All wrappers in different files - no conflicts
+### Phase 3–8 Parallel (after Phase 2)
+
+```bash
+# US1 tests    →  tests/agents/test_mcp_tools.py + test_agent_api.py
+# US2 tests    →  tests/agents/test_agent_api.py
+# US3 tests    →  tests/agents/test_mcp_tools.py + test_agent_api.py
+# US4/US5 tests → tests/agents/test_mcp_tools.py + test_agent_api.py
+# US6 tests    →  tests/agents/test_message_service.py + test_agent_api.py
 ```
 
 ---
 
 ## Implementation Strategy
 
-### MVP First (User Stories 1 & 2 Only)
+### MVP (Phase 2 + US1 only — 10 tasks)
 
-1. Complete Phase 1: Setup
-2. Complete Phase 2: Foundational (CRITICAL - blocks all stories)
-3. Complete Phase 3: User Story 1 (add_task)
-4. Complete Phase 4: User Story 2 (list_tasks)
-5. **STOP and VALIDATE**: Test both tools independently
-6. Deploy/demo if ready - Basic natural language task management works!
-
-**MVP delivers**: AI agent can create and list tasks via natural language - the two most critical operations.
+1. Complete Phase 1 (T001)
+2. Complete Phase 2 parallel group (T002–T007) — foundation built
+3. Complete Phase 2 sequential (T008–T009) — endpoint wired
+4. Complete Phase 3 / US1 (T010–T011) — task creation working end-to-end
+5. **STOP and VALIDATE**: `POST /api/v1/agent/{user_id}/chat` with `"Add task to buy groceries"` → 200 with `tool_calls`
+6. Demo if ready — all other stories share the same endpoint and tooling
 
 ### Incremental Delivery
 
-1. Complete Setup + Foundational → Foundation ready
-2. Add User Story 1 → Test independently → Deploy/Demo (Can create tasks!)
-3. Add User Story 2 → Test independently → Deploy/Demo (MVP! Create + List)
-4. Add User Story 3 → Test independently → Deploy/Demo (+ Complete tasks)
-5. Add User Story 4 → Test independently → Deploy/Demo (+ Update tasks)
-6. Add User Story 5 → Test independently → Deploy/Demo (Full CRUD!)
-7. Each story adds value without breaking previous stories
-
-### Parallel Team Strategy
-
-With multiple developers after Foundational phase:
-
-1. Team completes Setup + Foundational together
-2. Once Foundational is done:
-   - Developer A: User Story 1 (add_task)
-   - Developer B: User Story 2 (list_tasks)
-   - Developer C: User Story 3 (complete_task)
-   - Developer D: User Story 4 (update_task)
-   - Developer E: User Story 5 (delete_task)
-3. Stories complete and integrate independently via agent coordination
+1. MVP (Phase 2 + US1) → validate task creation end-to-end
+2. Add US2 + US3 (T012–T014) → all read/write operations working
+3. Add US6 (T015–T017) → multi-turn conversations validated
+4. Add US4 + US5 (T018–T021) → full CRUD complete
+5. Add Final Phase (T022–T025) → production-ready test coverage
 
 ---
 
-## OpenAI Agents SDK Compliance
+## Files Created / Modified
 
-**CRITICAL**: All tasks explicitly reference "Follow OpenAI Agents SDK patterns" because:
-- OpenAI Agents SDK defines the official structure for agent creation and tool integration
-- Manual invention of custom agent structure is prohibited
-- Claude Code must generate code according to OpenAI Agents SDK patterns
-- Agent configuration, tool registration, and execution must follow OpenAI Agents SDK conventions
-
-Each implementation task includes "following OpenAI Agents SDK patterns" directive.
-
----
-
-## Notes
-
-- [P] tasks = different files, no dependencies
-- [Story] label maps task to specific user story for traceability
-- Each user story should be independently completable and testable
-- All tools MUST remain stateless (no in-memory storage)
-- All tools MUST enforce user_id scoping for security
-- Backend communication MUST be via MCP tools only (no direct database access from agent)
-- Commit after each task or logical group
-- Stop at any checkpoint to validate story independently
-- Follow OpenAI Agents SDK patterns for all agent-related implementation
-- Verification scripts are for manual testing (not automated tests per spec)
+| Task | File | Action |
+|------|------|--------|
+| T002 | `src/agents/mcp/mcp_tools.py` | Modify — `task_id: int` → `str` |
+| T003 | `src/agents/api/schemas.py` | Modify — `tool_calls` default `[]` |
+| T004 | `src/main.py` | Verify/Modify — router prefix |
+| T005 | `src/agents/core/runner.py` | Modify — `AgentRunResult` + tool_calls extraction |
+| T006 | `src/services/conversation_service.py` | **Create** |
+| T007 | `src/services/message_service.py` | **Create** |
+| T008 | `src/agents/api/agent_handler.py` | Modify — replace TODO stubs |
+| T009 | `src/agents/api/agent_routes.py` | Modify — add auth + DB deps |
+| T010, T013, T018, T020 | `tests/agents/test_mcp_tools.py` | **Create** |
+| T011, T012, T014, T017, T019, T021, T023, T024 | `tests/agents/test_agent_api.py` | **Create** |
+| T015, T016, T025 | `tests/agents/test_message_service.py` | **Create** |
+| T022 | `tests/agents/test_conversation_service.py` | **Create** |
 
 ---
 
-## Key Requirements Checklist
+**Total tasks**: 25
+**Phase 2 (foundational)**: 8 tasks (T002–T009)
+**User story tasks**: 12 tasks (T010–T021, across US1–US6)
+**Polish/cross-cutting**: 4 tasks (T022–T025)
+**Parallel opportunities**: 10 tasks marked [P]
 
-Per user requirements, this task list ensures:
-
-✅ Tasks follow OpenAI Agents SDK patterns (explicitly stated in each implementation task)
-✅ Stateless agent (no in-memory storage, validated in T034)
-✅ All tools accept user_id (specified in T011, T014, T017, T020, T023)
-✅ All operations use database models (via MCP tools in foundational T007)
-✅ Follow existing schema patterns (schemas defined in T008 matching backend)
-✅ Include validation and error handling (T010 foundational, per-handler in implementation)
-✅ Return structured responses (schemas in T008, responses in each handler)
-✅ Each task self-contained (one tool per task in Phases 3-7)
-✅ Include verification step in each task (verify_*.py scripts in T013, T016, T019, T022, T025)
-✅ Confirm stateless behavior (T034 restart test)
-✅ No frontend, agent, or chat endpoint work (strictly backend agent tier only)
-
----
-
-## Next Steps
-
-1. Review and approve this task list
-2. Begin implementation starting with Phase 1 (Setup)
-3. Use `/sp.implement` to execute the implementation plan when ready
-4. Each task can be worked on independently following the checklist format
+**Plan Status**: ✅ Ready for `/sp.implement`
+**Endpoint**: `POST /api/v1/agent/{user_id}/chat`

@@ -4,6 +4,8 @@
  * Handles communication with the backend agent endpoint
  */
 
+import { TokenStorage } from '@/lib/auth/token-storage';
+
 export interface SendMessageRequest {
   message: string;
 }
@@ -29,15 +31,17 @@ export interface SendMessageError {
  * @throws SendMessageError if request fails
  */
 export async function sendMessage(
-  userId: number,
+  userId: string,
   message: string
 ): Promise<SendMessageResponse> {
   try {
     const baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+    const token = TokenStorage.getAccessToken();
     const response = await fetch(`${baseURL}/${userId}/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({ message }),
     });

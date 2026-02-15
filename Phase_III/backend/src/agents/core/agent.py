@@ -46,7 +46,7 @@ def create_task_agent() -> Agent:
             delete_task,
         ],
         model=settings.agent_model_name,
-        model_settings=ModelSettings(extra_args={"max_tokens": settings.agent_max_tokens}),
+        model_settings=ModelSettings(max_tokens=settings.agent_max_tokens),
     )
 
     return agent

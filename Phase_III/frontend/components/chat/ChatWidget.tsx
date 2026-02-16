@@ -8,6 +8,7 @@
 
 import { ChatKitWrapper } from './ChatKitWrapper';
 import { useChatMessages } from '@/lib/hooks/useChatMessages';
+import { useTasks } from '@/contexts/TasksContext';
 
 export interface ChatWidgetProps {
   userId: string | null;
@@ -21,7 +22,8 @@ export interface ChatWidgetProps {
  * Displays a chat interface that floats on desktop and goes full-screen on mobile
  */
 export function ChatWidget({ userId, isOpen, onClose }: ChatWidgetProps) {
-  const { messages, isLoading, sendUserMessage } = useChatMessages(userId);
+  const { triggerRefresh } = useTasks();
+  const { messages, isLoading, sendUserMessage } = useChatMessages(userId, triggerRefresh);
 
   if (!isOpen) return null;
 

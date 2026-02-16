@@ -7,6 +7,7 @@ import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from src.agents.api.agent_handler import AgentRequestHandler
@@ -15,6 +16,8 @@ from src.agents.api.serializers import format_error_response
 from src.auth.dependencies import get_current_user_with_path_validation
 from src.auth.models import AuthenticatedUser
 from src.api.deps import get_session
+
+_bearer = HTTPBearer()
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +28,7 @@ router = APIRouter(tags=["agent"])
 async def agent_chat(
     user_id: str,
     request: AgentChatRequest,
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(_bearer)],
     current_user: Annotated[AuthenticatedUser, Depends(get_current_user_with_path_validation)],
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> AgentChatResponse:
@@ -56,7 +60,7 @@ async def agent_chat(
 
     try:
         handler = AgentRequestHandler()
-        return await handler.process_chat_request(user_id, request, db)
+        return await handler.process_chat_request(user_id, request, db, token=credentials.credentials)
 
     except HTTPException:
         raise  # Re-raise 403/404 from conversation_service

@@ -7,7 +7,7 @@ import { useTasks } from '@/contexts/TasksContext'
 import type { TaskRead } from '@/lib/api/types'
 
 export function OverviewSection() {
-  const { tasks, setTasks } = useTasks()
+  const { tasks, setTasks, refreshKey } = useTasks()
 
   // Handle task changes from TaskStream and update context
   const handleTasksChange = (updatedTasks: TaskRead[]) => {
@@ -40,7 +40,7 @@ export function OverviewSection() {
         <h2 id="tasks-heading" className="text-lg md:text-xl font-semibold text-slate-700 dark:text-slate-200 mb-5">
           Active Tasks
         </h2>
-        <TaskStream onTasksChange={handleTasksChange} />
+        <TaskStream onTasksChange={handleTasksChange} refreshKey={refreshKey} />
       </motion.section>
     </>
   )

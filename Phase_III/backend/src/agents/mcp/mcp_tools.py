@@ -25,7 +25,7 @@ async def add_task(
         description: Optional task description
 
     Returns:
-        dict: Created task with task_id, title, description, status, created_at
+        dict: Created task with id (UUID), title, description, is_completed, priority, created_at, user_id
 
     Example:
         User: "Add a task to buy groceries"
@@ -50,7 +50,7 @@ async def add_task(
             description=description,
         )
 
-        logger.info(f"add_task success: task_id={result.get('task_id')}")
+        logger.info(f"add_task success: id={result.get('id')}")
         return result
 
     except Exception as e:
@@ -113,7 +113,7 @@ async def complete_task(
         task_id: The task UUID string returned by list_tasks (e.g. '3f8a2b-uuid-string')
 
     Returns:
-        dict: Updated task with task_id and status="completed"
+        dict: Updated task with id (UUID), title, is_completed=True, priority, updated_at
 
     Example:
         User: "Mark task 123 as done"
@@ -137,7 +137,7 @@ async def complete_task(
             task_id=task_id,
         )
 
-        logger.info(f"complete_task success: task_id={result.get('task_id')}")
+        logger.info(f"complete_task success: id={result.get('id')}")
         return result
 
     except Exception as e:
@@ -160,7 +160,7 @@ async def update_task(
         description: Optional new description
 
     Returns:
-        dict: Updated task with task_id, title, description, updated_at
+        dict: Updated task with id (UUID), title, description, is_completed, priority
 
     Example:
         User: "Change task 123 title to 'Buy almond milk'"
@@ -186,7 +186,7 @@ async def update_task(
             description=description,
         )
 
-        logger.info(f"update_task success: task_id={result.get('task_id')}")
+        logger.info(f"update_task success: id={result.get('id')}")
         return result
 
     except Exception as e:
@@ -205,7 +205,7 @@ async def delete_task(
         task_id: The task UUID string returned by list_tasks (e.g. '3f8a2b-uuid-string')
 
     Returns:
-        dict: Deletion confirmation with task_id and deleted=True
+        dict: Deletion confirmation with success=True and message
 
     Example:
         User: "Delete task 123"
@@ -229,7 +229,7 @@ async def delete_task(
             task_id=task_id,
         )
 
-        logger.info(f"delete_task success: task_id={result.get('task_id')}, deleted={result.get('deleted')}")
+        logger.info(f"delete_task success: {result.get('message')}")
         return result
 
     except Exception as e:

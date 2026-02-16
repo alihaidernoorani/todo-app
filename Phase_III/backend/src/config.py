@@ -71,6 +71,14 @@ class Settings(BaseSettings):
         description="Maximum tokens for agent responses (default: 2000)",
     )
 
+    # Internal backend URL for agent self-calls (MCP tools → REST API)
+    # Must match the port uvicorn is actually listening on (7860 in HF Spaces Dockerfile)
+    backend_base_url: str = Field(
+        default="http://localhost:7860",
+        alias="BACKEND_BASE_URL",
+        description="Base URL for internal backend API self-calls",
+    )
+
     @field_validator("allowed_origins", mode="before")
     @classmethod
     def parse_cors_origins(cls, v: str | list[str]) -> list[str]:

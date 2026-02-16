@@ -1,19 +1,22 @@
-"""Agent runner wrapper for OpenAI Agents SDK.
+"""Agent runner wrapper for OpenAI Agents SDK (hybrid mode).
 
 This module provides a wrapper function around Runner.run() to execute
-the agent with conversation history and context, returning both the
-response text and any tool calls made during the run.
+the agent in hybrid mode:
+- add_task: Text-parsing (no tool)
+- Other operations: Function calling with MCP tools
+
+Tool calls are extracted from result.new_items for operations that use tools.
 """
 
 import json
 from dataclasses import dataclass, field
 from typing import Any, Dict, List
+import logging
 
 from agents import Runner
 from agents.items import ToolCallItem, ToolCallOutputItem
 
 from src.agents.core.agent import create_task_agent
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -35,24 +38,25 @@ async def run_agent(
     conversation_history: List[Dict[str, str]] | None = None,
     context: Dict[str, Any] | None = None,
 ) -> AgentRunResult:
-    """Run the task management agent with user message and context.
+    """Run the task management agent with user message (hybrid mode).
 
-    Executes the agent using Runner.run(), extracts tool calls from
-    result.new_items, and returns an AgentRunResult with both the
-    response text and the tool call list.
+    Executes the agent using Runner.run() in hybrid mode:
+    - add_task: Text-parsing (no tool, parsed by response_parser)
+    - Other operations: Function calling with MCP tools
 
     Args:
         user_message: The user's current message
         conversation_history: Optional list of previous messages for context
-        context: Dict with mcp_client and user_id (required)
+        context: Dict with mcp_client and user_id (required for tool operations)
 
     Returns:
-        AgentRunResult with response_text and tool_calls list
+        AgentRunResult with response_text and tool_calls (from function calling)
 
     Raises:
-        ValueError: If context is missing mcp_client or user_id
+        ValueError: If context is missing when tools are available
         Exception: If agent execution fails
     """
+    # Validate context for tool operations
     if not context:
         raise ValueError("Context is required with mcp_client and user_id")
 
@@ -68,11 +72,14 @@ async def run_agent(
     # Append current user message — confirmed SDK format
     messages = history + [{"role": "user", "content": user_message}]
 
-    logger.info(f"Running agent: {len(history)} history messages + current message")
+    logger.info(
+        f"Running agent (hybrid mode): {len(history)} history messages + current message"
+    )
 
+    # Run agent with context for tool operations
     result = await Runner.run(agent, messages, context=context)
 
-    # Extract tool calls from result.new_items using SDK-confirmed isinstance checks
+    # Extract tool calls from result.new_items (for list/complete/update/delete operations)
     tool_calls = []
     for item in result.new_items:
         if isinstance(item, ToolCallItem):
@@ -95,7 +102,7 @@ async def run_agent(
                 tool_calls[-1]["result"] = {"output": str(output)}
 
     logger.info(
-        f"Agent complete: response={result.final_output[:80]!r}, tool_calls={len(tool_calls)}"
+        f"Agent complete (hybrid mode): response={result.final_output[:80]!r}, tool_calls={len(tool_calls)}"
     )
 
     return AgentRunResult(

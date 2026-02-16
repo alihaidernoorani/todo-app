@@ -3,7 +3,7 @@
 from functools import lru_cache
 from typing import Optional
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -24,7 +24,7 @@ class Settings(BaseSettings):
 
     # Server Configuration
     host: str = Field(default="0.0.0.0", alias="HOST")
-    port: int = Field(default=8000, alias="PORT")
+    port: int = Field(default=7860, alias="PORT")
     debug: bool = Field(default=False, alias="DEBUG")
 
     # Authentication Configuration
@@ -72,13 +72,31 @@ class Settings(BaseSettings):
     )
 
     # Internal backend URL for agent self-calls (MCP tools → REST API)
-    # Local dev: http://localhost:8000 (uvicorn default port)
-    # HF Spaces: set BACKEND_BASE_URL=http://localhost:7860 in environment
-    backend_base_url: str = Field(
-        default="http://localhost:8000",
+    # Auto-derived from PORT if not explicitly set (e.g. localhost:7860 on HF Spaces,
+    # localhost:8000 in local dev). Override with BACKEND_BASE_URL env var if needed.
+    backend_base_url: Optional[str] = Field(
+        default=None,
         alias="BACKEND_BASE_URL",
         description="Base URL for internal backend API self-calls",
     )
+
+    @model_validator(mode="after")
+    def set_backend_base_url(self) -> "Settings":
+        """Derive backend_base_url from port when not explicitly configured.
+
+        Uses 127.0.0.1 instead of localhost to force IPv4 and prevent
+        httpcore 'All connection attempts failed' errors caused by dual-stack
+        DNS resolution (localhost → [::1, 127.0.0.1]) when uvicorn only
+        binds to 0.0.0.0 (IPv4).
+        """
+        if self.backend_base_url is None:
+            self.backend_base_url = f"http://127.0.0.1:{self.port}"
+        else:
+            # Normalize any localhost URL to 127.0.0.1 to avoid IPv6 resolution
+            self.backend_base_url = self.backend_base_url.replace(
+                "http://localhost:", "http://127.0.0.1:"
+            )
+        return self
 
     @field_validator("allowed_origins", mode="before")
     @classmethod

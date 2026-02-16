@@ -1,6 +1,6 @@
 # Task Backend API
 
-Backend API for Phase 2 Todo Application with PostgreSQL database.
+Backend API for Phase 2 Todo Application with PostgreSQL database and AI agent integration.
 
 ## Features
 
@@ -9,6 +9,7 @@ Backend API for Phase 2 Todo Application with PostgreSQL database.
 - User-scoped data isolation (users can only access their own tasks)
 - PostgreSQL database with Alembic migrations
 - RESTful API with FastAPI
+- **AI Agent with Text-Parsing Mode** - Natural language task management (see [TEXT_PARSING_MODE.md](TEXT_PARSING_MODE.md))
 
 ## Quick Start
 
@@ -73,6 +74,40 @@ curl -X PATCH http://localhost:8000/api/550e8400-e29b-41d4-a716-446655440000/tas
 ```bash
 curl -X DELETE http://localhost:8000/api/550e8400-e29b-41d4-a716-446655440000/tasks/{task_id}
 ```
+
+### Chat with AI Agent (Text-Parsing Mode)
+
+```bash
+curl -X POST http://localhost:8000/api/{user_id}/chat \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -d '{"message": "Add a task to buy groceries"}'
+```
+
+Response:
+```json
+{
+  "conversation_id": "uuid",
+  "user_message_id": "uuid",
+  "agent_message_id": "uuid",
+  "agent_response": "Task added: Buy groceries",
+  "tool_calls": [
+    {
+      "tool_name": "add_task",
+      "arguments": {"title": "Buy groceries"},
+      "result": {"id": "task-uuid", "title": "Buy groceries", "is_completed": false}
+    }
+  ]
+}
+```
+
+**How it works:**
+1. Agent outputs exact pattern: `Task added: <task_name>`
+2. Backend parses the text and extracts task name
+3. Backend calls `POST /api/{user_id}/tasks` automatically
+4. Task is created in database and returned in `tool_calls`
+
+See [TEXT_PARSING_MODE.md](TEXT_PARSING_MODE.md) for full documentation.
 
 ## Testing
 

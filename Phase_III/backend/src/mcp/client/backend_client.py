@@ -121,7 +121,7 @@ class BackendClient:
         url = f"/api/{user_id}/tasks"
         payload = {"title": title, "description": description}
 
-        logger.info(f"Creating task for user {user_id}: {title}")
+        logger.info(f"Creating task for user {user_id}: {title} (target: {self.base_url}{url})")
 
         try:
             response = await client.post(url, json=payload)
@@ -130,6 +130,7 @@ class BackendClient:
         except httpx.HTTPStatusError as e:
             self._handle_error(e.response, "Create task")
         except httpx.RequestError as e:
+            logger.error(f"Network error creating task at {self.base_url}{url}: {e}", exc_info=True)
             raise BackendClientError(f"Network error: {e}")
 
     async def list_tasks(
@@ -158,7 +159,10 @@ class BackendClient:
         if status != "all":
             params["status"] = status
 
-        logger.info(f"Listing tasks for user {user_id} with status filter: {status}")
+        logger.info(
+            f"Listing tasks for user {user_id} with status filter: {status} "
+            f"(target: {self.base_url}{url})"
+        )
 
         try:
             response = await client.get(url, params=params)
@@ -167,6 +171,10 @@ class BackendClient:
         except httpx.HTTPStatusError as e:
             self._handle_error(e.response, "List tasks")
         except httpx.RequestError as e:
+            logger.error(
+                f"Network error listing tasks at {self.base_url}{url}: {e}",
+                exc_info=True,
+            )
             raise BackendClientError(f"Network error: {e}")
 
     async def complete_task(

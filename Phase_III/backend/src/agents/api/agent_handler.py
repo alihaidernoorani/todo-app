@@ -1,12 +1,15 @@
-"""Agent request handler for processing chat messages.
+"""Agent request handler for processing chat messages (hybrid mode).
 
 This module handles incoming agent chat requests by:
 1. Getting or creating a conversation (DB-backed)
 2. Loading conversation history from database
 3. Persisting the user message
-4. Executing the agent with MCP tools
-5. Persisting the assistant response
-6. Returning the complete AgentChatResponse
+4. Executing the agent (hybrid mode: text-parsing for add_task, function calling for others)
+5. Collecting tool calls from agent execution (list/complete/update/delete)
+6. Parsing agent response for add_task operations
+7. Calling backend API directly for parsed add_task operations
+8. Persisting the assistant response
+9. Returning the complete AgentChatResponse with all tool calls
 """
 
 import logging
@@ -14,6 +17,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from src.agents.core.conversation_handler import build_conversation_history
 from src.agents.core.runner import run_agent, AgentRunResult
+from src.agents.core.response_parser import parse_agent_response, ParsedTaskOperation
 from src.agents.api.schemas import AgentChatRequest, AgentChatResponse, ToolCallInfo
 from src.config import get_settings
 from src.mcp.client.backend_client import BackendClient
@@ -77,7 +81,7 @@ class AgentRequestHandler:
             db, conversation_id, user_id, "user", request.message
         )
 
-        # [6] + [7] Run agent with MCP tools
+        # [6] + [7] Run agent with MCP tools (hybrid mode)
         async with BackendClient(self.backend_base_url, token=token) as mcp_client:
             context = {"mcp_client": mcp_client, "user_id": user_id}
             run_result: AgentRunResult = await run_agent(
@@ -86,17 +90,52 @@ class AgentRequestHandler:
                 context=context,
             )
 
-        # [9] Persist assistant response
+        # [8] Collect tool calls from agent execution (list/complete/update/delete operations)
+        all_tool_calls = list(run_result.tool_calls)  # Copy tool calls from function calling
+
+        # [9] Parse agent response for add_task operation (text-parsing fallback)
+        parsed_op = parse_agent_response(run_result.response_text)
+
+        if parsed_op and parsed_op.operation == 'add':
+            # [10] Execute backend API call for add_task operation
+            logger.info(
+                f"Detected add_task operation from response: task_name='{parsed_op.task_name}'"
+            )
+
+            try:
+                async with BackendClient(self.backend_base_url, token=token) as backend_client:
+                    result = await backend_client.create_task(
+                        user_id=user_id,
+                        title=parsed_op.task_name,
+                        description=None,
+                    )
+
+                    logger.info(f"Backend API call successful: task_id={result.get('id')}")
+
+                    # Add to tool calls list
+                    all_tool_calls.append({
+                        "tool_name": "add_task",
+                        "arguments": {"title": parsed_op.task_name},
+                        "result": result,
+                    })
+
+            except Exception as e:
+                logger.error(f"Backend API call failed: {str(e)}", exc_info=True)
+                # Continue anyway - the agent's response will be returned
+
+        # [11] Persist assistant response
         agent_msg_id = await persist_message(
             db, conversation_id, user_id, "assistant", run_result.response_text
         )
 
         logger.info(
             f"Chat request processed: conversation_id={conversation_id}, "
-            f"tool_calls={len(run_result.tool_calls)}"
+            f"tool_calls_from_agent={len(run_result.tool_calls)}, "
+            f"parsed_operations={1 if parsed_op else 0}, "
+            f"total_tool_calls={len(all_tool_calls)}"
         )
 
-        # [10] Return complete response
+        # [12] Return complete response with all tool calls
         return AgentChatResponse(
             conversation_id=conversation_id,
             user_message_id=user_msg_id,
@@ -108,6 +147,6 @@ class AgentRequestHandler:
                     arguments=tc["arguments"],
                     result=tc["result"],
                 )
-                for tc in run_result.tool_calls
+                for tc in all_tool_calls
             ],
         )

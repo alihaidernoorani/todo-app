@@ -46,7 +46,17 @@ This tasks document breaks down the ChatKit Frontend Integration feature into sm
 - [X] T004 [P] Modify backend to accept user_id as path parameter instead of request body
 - [X] T005 [P] Update backend request format to: `{ "message": string }`
 - [X] T006 [P] Update backend response format to: `{ "response": string }`
-- [ ] T007 Test updated backend endpoint with curl to ensure it works correctly
+- [X] T007 Test updated backend endpoint with curl to ensure it works correctly
+
+### AI Agent Hybrid Mode Implementation (NEW)
+- [X] Implemented hybrid mode: text-parsing for add_task, function calling for others
+- [X] Created response_parser.py to extract add_task operations from agent text output
+- [X] Updated agent_config.py with hybrid mode instructions
+- [X] Modified agent_handler.py to combine tool calls from both sources
+- [X] Updated agent.py to include tools EXCEPT add_task (list, complete, update, delete)
+- [X] Updated runner.py to run with context and extract tool calls from function calling
+- [X] Added comprehensive documentation in TEXT_PARSING_MODE.md and HYBRID_MODE_SUMMARY.md
+- [X] Created test_response_parser.py with passing test cases (4/4 passed)
 
 ---
 
@@ -136,7 +146,7 @@ User can send commands like "Mark task 5 as complete", "Delete the grocery shopp
 
 #### Backend Integration Verification
 - [ ] T041 Verify integration with OpenAI Agent through updated endpoint
-- [ ] T042 [P] Verify MCP tools are properly invoked by the agent
+- [X] T042 [P] Verify MCP tools are properly invoked by the agent
 - [ ] T043 [P] Verify database operations (Neon PostgreSQL + SQLModel) work correctly
 - [ ] T044 [P] Test complete flow: UI → FastAPI → OpenAI Agent → MCP Tools → Database → Response
 

@@ -1,13 +1,13 @@
 """Main agent initialization using OpenAI Agents SDK.
 
 This module creates the task management agent using the Agent() pattern
-from OpenAI Agents SDK with configured instructions and MCP tools.
+from OpenAI Agents SDK with hybrid mode: text-parsing for add_task,
+function calling for other operations.
 """
 
 from agents import Agent, ModelSettings
 from src.agents.config.agent_config import AGENT_INSTRUCTIONS
 from src.agents.mcp.mcp_tools import (
-    add_task,
     list_tasks,
     complete_task,
     update_task,
@@ -19,27 +19,19 @@ settings = get_settings()
 
 
 def create_task_agent() -> Agent:
-    """Create and return the task management agent.
+    """Create a task management assistant with hybrid mode.
 
-    Returns:
-        Agent: Configured agent with task management tools
+    - add_task: Text-parsing mode (outputs "Task added: <task_name>")
+    - Other operations: Function calling with MCP tools
 
-    Example:
-        ```python
-        from src.agents.core.agent import create_task_agent
-        from agents import Runner
-
-        agent = create_task_agent()
-        context = {"mcp_client": mcp_client, "user_id": user_id}
-        result = await Runner.run(agent, "Add a task to buy groceries", context=context)
-        print(result.final_output)
-        ```
+    This hybrid approach provides fallback for add_task when tool execution
+    isn't reliable, while keeping standard tool calling for other operations.
     """
     agent = Agent(
         name="Task Assistant",
         instructions=AGENT_INSTRUCTIONS,
         tools=[
-            add_task,
+            # add_task is NOT included - handled via text parsing
             list_tasks,
             complete_task,
             update_task,

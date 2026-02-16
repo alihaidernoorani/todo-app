@@ -54,6 +54,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     """
     # Use already loaded settings (cached)
 
+    logger.info(
+        "Agent self-call URL: %s (PORT=%s)",
+        settings.backend_base_url, settings.port,
+    )
+
     # Startup: Validate JWKS endpoint and cache client (optional)
     logger.info("Validating JWKS endpoint: %s", settings.better_auth_jwks_url)
     try:

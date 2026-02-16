@@ -50,11 +50,11 @@ async def add_task(
             description=description,
         )
 
-        logger.info(f"add_task success: id={result.get('id')}")
+        logger.info(f"add_task raw result: {result} success: id={result.get('id')}")
         return result
 
     except Exception as e:
-        logger.error(f"add_task failed: {str(e)}")
+        logger.error(f"add_task failed: {str(e)}", exc_info=True)
         raise
 
 
@@ -98,7 +98,7 @@ async def list_tasks(
         return result
 
     except Exception as e:
-        logger.error(f"list_tasks failed: {str(e)}")
+        logger.error(f"list_tasks failed: {str(e)}", exc_info=True)
         raise
 
 
@@ -141,7 +141,7 @@ async def complete_task(
         return result
 
     except Exception as e:
-        logger.error(f"complete_task failed: {str(e)}")
+        logger.error(f"complete_task failed: {str(e)}", exc_info=True)
         raise
 
 
@@ -190,7 +190,7 @@ async def update_task(
         return result
 
     except Exception as e:
-        logger.error(f"update_task failed: {str(e)}")
+        logger.error(f"update_task failed: {str(e)}", exc_info=True)
         raise
 
 
@@ -233,7 +233,7 @@ async def delete_task(
         return result
 
     except Exception as e:
-        logger.error(f"delete_task failed: {str(e)}")
+        logger.error(f"delete_task failed: {str(e)}", exc_info=True)
         raise
 
 

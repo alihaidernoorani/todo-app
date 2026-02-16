@@ -55,3 +55,8 @@ htmlcov/
 
 # OS files
 Thumbs.db
+
+# Kubernetes binaries (install via package manager)
+kubectl
+minikube
+minikube-*

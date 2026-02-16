@@ -90,19 +90,7 @@ async function makeAuthenticatedRequest<T>(
         error: { code: ERROR_CODES.AUTH_FAILED, message: 'Failed to get JWT token', status: 401 }
       };
     }
-    // Inside makeAuthenticatedRequest, after getting the jwt
-    console.log("--- DEBUG ID CLASH ---");
-    console.log("Better Auth ID (URL):", userId);
 
-    // Decode the JWT to see what the Backend thinks your ID is
-    try {
-      const payload = JSON.parse(atob(jwt.split('.')[1]));
-      console.log("Backend JWT ID:", payload.sub || payload.user_id || payload.id);
-    } catch (e) {
-      console.log("Could not decode JWT payload");
-    }
-    console.log("----------------------");
-   
     // 3. Construct URL
     // NEW (Fixed)
     const baseURL = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';

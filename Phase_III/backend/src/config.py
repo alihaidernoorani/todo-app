@@ -72,9 +72,10 @@ class Settings(BaseSettings):
     )
 
     # Internal backend URL for agent self-calls (MCP tools → REST API)
-    # Must match the port uvicorn is actually listening on (7860 in HF Spaces Dockerfile)
+    # Local dev: http://localhost:8000 (uvicorn default port)
+    # HF Spaces: set BACKEND_BASE_URL=http://localhost:7860 in environment
     backend_base_url: str = Field(
-        default="http://localhost:7860",
+        default="http://localhost:8000",
         alias="BACKEND_BASE_URL",
         description="Base URL for internal backend API self-calls",
     )

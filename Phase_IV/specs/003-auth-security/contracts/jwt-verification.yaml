@@ -1,0 +1,264 @@
+openapi: 3.1.0
+info:
+  title: JWT Authentication Contract
+  version: 1.0.0
+  description: |
+    API contract for stateless JWT authentication using RS256 signature verification with JWKS public keys.
+    
+    **Authentication Flow**:
+    1. User signs in via Better Auth
+    2. Better Auth issues JWT token signed with RS256
+    3. Frontend stores token in localStorage
+    4. Frontend sends token in `Authorization: Bearer <token>` header
+    5. Backend verifies token signature using JWKS public keys
+    6. Backend extracts user identity from `sub` claim
+
+servers:
+  - url: https://api.example.com
+    description: Production API server
+  - url: http://localhost:8000
+    description: Local development server
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT token obtained from Better Auth sign-in.
+        Include in Authorization header as: `Bearer <token>`
+
+  schemas:
+    AuthenticatedUser:
+      type: object
+      required:
+        - user_id
+        - email
+        - exp
+        - iss
+      properties:
+        user_id:
+          type: string
+          description: User ID extracted from JWT `sub` claim
+          example: "user-uuid-abc123"
+        email:
+          type: string
+          format: email
+          description: User email from JWT claim
+          example: "user@example.com"
+        name:
+          type: string
+          nullable: true
+          description: User display name (optional)
+          example: "John Doe"
+        exp:
+          type: string
+          format: date-time
+          description: Token expiration timestamp
+          example: "2026-01-26T15:15:00Z"
+        iss:
+          type: string
+          format: uri
+          description: Token issuer (Better Auth URL)
+          example: "https://app.example.com"
+
+    AuthError:
+      type: object
+      required:
+        - error
+        - error_code
+        - message
+      properties:
+        error:
+          type: string
+          description: Short error identifier
+          example: "Unauthorized"
+        error_code:
+          type: string
+          enum:
+            - missing_token
+            - invalid_token
+            - expired_token
+            - untrusted_issuer
+            - missing_claim
+            - service_unavailable
+          description: Machine-readable error code
+          example: "expired_token"
+        message:
+          type: string
+          description: Human-readable error message
+          example: "Token has expired"
+
+    ForbiddenError:
+      type: object
+      required:
+        - error
+        - error_code
+        - message
+      properties:
+        error:
+          type: string
+          description: Error type
+          example: "Forbidden"
+        error_code:
+          type: string
+          enum:
+            - forbidden
+          description: Error code for authorization failures
+          example: "forbidden"
+        message:
+          type: string
+          description: Error message
+          example: "Access denied: cannot access another user's resources"
+        details:
+          type: object
+          nullable: true
+          properties:
+            token_user_id:
+              type: string
+              description: User ID from JWT token
+            requested_user_id:
+              type: string
+              description: User ID from URL path parameter
+
+    ServiceUnavailableError:
+      type: object
+      required:
+        - error
+        - error_code
+        - message
+      properties:
+        error:
+          type: string
+          example: "Service Unavailable"
+        error_code:
+          type: string
+          enum:
+            - service_unavailable
+          example: "service_unavailable"
+        message:
+          type: string
+          example: "Authentication service temporarily unavailable"
+        retry_after:
+          type: integer
+          description: Suggested retry delay in seconds
+          example: 60
+
+paths:
+  /api/v1/me:
+    get:
+      summary: Get current authenticated user
+      description: |
+        Returns information about the currently authenticated user.
+        Requires valid JWT token in Authorization header.
+      operationId: getCurrentUser
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Successfully retrieved current user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthenticatedUser'
+              examples:
+                success:
+                  value:
+                    user_id: "user-uuid-abc123"
+                    email: "user@example.com"
+                    name: "John Doe"
+                    exp: "2026-01-26T15:15:00Z"
+                    iss: "https://app.example.com"
+        '401':
+          description: Authentication failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthError'
+              examples:
+                missing_token:
+                  value:
+                    error: "Unauthorized"
+                    error_code: "missing_token"
+                    message: "No Authorization header provided"
+                expired_token:
+                  value:
+                    error: "Unauthorized"
+                    error_code: "expired_token"
+                    message: "Token has expired"
+                invalid_signature:
+                  value:
+                    error: "Unauthorized"
+                    error_code: "invalid_token"
+                    message: "Invalid token: signature verification failed"
+        '503':
+          description: JWKS endpoint unreachable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceUnavailableError'
+
+  /api/v1/{user_id}/tasks:
+    get:
+      summary: Get tasks for a specific user
+      description: |
+        Returns tasks for the specified user. Enforces user ID scoping -
+        authenticated user can only access their own tasks.
+      operationId: getUserTasks
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: User ID (must match JWT sub claim)
+          example: "user-uuid-abc123"
+      responses:
+        '200':
+          description: Successfully retrieved tasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    title:
+                      type: string
+                    description:
+                      type: string
+                    completed:
+                      type: boolean
+        '401':
+          description: Authentication failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthError'
+        '403':
+          description: Authorization failed (user ID mismatch)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForbiddenError'
+              example:
+                error: "Forbidden"
+                error_code: "forbidden"
+                message: "Access denied: cannot access another user's resources"
+                details:
+                  token_user_id: "user-123"
+                  requested_user_id: "user-456"
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Authentication
+    description: JWT authentication endpoints
+  - name: User Resources
+    description: User-scoped resource endpoints

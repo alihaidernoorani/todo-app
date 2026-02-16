@@ -26,7 +26,7 @@
 
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { listTasks } from "@/lib/api/tasks"
 import { useOptimisticTask } from "@/lib/hooks/use-optimistic-task"
@@ -41,9 +41,13 @@ interface TaskStreamProps {
    * Callback to notify parent when tasks change (for metrics calculation)
    */
   onTasksChange?: (tasks: TaskRead[]) => void
+  /**
+   * Increment to trigger a full task re-fetch (e.g. after a chat action)
+   */
+  refreshKey?: number
 }
 
-export function TaskStream({ onTasksChange }: TaskStreamProps = {}) {
+export function TaskStream({ onTasksChange, refreshKey }: TaskStreamProps = {}) {
   const [initialTasks, setInitialTasks] = useState<TaskRead[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
@@ -57,27 +61,34 @@ export function TaskStream({ onTasksChange }: TaskStreamProps = {}) {
     clearError,
   } = useOptimisticTask(initialTasks)
 
-  // Fetch tasks on mount
-  useEffect(() => {
-    const fetchTasks = async () => {
-      try {
-        const result = await listTasks()
-        if (result.success) {
-          const tasks = result.data.items
-          setInitialTasks(tasks)
-          // Notify parent immediately with fetched tasks
-          onTasksChange?.(tasks)
-        }
-      } catch (error) {
-        console.error("Failed to fetch tasks:", error)
-      } finally {
-        setIsLoading(false)
+  const fetchTasks = useCallback(async () => {
+    try {
+      const result = await listTasks()
+      if (result.success) {
+        const fetched = result.data.items
+        setInitialTasks(fetched)
+        onTasksChange?.(fetched)
       }
+    } catch (error) {
+      console.error("Failed to fetch tasks:", error)
+    } finally {
+      setIsLoading(false)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
+  // Fetch on mount
+  useEffect(() => {
     fetchTasks()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []) // Run only on mount
+  }, [fetchTasks])
+
+  // Re-fetch when chat triggers a refresh
+  useEffect(() => {
+    if (refreshKey && refreshKey > 0) {
+      fetchTasks()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey])
 
   // Handle update task
   const handleUpdate = async (taskData: TaskCreate | TaskUpdate) => {

@@ -31,23 +31,29 @@ class BackendClient:
     All methods accept user_id for proper request scoping.
     """
 
-    def __init__(self, base_url: str, timeout: float = 30.0):
+    def __init__(self, base_url: str, timeout: float = 30.0, token: str | None = None):
         """Initialize backend client.
 
         Args:
-            base_url: Base URL of FastAPI backend (e.g., http://localhost:8000)
+            base_url: Base URL of FastAPI backend (e.g., http://localhost:7860)
             timeout: Request timeout in seconds (default: 30)
+            token: JWT bearer token to forward with every request
         """
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
+        self.token = token
         self._client: httpx.AsyncClient | None = None
 
     async def __aenter__(self) -> "BackendClient":
         """Async context manager entry."""
+        headers = {}
+        if self.token:
+            headers["Authorization"] = f"Bearer {self.token}"
         self._client = httpx.AsyncClient(
             base_url=self.base_url,
             timeout=httpx.Timeout(self.timeout),
             limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
+            headers=headers,
         )
         return self
 

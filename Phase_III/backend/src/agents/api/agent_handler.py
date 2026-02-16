@@ -9,13 +9,13 @@ This module handles incoming agent chat requests by:
 6. Returning the complete AgentChatResponse
 """
 
-import os
 import logging
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from src.agents.core.conversation_handler import build_conversation_history
 from src.agents.core.runner import run_agent, AgentRunResult
 from src.agents.api.schemas import AgentChatRequest, AgentChatResponse, ToolCallInfo
+from src.config import get_settings
 from src.mcp.client.backend_client import BackendClient
 from src.services.conversation_service import get_or_create_conversation
 from src.services.message_service import load_conversation_history, persist_message
@@ -30,17 +30,16 @@ class AgentRequestHandler:
         """Initialize handler with backend client configuration.
 
         Args:
-            backend_base_url: Base URL for backend API (default: from env or localhost)
+            backend_base_url: Base URL for backend API (default: from Settings)
         """
-        self.backend_base_url = backend_base_url or os.getenv(
-            "BACKEND_BASE_URL", "http://localhost:8000"
-        )
+        self.backend_base_url = backend_base_url or get_settings().backend_base_url
 
     async def process_chat_request(
         self,
         user_id: str,
         request: AgentChatRequest,
         db: AsyncSession,
+        token: str = None,
     ) -> AgentChatResponse:
         """Process an agent chat request following the stateless request cycle.
 
@@ -66,17 +65,20 @@ class AgentRequestHandler:
         # [3] Get or create conversation
         conversation = await get_or_create_conversation(db, user_id, request.conversation_id)
 
+        # Cache conversation.id to avoid lazy-load after SQLAlchemy expires the object
+        conversation_id = conversation.id
+
         # [4] Load conversation history from DB (last 20, oldest-first)
-        raw_messages = await load_conversation_history(db, conversation.id)
+        raw_messages = await load_conversation_history(db, conversation_id)
         conversation_history = build_conversation_history(raw_messages)
 
         # [5] Persist user message BEFORE running agent
         user_msg_id = await persist_message(
-            db, conversation.id, user_id, "user", request.message
+            db, conversation_id, user_id, "user", request.message
         )
 
         # [6] + [7] Run agent with MCP tools
-        async with BackendClient(self.backend_base_url) as mcp_client:
+        async with BackendClient(self.backend_base_url, token=token) as mcp_client:
             context = {"mcp_client": mcp_client, "user_id": user_id}
             run_result: AgentRunResult = await run_agent(
                 user_message=request.message,
@@ -86,17 +88,17 @@ class AgentRequestHandler:
 
         # [9] Persist assistant response
         agent_msg_id = await persist_message(
-            db, conversation.id, user_id, "assistant", run_result.response_text
+            db, conversation_id, user_id, "assistant", run_result.response_text
         )
 
         logger.info(
-            f"Chat request processed: conversation_id={conversation.id}, "
+            f"Chat request processed: conversation_id={conversation_id}, "
             f"tool_calls={len(run_result.tool_calls)}"
         )
 
         # [10] Return complete response
         return AgentChatResponse(
-            conversation_id=conversation.id,
+            conversation_id=conversation_id,
             user_message_id=user_msg_id,
             agent_message_id=agent_msg_id,
             agent_response=run_result.response_text,

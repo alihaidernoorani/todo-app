@@ -76,9 +76,14 @@ async def run_agent(
     tool_calls = []
     for item in result.new_items:
         if isinstance(item, ToolCallItem):
+            raw_args = item.raw_item.arguments or "{}"
+            try:
+                parsed_args = json.loads(raw_args) if isinstance(raw_args, str) else raw_args
+            except (json.JSONDecodeError, TypeError):
+                parsed_args = {"raw": str(raw_args)}
             tool_calls.append({
                 "tool_name": item.raw_item.name,
-                "arguments": item.raw_item.arguments or {},
+                "arguments": parsed_args,
                 "result": {},
             })
         elif isinstance(item, ToolCallOutputItem) and tool_calls:

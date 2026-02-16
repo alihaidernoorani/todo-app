@@ -9,12 +9,19 @@ interface TasksContextType {
   updateTask: (taskId: string, updates: Partial<TaskRead>) => void
   deleteTask: (taskId: string) => void
   setTasks: (tasks: TaskRead[]) => void
+  refreshKey: number
+  triggerRefresh: () => void
 }
 
 const TasksContext = createContext<TasksContextType | undefined>(undefined)
 
 export function TasksProvider({ children }: { children: ReactNode }) {
   const [tasks, setTasks] = useState<TaskRead[]>([])
+  const [refreshKey, setRefreshKey] = useState(0)
+
+  const triggerRefresh = useCallback(() => {
+    setRefreshKey(k => k + 1)
+  }, [])
 
   const addTask = useCallback((task: TaskRead) => {
     setTasks(prevTasks => [...prevTasks, task])
@@ -37,7 +44,9 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     addTask,
     updateTask,
     deleteTask,
-    setTasks
+    setTasks,
+    refreshKey,
+    triggerRefresh,
   }
 
   return (

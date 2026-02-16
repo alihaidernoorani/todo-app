@@ -28,7 +28,10 @@ export interface UseChatMessagesReturn {
  * @param userId - User ID from authenticated session
  * @returns Chat messages state and handlers
  */
-export function useChatMessages(userId: string | null): UseChatMessagesReturn {
+export function useChatMessages(
+  userId: string | null,
+  onSuccess?: () => void,
+): UseChatMessagesReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -72,6 +75,9 @@ export function useChatMessages(userId: string | null): UseChatMessagesReturn {
         };
 
         setMessages((prev) => [...prev, assistantMessage]);
+
+        // Notify caller so the task list can refresh
+        onSuccess?.();
       } catch (err) {
         const apiError = err as SendMessageError;
         let errorMessage = 'Failed to send message';
@@ -101,7 +107,7 @@ export function useChatMessages(userId: string | null): UseChatMessagesReturn {
         setIsLoading(false);
       }
     },
-    [userId]
+    [userId, onSuccess]
   );
 
   const clearError = useCallback(() => {

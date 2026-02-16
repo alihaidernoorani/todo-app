@@ -4,38 +4,38 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { Plus, Sparkles } from 'lucide-react'
 import { useTasks } from '@/contexts/TasksContext'
+import { createTask } from '@/lib/api/tasks'
 
 export function AddTaskPanel() {
-  const { addTask } = useTasks()
+  const { triggerRefresh } = useTasks()
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [priority, setPriority] = useState<'Low' | 'Medium' | 'High'>('Medium')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!title.trim()) return
 
     setIsSubmitting(true)
+    setError(null)
 
-    // Add task to context (will update metrics)
-    const newTask = {
-      id: `task-${Date.now()}`,
+    const result = await createTask({
       title: title.trim(),
-      description: description.trim(),
-      is_completed: false,
+      description: description.trim() || null,
       priority,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      user_id: 'temp-user-id',
+    })
+
+    if (result.success) {
+      setTitle('')
+      setDescription('')
+      setPriority('Medium')
+      triggerRefresh()
+    } else {
+      setError(result.error.message)
     }
 
-    addTask(newTask)
-
-    // Clear form
-    setTitle('')
-    setDescription('')
-    setPriority('Medium')
     setIsSubmitting(false)
   }
 
@@ -122,6 +122,11 @@ export function AddTaskPanel() {
               ))}
             </div>
           </div>
+
+          {/* Error message */}
+          {error && (
+            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+          )}
 
           {/* Submit Button */}
           <button

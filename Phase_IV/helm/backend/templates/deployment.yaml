@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Chart.Name }}
+  labels:
+    app: {{ .Chart.Name }}
+    version: {{ .Chart.AppVersion }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Chart.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}
+        version: {{ .Chart.AppVersion }}
+    spec:
+      containers:
+      - name: {{ .Chart.Name }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: {{ .Values.service.targetPort }}
+          protocol: TCP
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secret.name }}
+              key: database-url
+              optional: true
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secret.name }}
+              key: openai-api-key
+              optional: true
+        - name: BETTER_AUTH_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secret.name }}
+              key: auth-secret
+              optional: true
+        - name: BETTER_AUTH_URL
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secret.name }}
+              key: auth-url
+              optional: true
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        livenessProbe:
+          {{- toYaml .Values.livenessProbe | nindent 10 }}
+        readinessProbe:
+          {{- toYaml .Values.readinessProbe | nindent 10 }}

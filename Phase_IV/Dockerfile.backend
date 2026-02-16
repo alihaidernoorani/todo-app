@@ -1,0 +1,39 @@
+# Stage 1: Dependencies
+FROM python:3.13-slim AS deps
+WORKDIR /app
+
+# Install uv for fast dependency management
+RUN pip install --no-cache-dir uv
+
+# Copy dependency files
+COPY backend/pyproject.toml backend/uv.lock* ./
+
+# Install dependencies
+RUN uv sync --no-dev
+
+# Stage 2: Production
+FROM python:3.13-slim AS runner
+WORKDIR /app
+
+# Create non-root user
+RUN addgroup --system --gid 1001 fastapi && \
+    adduser --system --uid 1001 --gid 1001 fastapi
+
+# Copy dependencies from deps stage
+COPY --from=deps --chown=fastapi:fastapi /app/.venv /app/.venv
+
+# Copy application code
+COPY --chown=fastapi:fastapi backend/ .
+
+USER fastapi
+
+EXPOSE 8000
+
+ENV PATH="/app/.venv/bin:$PATH"
+ENV PYTHONUNBUFFERED=1
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=15s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')" || exit 1
+
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]

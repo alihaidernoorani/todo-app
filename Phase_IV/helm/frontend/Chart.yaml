@@ -1,0 +1,6 @@
+apiVersion: v2
+name: frontend
+description: Next.js ChatKit UI for Todo Chatbot
+type: application
+version: 1.0.0
+appVersion: "phase4"

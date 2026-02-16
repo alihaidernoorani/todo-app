@@ -1,0 +1,6 @@
+apiVersion: v2
+name: backend
+description: FastAPI + OpenAI Agents SDK for Todo Chatbot
+type: application
+version: 1.0.0
+appVersion: "phase4"

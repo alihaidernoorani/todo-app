@@ -3,17 +3,17 @@ FROM node:20-alpine AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-# Install pnpm
-RUN corepack enable pnpm
-
 # Copy package files
-COPY frontend/package.json frontend/pnpm-lock.yaml* ./
-RUN pnpm install --frozen-lockfile
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
 
 # Stage 2: Build
 FROM node:20-alpine AS builder
 WORKDIR /app
-RUN corepack enable pnpm
+
+# Build arguments for NEXT_PUBLIC variables
+ARG NEXT_PUBLIC_API_URL=http://localhost:8000/api
+ARG NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
 
 # Copy dependencies from deps stage
 COPY --from=deps /app/node_modules ./node_modules
@@ -21,9 +21,11 @@ COPY --from=deps /app/node_modules ./node_modules
 # Copy source code
 COPY frontend/ .
 
-# Build Next.js application
+# Build Next.js application with environment variables
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN pnpm build
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+ENV NEXT_PUBLIC_BACKEND_URL=${NEXT_PUBLIC_BACKEND_URL}
+RUN npm run build
 
 # Stage 3: Production
 FROM node:20-alpine AS runner

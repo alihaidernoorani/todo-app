@@ -65,13 +65,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         jwks_client = PyJWKClient(settings.better_auth_jwks_url)
         # Test JWKS endpoint by fetching keys
         keys = jwks_client.get_jwk_set()
-        if not keys or not keys.get("keys"):
+        # PyJWKSet has a .keys attribute (list of PyJWK objects), not a dict
+        jwk_keys = getattr(keys, "keys", None) or []
+        if not jwk_keys:
             logger.warning(
                 "JWKS endpoint returned no keys: %s. Will fall back to HS256 with shared secret.",
                 settings.better_auth_jwks_url,
             )
         else:
-            logger.info("✅ JWKS validation successful. Found %d keys. Using RS256.", len(keys.get("keys", [])))
+            logger.info("✅ JWKS validation successful. Found %d keys. Using RS256.", len(jwk_keys))
             # Cache JWKS client in app state for reuse
             app.state.jwks_client = jwks_client
 

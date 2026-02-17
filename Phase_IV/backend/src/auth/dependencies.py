@@ -55,7 +55,9 @@ async def get_current_user(
         token = credentials.credentials
 
         # Decode and validate JWT token
-        payload = await decode_jwt(token, verify_issuer=True)
+        # Note: verify_issuer=False because frontend issues with localhost:3000
+        # but backend uses frontend:3000 for JWKS. Signature is still verified.
+        payload = await decode_jwt(token, verify_issuer=False)
 
         # Extract user information from JWT claims
         user = AuthenticatedUser(

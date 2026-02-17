@@ -41,6 +41,15 @@ class Settings(BaseSettings):
         alias="BETTER_AUTH_SECRET",
         description="Shared secret for HS256 JWT verification (development only)",
     )
+
+    # Better Auth JWKS URL for RS256 verification (optional, defaults to better_auth_url)
+    # Use this when the JWKS endpoint is accessible at a different URL than the issuer
+    # (e.g., http://frontend:3000 for JWKS vs http://localhost:3000 for issuer validation)
+    better_auth_jwks_url_override: Optional[str] = Field(
+        default=None,
+        alias="BETTER_AUTH_JWKS_URL",
+        description="Override URL for JWKS endpoint if different from BETTER_AUTH_URL",
+    )
     # CORS Configuration
     # Change the type hint to Union[str, list[str]] to bypass strict JSON parsing
     allowed_origins: str | list[str] = Field(
@@ -126,12 +135,20 @@ class Settings(BaseSettings):
     def better_auth_jwks_url(self) -> str:
         """Get Better Auth JWKS endpoint URL for JWT signature verification.
 
-        Constructs JWKS URL from BETTER_AUTH_URL using Better Auth's default API path.
-        JWKS endpoint provides public keys for RS256 signature verification.
+        Uses BETTER_AUTH_JWKS_URL if set, otherwise constructs from BETTER_AUTH_URL.
+        This allows separate JWKS URL (e.g., http://frontend:3000) from issuer URL
+        (e.g., http://localhost:3000) for Kubernetes service DNS resolution.
 
         Returns:
             str: Full URL to JWKS endpoint (e.g., https://app.example.com/api/auth/jwks)
         """
+        if self.better_auth_jwks_url_override:
+            # Use override URL and append /api/auth/jwks if not already present
+            base_url = self.better_auth_jwks_url_override.rstrip('/')
+            if not base_url.endswith('/api/auth/jwks'):
+                return f"{base_url}/api/auth/jwks"
+            return base_url
+        # Fall back to deriving from better_auth_url
         return f"{self.better_auth_url}/api/auth/jwks"
 
     @property

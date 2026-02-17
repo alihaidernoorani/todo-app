@@ -5,6 +5,9 @@ const nextConfig = {
   // React Compiler (moved out of experimental in Next.js 15+)
   reactCompiler: false, // Disable for now, enable when stable
 
+  // Standalone output for Docker deployment
+  output: 'standalone',
+
   // Other experimental features
   experimental: {},
 
@@ -31,7 +34,7 @@ const nextConfig = {
                   "script-src 'self' 'unsafe-inline' https://vercel.live https://va.vercel-scripts.com; " +
                   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; " + // Added cdn.jsdelivr.net
                   "font-src 'self' https://fonts.gstatic.com; " +
-                  "connect-src 'self' http://localhost:8000 https://alihaidernoorani-todo-app.hf.space https://cdn.jsdelivr.net; " + // Added cdn.jsdelivr.net
+                  "connect-src 'self' http://localhost:* http://localhost:3000 http://localhost:8000 http://localhost:30000 http://localhost:30001 https://alihaidernoorani-todo-app.hf.space https://cdn.jsdelivr.net; " + // Added localhost ports for Kubernetes
                   "img-src 'self' blob: data:; " +
                   "media-src 'self'; " +
                   "frame-ancestors 'self'; " +

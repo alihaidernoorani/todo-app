@@ -20,7 +20,8 @@ resources:
     memory: 256Mi
 
 env:
-  NEXT_PUBLIC_BACKEND_URL: "http://localhost:30001"
+  NEXT_PUBLIC_BACKEND_URL: "http://localhost:8000"
+  BACKEND_URL: "http://backend:8000/api"
 
 secret:
   name: frontend-secrets

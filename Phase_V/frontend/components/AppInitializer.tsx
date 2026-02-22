@@ -26,8 +26,11 @@ export function AppInitializer({ children }: { children: React.ReactNode }) {
         const errorMessage = "Missing required environment variable: NEXT_PUBLIC_API_URL";
         console.error("[AppInitializer]", errorMessage);
 
-        // Only show error UI in production if critical variable is missing
-        if (typeof window !== "undefined" && window.location.hostname !== "localhost") {
+        // Only show error UI in production if critical variable is missing.
+        // Treat 127.0.0.1 (minikube tunnel) the same as localhost.
+        const isLocal = typeof window !== "undefined" &&
+          (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
+        if (!isLocal) {
           setInitError(errorMessage);
         } else {
           // In development, just warn but continue

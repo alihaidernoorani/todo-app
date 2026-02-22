@@ -35,7 +35,9 @@ export async function sendMessage(
   message: string
 ): Promise<SendMessageResponse> {
   try {
-    const baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+    // Use the Next.js rewrite proxy so the browser never calls localhost:8000 directly.
+    // /backend-proxy/* is rewritten server-side to http://backend:8000/* (internal k8s DNS).
+    const baseURL = '/backend-proxy/api';
     const token = TokenStorage.getAccessToken();
     const response = await fetch(`${baseURL}/${userId}/chat`, {
       method: 'POST',

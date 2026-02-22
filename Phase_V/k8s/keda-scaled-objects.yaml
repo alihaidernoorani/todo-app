@@ -1,0 +1,46 @@
+# KEDA ScaledObjects for Kafka lag-based autoscaling
+# maxReplicaCount MUST NOT exceed Kafka partition count per consumer group.
+
+---
+# recurring-service: scales on task-events consumer lag
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: recurring-service-scaler
+  namespace: default
+spec:
+  scaleTargetRef:
+    name: recurring-service
+  minReplicaCount: 1
+  maxReplicaCount: 3
+  cooldownPeriod: 60
+  triggers:
+  - type: kafka
+    metadata:
+      bootstrapServers: redpanda.kafka.svc.cluster.local:9092
+      consumerGroup: recurring-service-task-events-v1
+      topic: task-events
+      lagThreshold: "500"
+      activationLagThreshold: "100"
+
+---
+# notification-service: scales on reminders consumer lag
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: notification-service-scaler
+  namespace: default
+spec:
+  scaleTargetRef:
+    name: notification-service
+  minReplicaCount: 1
+  maxReplicaCount: 2
+  cooldownPeriod: 60
+  triggers:
+  - type: kafka
+    metadata:
+      bootstrapServers: redpanda.kafka.svc.cluster.local:9092
+      consumerGroup: notification-service-reminders-v1
+      topic: reminders
+      lagThreshold: "200"
+      activationLagThreshold: "50"

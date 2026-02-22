@@ -1,0 +1,250 @@
+/* Dashboard Colors - Extracted from Landing Page Palette */
+
+/* Base Colors */
+:root {
+  --tf-blue-600: 0x0066cc;
+  --tf-blue-500: 0x0052cc;
+  --tf-blue-400: 0x0047cc;
+  --tf-blue-300: 0x003cc;
+
+  --tf-purple-600: 0x6f42c1;
+  --tf-purple-500: 0x7c3aed;
+  --tf-purple-400: 0x9333ea;
+
+  --tf-emerald-600: 0x059669;
+  --tf-emerald-500: 0x047857;
+  --tf-emerald-400: 0x059669;
+
+  --tf-amber-600: 0xdc2626;
+  --tf-amber-500: 0xbf2c2c;
+  --tf-amber-400: 0xdc2626;
+
+  --tf-slate-900: 0x111827;
+  --tf-slate-800: 0x1f2937;
+  --tf-slate-700: 0x374151;
+  --tf-slate-600: 0x4b5563;
+  --tf-slate-500: 0x6b7280;
+  --tf-slate-400: 0x9ca3af;
+  --tf-slate-300: 0xbdbdc;
+  --tf-slate-200: 0xe5e7eb;
+  --tf-slate-100: 0xf1f5f9;
+  --tf-slate-50: 0xf9fafb;
+  --tf-slate-25: 0xf9fafb;
+
+  --tf-white: 0xffffff;
+  --tf-black: 0x000000;
+}
+
+/* Landing Page Gradient Backgrounds */
+.tf-landing-gradient {
+  background: linear-gradient(135deg, var(--tf-blue-600) 0%, var(--tf-purple-600) 100%);
+}
+
+.tf-landing-gradient-reversed {
+  background: linear-gradient(135deg, var(--tf-purple-600) 0%, var(--tf-blue-600) 100%);
+}
+
+.tf-landing-gradient-light {
+  background: linear-gradient(135deg, var(--tf-blue-400) 0%, var(--tf-purple-400) 100%);
+}
+
+.tf-landing-gradient-light-reversed {
+  background: linear-gradient(135deg, var(--tf-purple-400) 0%, var(--tf-blue-400) 100%);
+}
+
+/* Vibrant Accent Colors */
+.tf-vibrant-blue {
+  color: var(--tf-blue-600);
+}
+
+.tf-vibrant-blue-hover {
+  color: var(--tf-blue-500);
+}
+
+.tf-vibrant-purple {
+  color: var(--tf-purple-600);
+}
+
+.tf-vibrant-purple-hover {
+  color: var(--tf-purple-500);
+}
+
+.tf-vibrant-emerald {
+  color: var(--tf-emerald-600);
+}
+
+.tf-vibrant-emerald-hover {
+  color: var(--tf-emerald-500);
+}
+
+.tf-vibrant-amber {
+  color: var(--tf-amber-600);
+}
+
+.tf-vibrant-amber-hover {
+  color: var(--tf-amber-500);
+}
+
+/* Button Variants */
+.tf-btn-primary {
+  background: linear-gradient(135deg, var(--tf-blue-600) 0%, var(--tf-purple-600) 100%);
+  color: white;
+  border: none;
+}
+
+.tf-btn-primary:hover {
+  background: linear-gradient(135deg, var(--tf-blue-500) 0%, var(--tf-purple-500) 100%);
+  color: white;
+}
+
+.tf-btn-secondary {
+  background: white;
+  color: var(--tf-blue-600);
+  border: 2px solid var(--tf-blue-200);
+}
+
+.tf-btn-secondary:hover {
+  background: var(--tf-blue-50);
+  color: var(--tf-blue-600);
+  border-color: var(--tf-blue-300);
+}
+
+/* Metric Card Colors */
+.tf-metric-total {
+  background: linear-gradient(135deg, var(--tf-blue-600) 0%, var(--tf-purple-600) 100%);
+  color: white;
+}
+
+.tf-metric-completed {
+  background: linear-gradient(135deg, var(--tf-emerald-600) 0%, var(--tf-emerald-500) 100%);
+  color: white;
+}
+
+.tf-metric-in-progress {
+  background: linear-gradient(135deg, var(--tf-amber-600) 0%, var(--tf-amber-500) 100%);
+  color: white;
+}
+
+.tf-metric-pending {
+  background: linear-gradient(135deg, var(--tf-slate-600) 0%, var(--tf-slate-700) 100%);
+  color: white;
+}
+
+/* Hover States */
+.tf-hover-blue {
+  transition: all 0.2s ease;
+}
+
+.tf-hover-blue:hover {
+  background: var(--tf-blue-50);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 102, 204, 0.15);
+}
+
+.tf-hover-purple {
+  transition: all 0.2s ease;
+}
+
+.tf-hover-purple:hover {
+  background: var(--tf-purple-50);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(111, 66, 193, 0.15);
+}
+
+.tf-hover-emerald {
+  transition: all 0.2s ease;
+}
+
+.tf-hover-emerald:hover {
+  background: var(--tf-emerald-50);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.15);
+}
+
+.tf-hover-amber {
+  transition: all 0.2s ease;
+}
+
+.tf-hover-amber:hover {
+  background: var(--tf-amber-50);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.15);
+}
+
+/* Card Shadows */
+.tf-card-shadow {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.tf-card-shadow-hover {
+  transition: all 0.2s ease;
+}
+
+.tf-card-shadow-hover:hover {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+/* Text Colors */
+.tf-text-blue {
+  color: var(--tf-blue-600);
+}
+
+.tf-text-purple {
+  color: var(--tf-purple-600);
+}
+
+.tf-text-emerald {
+  color: var(--tf-emerald-600);
+}
+
+.tf-text-amber {
+  color: var(--tf-amber-600);
+}
+
+/* Border Colors */
+.tf-border-blue {
+  border-color: var(--tf-blue-200);
+}
+
+.tf-border-purple {
+  border-color: var(--tf-purple-200);
+}
+
+.tf-border-emerald {
+  border-color: var(--tf-emerald-200);
+}
+
+.tf-border-amber {
+  border-color: var(--tf-amber-200);
+}
+
+/* Responsive Breakpoints */
+@media (max-width: 767px) {
+  .tf-mobile-only {
+    display: block !important;
+  }
+
+  .tf-desktop-only {
+    display: none !important;
+  }
+}
+
+@media (min-width: 768px) {
+  .tf-mobile-only {
+    display: none !important;
+  }
+
+  .tf-desktop-only {
+    display: block !important;
+  }
+}
+
+@media (min-width: 1024px) {
+  .tf-desktop-large {
+    display: block !important;
+  }
+
+  .tf-desktop-small {
+    display: none !important;
+  }
+}

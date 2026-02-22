@@ -1,0 +1,46 @@
+replicaCount: 1
+
+image:
+  repository: todo-backend
+  pullPolicy: IfNotPresent
+  tag: "phase4"
+
+service:
+  type: NodePort
+  port: 8000
+  targetPort: 8000
+  nodePort: 30001
+
+resources:
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+  requests:
+    cpu: 500m
+    memory: 512Mi
+
+secret:
+  name: backend-secrets
+  # Created externally via kubectl create secret
+  # Keys: database-url, openai-api-key, auth-secret, auth-url
+
+metrics:
+  enabled: true
+
+livenessProbe:
+  httpGet:
+    path: /api/health
+    port: 8000
+  initialDelaySeconds: 15
+  periodSeconds: 10
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /api/health
+    port: 8000
+  initialDelaySeconds: 10
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 3

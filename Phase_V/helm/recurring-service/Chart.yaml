@@ -1,0 +1,6 @@
+apiVersion: v2
+name: recurring-service
+description: Recurring task Kafka consumer and Dapr Jobs callback handler
+type: application
+version: 0.1.0
+appVersion: "phase5"

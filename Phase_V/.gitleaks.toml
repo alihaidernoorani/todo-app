@@ -1,0 +1,53 @@
+# Gitleaks configuration for todo app monorepo
+# Docs: https://github.com/gitleaks/gitleaks
+
+title = "Todo App Gitleaks Config"
+
+[extend]
+# Extend the default gitleaks ruleset
+useDefault = true
+
+[[rules]]
+id = "generic-api-key-extended"
+description = "Detect generic API keys in environment files"
+regex = '''(?i)(api[_-]?key|apikey|api[_-]?secret)\s*[=:]\s*['"]?([A-Za-z0-9\-_]{20,})['"]?'''
+tags = ["api-key"]
+[rules.allowlist]
+regexes = [
+  "sk-proj-placeholder",
+  "ghp_REPLACE_ME",
+  "your-.*-here",
+  "changeme",
+]
+
+[[rules]]
+id = "kubernetes-secret-value"
+description = "Kubernetes Secret manifest with real values (not template placeholders)"
+regex = '''stringData:[\s\S]{0,200}:\s+[A-Za-z0-9+/]{40,}={0,2}'''
+paths = ["*.yaml", "*.yml"]
+tags = ["kubernetes", "secret"]
+
+[allowlist]
+description = "Global allowlist for known safe patterns"
+paths = [
+  # Helm chart templates — values are Helm template expressions, not secrets
+  "helm/*/templates/*",
+  # Test fixtures and example data
+  "tests/fixtures/*",
+  # Spec/documentation files
+  "specs/*",
+  ".specify/*",
+]
+regexes = [
+  # Placeholder values used in examples
+  '''<[a-zA-Z_-]+>''',
+  # Helm template expressions
+  '''{{.*}}''',
+  # SHA-like strings in git references
+  '''[0-9a-f]{40}''',
+  # JWT algorithm identifiers
+  '''HS256|RS256|ES256''',
+]
+commits = [
+  # Add any one-off commit SHAs to exempt from scanning here
+]

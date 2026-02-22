@@ -1,0 +1,103 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Chart.Name }}
+  labels:
+    app: {{ .Chart.Name }}
+    version: {{ .Chart.AppVersion }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Chart.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}
+        version: {{ .Chart.AppVersion }}
+      annotations:
+        dapr.io/enabled: "true"
+        dapr.io/app-id: "backend"
+        dapr.io/app-port: "8000"
+        dapr.io/app-protocol: "http"
+        dapr.io/cpu-request: "100m"
+        dapr.io/memory-request: "128Mi"
+        dapr.io/cpu-limit: "500m"
+        dapr.io/memory-limit: "512Mi"
+    spec:
+      serviceAccountName: backend
+      containers:
+      - name: {{ .Chart.Name }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: {{ .Values.service.targetPort }}
+          protocol: TCP
+        env:
+        - name: NEON_DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secret.name }}
+              key: database-url
+              optional: true
+        - name: OPENROUTER_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secret.name }}
+              key: openai-api-key
+              optional: true
+        - name: OPENROUTER_BASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secret.name }}
+              key: openrouter-base-url
+              optional: true
+        - name: BETTER_AUTH_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secret.name }}
+              key: auth-secret
+              optional: true
+        - name: BETTER_AUTH_URL
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secret.name }}
+              key: auth-url
+              optional: true
+        - name: BETTER_AUTH_JWKS_URL
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secret.name }}
+              key: auth-jwks-url
+              optional: true
+        - name: BACKEND_BASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secret.name }}
+              key: backend-base-url
+              optional: true
+        - name: ALLOWED_ORIGINS
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secret.name }}
+              key: allowed-origins
+              optional: true
+        - name: AGENT_MODEL
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secret.name }}
+              key: agent-model
+              optional: true
+        - name: AGENT_MAX_TOKENS
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secret.name }}
+              key: agent-max-tokens
+              optional: true
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        livenessProbe:
+          {{- toYaml .Values.livenessProbe | nindent 10 }}
+        readinessProbe:
+          {{- toYaml .Values.readinessProbe | nindent 10 }}

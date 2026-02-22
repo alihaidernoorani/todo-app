@@ -1,0 +1,1 @@
+"""Notification service Kafka consumers."""

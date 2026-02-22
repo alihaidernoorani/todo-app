@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Chart.Name }}
+  labels:
+    app: {{ .Chart.Name }}
+    version: {{ .Chart.AppVersion }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Chart.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}
+        version: {{ .Chart.AppVersion }}
+      annotations:
+        dapr.io/enabled: "true"
+        dapr.io/app-id: "frontend"
+        dapr.io/app-port: "3000"
+        dapr.io/app-protocol: "http"
+        dapr.io/cpu-request: "100m"
+        dapr.io/memory-request: "128Mi"
+        dapr.io/cpu-limit: "500m"
+        dapr.io/memory-limit: "512Mi"
+    spec:
+      containers:
+      - name: {{ .Chart.Name }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: {{ .Values.service.targetPort }}
+          protocol: TCP
+        env:
+        - name: NEXT_PUBLIC_BACKEND_URL
+          value: "{{ .Values.env.NEXT_PUBLIC_BACKEND_URL }}"
+        - name: NEXT_PUBLIC_API_URL
+          value: "{{ .Values.env.NEXT_PUBLIC_BACKEND_URL }}"
+        - name: BACKEND_URL
+          value: "{{ .Values.env.BACKEND_URL }}"
+        - name: BETTER_AUTH_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secret.name }}
+              key: auth-secret
+        - name: BETTER_AUTH_URL
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secret.name }}
+              key: auth-url
+        - name: NEON_DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secret.name }}
+              key: database-url
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        livenessProbe:
+          {{- toYaml .Values.livenessProbe | nindent 10 }}
+        readinessProbe:
+          {{- toYaml .Values.readinessProbe | nindent 10 }}

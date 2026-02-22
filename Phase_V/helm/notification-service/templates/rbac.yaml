@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: notification-service
+  namespace: default
+  labels:
+    app: {{ .Chart.Name }}
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: notification-service-secrets
+  namespace: default
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: notification-service-secrets-binding
+  namespace: default
+subjects:
+- kind: ServiceAccount
+  name: notification-service
+  namespace: default
+roleRef:
+  kind: Role
+  name: notification-service-secrets
+  apiGroup: rbac.authorization.k8s.io

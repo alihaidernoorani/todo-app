@@ -39,7 +39,9 @@
       "Bash(.venv/bin/pytest:*)",
       "Bash(docker:*)",
       "Bash(kubectl logs:*)",
-      "Bash(kubectl rollout:*)"
+      "Bash(kubectl rollout:*)",
+      "Bash(head:*)",
+      "Bash(timeout 30 /mnt/c/Users/DELL/Desktop/The_Evolution_of_todo/Phase_V/backend/venv/bin/python3:*)"
     ]
   }
 }

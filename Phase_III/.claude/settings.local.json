@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv run pytest:*)",
+      "Bash(ls:*)",
+      "Bash(cd:*)",
+      "Bash(npm install:*)",
+      "Bash(python -m pytest:*)",
+      "Bash(python3 -m pytest:*)",
+      "Bash(uv run python:*)",
+      "Bash(gh auth:*)",
+      "WebSearch",
+      "mcp__better-auth__search-better-auth-docs",
+      "WebFetch(domain:pyjwt.readthedocs.io)",
+      "WebFetch(domain:renzolucioni.com)",
+      "WebFetch(domain:alukach.com)",
+      "WebFetch(domain:workos.com)",
+      "Bash(.specify/scripts/bash/check-prerequisites.sh:*)",
+      "Bash(npx tsc:*)",
+      "Bash(python -m py_compile:*)",
+      "Bash(python3 -m py_compile:*)",
+      "Bash(find:*)",
+      "mcp__better-auth__ask-question-about-better-auth",
+      "Bash(node -e:*)",
+      "Bash(git add:*)",
+      "Bash(npm run build:*)",
+      "Bash(grep:*)",
+      "Bash(pytest:*)",
+      "Bash(python3:*)",
+      "Bash(source:*)",
+      "Bash(pip install:*)",
+      "Bash(sudo apt-get update:*)",
+      "Bash(sudo apt-get install:*)",
+      "WebFetch(domain:openai.github.io)",
+      "Bash(lsof:*)",
+      "Bash(python -m uvicorn:*)",
+      "Bash(curl:*)",
+      "mcp__context7__query-docs",
+      "Bash(.venv/bin/pytest:*)"
+    ]
+  }
+}

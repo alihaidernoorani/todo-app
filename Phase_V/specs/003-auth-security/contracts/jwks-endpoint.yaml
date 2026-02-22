@@ -1,0 +1,148 @@
+openapi: 3.1.0
+info:
+  title: JWKS Endpoint Contract
+  version: 1.0.0
+  description: |
+    Contract for Better Auth JWKS (JSON Web Key Set) endpoint.
+
+    **Purpose**: Provides public keys for RS256 JWT signature verification.
+
+    **Endpoint**: `/api/auth/.well-known/jwks.json` (Better Auth in Next.js)
+    
+    **Caching Strategy**:
+    - Backend caches keys for 1 hour (3600 seconds)
+    - On signature verification failure, refresh cache and retry
+    - Startup validation: Fetch JWKS on application start
+
+servers:
+  - url: https://app.example.com
+    description: Better Auth production server
+  - url: http://localhost:3000
+    description: Better Auth local development
+
+components:
+  schemas:
+    JWKKey:
+      type: object
+      required:
+        - kty
+        - kid
+        - use
+        - alg
+        - n
+        - e
+      properties:
+        kty:
+          type: string
+          enum:
+            - RSA
+          description: Key type (always RSA for RS256)
+          example: "RSA"
+        kid:
+          type: string
+          description: Key identifier (matches JWT header kid)
+          example: "key-id-abc123"
+        use:
+          type: string
+          enum:
+            - sig
+          description: Key usage (sig for signature verification)
+          example: "sig"
+        alg:
+          type: string
+          enum:
+            - RS256
+          description: Algorithm (RS256)
+          example: "RS256"
+        n:
+          type: string
+          description: RSA modulus (Base64url encoded)
+          example: "0vx7agoebGcQSuuPiLJXZptN9nndrQmbXEps2aiAFbWhM78LhWx..."
+        e:
+          type: string
+          description: RSA public exponent (Base64url encoded)
+          example: "AQAB"
+
+    JWKSResponse:
+      type: object
+      required:
+        - keys
+      properties:
+        keys:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/JWKKey'
+          description: Array of public keys for signature verification
+
+paths:
+  /api/auth/.well-known/jwks.json:
+    get:
+      summary: Get JSON Web Key Set
+      description: |
+        Returns public keys for verifying JWT signatures.
+
+        **Note**: In Next.js with Better Auth, all auth endpoints are prefixed with `/api/auth/`.
+        
+        **Key Rotation**: May return multiple keys during rotation period.
+        Backend should cache keys and use `kid` from JWT header to select correct key.
+        
+        **No Authentication Required**: Public endpoint accessible without credentials.
+      operationId: getJWKS
+      responses:
+        '200':
+          description: Successfully retrieved JWKS
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+              description: Caching directives
+              example: "public, max-age=3600"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JWKSResponse'
+              examples:
+                single_key:
+                  summary: Single active key
+                  value:
+                    keys:
+                      - kty: "RSA"
+                        kid: "key-2024-01-26"
+                        use: "sig"
+                        alg: "RS256"
+                        n: "0vx7agoebGcQSuuPiLJXZptN9nndrQmbXEps2aiAFbWhM78LhWx4cbbfAAtVT86zwu1RK7aPFFxuhDR1L6tSoc_BJECPebWKRXjBZCiFV4n3oknjhMstn64tZ_2W-5JsGY4Hc5n9yBXArwl93lqt7_RN5w6Cf0h4QyQ5v-65YGjQR0_FDW2QvzqY368QQMicAtaSqzs8KJZgnYb9c7d0zgdAZHzu6qMQvRL5hajrn1n91CbOpbIS"
+                        e: "AQAB"
+                key_rotation:
+                  summary: Key rotation in progress (old + new key)
+                  value:
+                    keys:
+                      - kty: "RSA"
+                        kid: "key-2024-01-20"
+                        use: "sig"
+                        alg: "RS256"
+                        n: "old-key-modulus..."
+                        e: "AQAB"
+                      - kty: "RSA"
+                        kid: "key-2024-01-26"
+                        use: "sig"
+                        alg: "RS256"
+                        n: "new-key-modulus..."
+                        e: "AQAB"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Internal Server Error"
+                  message:
+                    type: string
+                    example: "Failed to generate JWKS"
+
+tags:
+  - name: JWKS
+    description: JSON Web Key Set endpoints

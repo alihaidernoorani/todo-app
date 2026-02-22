@@ -1,0 +1,29 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: pubsub-kafka
+  namespace: default
+spec:
+  type: pubsub.kafka
+  version: v1
+  metadata:
+  - name: brokers
+    value: "kafka-xxxxx.a.aivencloud.com:9092"
+  - name: authType
+    value: "password"
+  - name: saslUsername
+    secretKeyRef:
+      name: kafka-credentials
+      key: sasl-username
+  - name: saslPassword
+    secretKeyRef:
+      name: kafka-credentials
+      key: sasl-password
+  - name: tlsEnabled
+    value: "true"
+  - name: tlsSkipVerify
+    value: "false"
+  - name: consumerGroup
+    value: "backend-task-events-v1"
+auth:
+  secretStore: kubernetes

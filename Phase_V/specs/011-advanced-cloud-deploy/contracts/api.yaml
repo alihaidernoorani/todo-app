@@ -1,0 +1,731 @@
+openapi: "3.1.0"
+info:
+  title: Phase V Todo API
+  description: >
+    REST API for the Phase V Advanced Cloud-Native Todo application.
+    All task mutations publish Kafka events via Dapr Pub/Sub.
+    Authentication uses JWT bearer tokens.
+  version: "1.0.0"
+
+servers:
+  - url: http://localhost:8000
+    description: Local development
+  - url: https://api.yourdomain.com
+    description: Production (AKS)
+
+security:
+  - BearerAuth: []
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Task:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 2000
+          nullable: true
+        priority:
+          type: string
+          enum: [High, Medium, Low]
+          default: Medium
+        status:
+          type: string
+          enum: [pending, active, completed, cancelled]
+          default: pending
+        due_date:
+          type: string
+          format: date-time
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    TaskCreate:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 2000
+          nullable: true
+        priority:
+          type: string
+          enum: [High, Medium, Low]
+          default: Medium
+        due_date:
+          type: string
+          format: date-time
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+          default: []
+
+    TaskUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 2000
+          nullable: true
+        priority:
+          type: string
+          enum: [High, Medium, Low]
+        status:
+          type: string
+          enum: [pending, active, completed, cancelled]
+        due_date:
+          type: string
+          format: date-time
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+
+    RecurringTaskCreate:
+      type: object
+      required: [title, rrule, timezone_iana]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 2000
+          nullable: true
+        priority:
+          type: string
+          enum: [High, Medium, Low]
+          default: Medium
+        rrule:
+          type: string
+          description: "RFC 5545 RRULE string, e.g. 'FREQ=WEEKLY;BYDAY=FR'"
+        timezone_iana:
+          type: string
+          description: "IANA timezone name, e.g. 'America/New_York'"
+          default: "UTC"
+        recurrence_end_type:
+          type: string
+          enum: [COUNT, UNTIL]
+          nullable: true
+        recurrence_max_count:
+          type: integer
+          minimum: 1
+          nullable: true
+        recurrence_end_date:
+          type: string
+          format: date-time
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+          default: []
+
+    RecurringTask:
+      allOf:
+        - $ref: '#/components/schemas/Task'
+        - type: object
+          properties:
+            rrule:
+              type: string
+            timezone_iana:
+              type: string
+            status:
+              type: string
+              enum: [pending, active, paused, completed, cancelled]
+            next_occurrence_at:
+              type: string
+              format: date-time
+              nullable: true
+            total_occurrences_executed:
+              type: integer
+
+    TaskInstance:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        parent_task_id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+        title:
+          type: string
+        priority:
+          type: string
+          enum: [High, Medium, Low]
+        scheduled_for:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [pending, active, completed, skipped, failed]
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    Reminder:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+        task_id:
+          type: string
+          format: uuid
+          nullable: true
+        task_instance_id:
+          type: string
+          format: uuid
+          nullable: true
+        reminder_type:
+          type: string
+          enum: [in_app]
+        scheduled_for:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [pending, sent, failed, cancelled]
+
+    ReminderCreate:
+      type: object
+      required: [scheduled_for]
+      properties:
+        task_id:
+          type: string
+          format: uuid
+          nullable: true
+        task_instance_id:
+          type: string
+          format: uuid
+          nullable: true
+        reminder_type:
+          type: string
+          enum: [in_app]
+          default: in_app
+        scheduled_for:
+          type: string
+          format: date-time
+
+    Tag:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 50
+        user_id:
+          type: string
+
+    ChatMessage:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          description: User's chat message to the AI agent
+
+    ChatResponse:
+      type: object
+      properties:
+        response:
+          type: string
+          description: AI agent's reply
+        session_id:
+          type: string
+          description: Conversation session identifier
+
+    TaskList:
+      type: object
+      properties:
+        tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/Task'
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+
+    Error:
+      type: object
+      properties:
+        detail:
+          type: string
+        code:
+          type: string
+
+  parameters:
+    TaskId:
+      name: task_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ReminderId:
+      name: reminder_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    PageParam:
+      name: page
+      in: query
+      schema:
+        type: integer
+        default: 1
+        minimum: 1
+    PageSizeParam:
+      name: page_size
+      in: query
+      schema:
+        type: integer
+        default: 20
+        minimum: 1
+        maximum: 100
+
+paths:
+  # ─── Health ─────────────────────────────────────────────────────────────────
+
+  /health:
+    get:
+      summary: Health check
+      security: []
+      responses:
+        "200":
+          description: Service healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+
+  # ─── Chat API ────────────────────────────────────────────────────────────────
+
+  /api/chat:
+    post:
+      summary: Send message to AI agent
+      description: >
+        Chat endpoint proxied to OpenAI Agents SDK. The agent interprets user
+        intent and publishes events to Kafka (task-events, reminders topics).
+        Backend does NOT execute business logic directly.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatMessage'
+      responses:
+        "200":
+          description: AI agent response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatResponse'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ─── Tasks ───────────────────────────────────────────────────────────────────
+
+  /api/tasks:
+    get:
+      summary: List tasks
+      description: >
+        Returns paginated, filterable list of tasks for the authenticated user.
+        Supports filtering by status, priority, tags; sorting; keyword search.
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, active, completed, cancelled]
+        - name: priority
+          in: query
+          schema:
+            type: string
+            enum: [High, Medium, Low]
+        - name: tags
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+          style: form
+          explode: true
+        - name: search
+          in: query
+          description: Keyword search on title and description
+          schema:
+            type: string
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+            enum: [created_at, updated_at, due_date, priority]
+            default: created_at
+        - name: sort_order
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+        - name: due_before
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: due_after
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: Task list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskList'
+
+    post:
+      summary: Create task
+      description: >
+        Creates a one-time task. Publishes task.created event to task-events topic.
+        For recurring tasks, use POST /api/tasks/recurring.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskCreate'
+      responses:
+        "201":
+          description: Task created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/tasks/{task_id}:
+    get:
+      summary: Get task by ID
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        "200":
+          description: Task found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        "404":
+          description: Task not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    patch:
+      summary: Update task
+      description: >
+        Partial update. Publishes task.updated event to task-events topic.
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskUpdate'
+      responses:
+        "200":
+          description: Task updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        "404":
+          description: Task not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      summary: Delete task
+      description: >
+        Soft-deletes task (sets status=cancelled). Publishes task.deleted event.
+        If task is recurring, cancels the recurring series and deletes the Dapr Job.
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        "204":
+          description: Task deleted
+        "404":
+          description: Task not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ─── Recurring Tasks ─────────────────────────────────────────────────────────
+
+  /api/tasks/recurring:
+    post:
+      summary: Create recurring task
+      description: >
+        Creates a recurring task series. Validates RRULE, computes first occurrence,
+        creates Dapr Job for scheduling, and publishes recurring.scheduled event
+        to task-events topic.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecurringTaskCreate'
+      responses:
+        "201":
+          description: Recurring task created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecurringTask'
+        "422":
+          description: Invalid RRULE or timezone
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/tasks/recurring/{task_id}:
+    get:
+      summary: Get recurring task series
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        "200":
+          description: Recurring task series
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecurringTask'
+
+    patch:
+      summary: Update recurring task series
+      description: >
+        Update RRULE, timezone, or metadata. Cancels existing Dapr Job,
+        recomputes next occurrence, creates new Dapr Job.
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                rrule:
+                  type: string
+                timezone_iana:
+                  type: string
+                priority:
+                  type: string
+                  enum: [High, Medium, Low]
+      responses:
+        "200":
+          description: Recurring task updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecurringTask'
+
+  /api/tasks/recurring/{task_id}/instances:
+    get:
+      summary: List instances of a recurring task
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        "200":
+          description: Task instance list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  instances:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TaskInstance'
+                  total:
+                    type: integer
+
+  # ─── Reminders ───────────────────────────────────────────────────────────────
+
+  /api/reminders:
+    post:
+      summary: Create reminder
+      description: >
+        Schedules a reminder for a task or task instance.
+        Publishes reminder.scheduled event to reminders topic.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReminderCreate'
+      responses:
+        "201":
+          description: Reminder created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reminder'
+        "422":
+          description: Validation error (scheduled_for must be before due_date)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/reminders/{reminder_id}:
+    delete:
+      summary: Cancel reminder
+      description: Cancels a pending reminder. Publishes reminder.cancelled event.
+      parameters:
+        - $ref: '#/components/parameters/ReminderId'
+      responses:
+        "204":
+          description: Reminder cancelled
+        "404":
+          description: Reminder not found
+
+  # ─── Tags ────────────────────────────────────────────────────────────────────
+
+  /api/tags:
+    get:
+      summary: List all tags for user
+      responses:
+        "200":
+          description: Tag list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Tag'
+
+  # ─── Dapr Job Callbacks ──────────────────────────────────────────────────────
+  # Note: These endpoints are called by Dapr scheduler, not external clients.
+  # They MUST be accessible on the app-port but are not exposed via Ingress.
+
+  /job/recurring-task-trigger:
+    post:
+      summary: Dapr Jobs API callback for recurring task
+      description: >
+        Called by Dapr scheduler when a recurring task cron fires.
+        recurring-service handles this endpoint.
+        Publishes task.instance_created event to task-updates topic.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                data:
+                  type: string
+                  description: JSON-encoded job payload (task_id, user_id)
+                dueTime:
+                  type: string
+                  format: date-time
+      responses:
+        "200":
+          description: Job processed successfully
+        "500":
+          description: Processing failed (Dapr will NOT retry; app must handle idempotency)
+
+  /job/reminder-trigger:
+    post:
+      summary: Dapr Jobs API callback for reminder notification
+      description: >
+        Called by Dapr scheduler when a reminder fires.
+        notification-service handles this endpoint.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                data:
+                  type: string
+                  description: JSON-encoded payload (reminder_id, user_id, task_title)
+      responses:
+        "200":
+          description: Reminder delivered

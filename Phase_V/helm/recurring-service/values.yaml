@@ -1,0 +1,43 @@
+replicaCount: 1
+
+image:
+  repository: recurring-service
+  pullPolicy: IfNotPresent
+  tag: "phase5"
+
+service:
+  type: ClusterIP
+  port: 8001
+  targetPort: 8001
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 200m
+    memory: 256Mi
+
+secret:
+  name: recurring-service-secrets
+
+metrics:
+  enabled: true
+
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 8001
+  initialDelaySeconds: 10
+  periodSeconds: 30
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: 8001
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 3
+  failureThreshold: 3

@@ -1,0 +1,46 @@
+# AKS overrides for backend Helm chart
+# Usage: helm upgrade --install backend ./helm/backend -f ./helm/backend/values-aks.yaml --set image.tag=<sha>
+
+replicaCount: 2
+
+image:
+  repository: ghcr.io/<owner>/backend
+  pullPolicy: Always
+
+service:
+  type: ClusterIP
+  port: 8000
+  targetPort: 8000
+
+ingress:
+  enabled: true
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+  hosts:
+  - host: api.yourdomain.com
+    paths:
+    - path: /
+      pathType: Prefix
+  tls:
+  - secretName: backend-tls
+    hosts:
+    - api.yourdomain.com
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 512Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+
+metrics:
+  enabled: true

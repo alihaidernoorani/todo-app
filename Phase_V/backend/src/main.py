@@ -146,7 +146,7 @@ app = FastAPI(
 )
 
 # Prometheus instrumentation (T022) — exposes /metrics on port 9090 logic via FastAPI route
-Instrumentator(group_paths=True, skip_paths=["/health"]).instrument(app).expose(
+Instrumentator().instrument(app).expose(
     app, endpoint="/metrics"
 )
 

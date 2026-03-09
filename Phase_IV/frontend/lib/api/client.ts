@@ -84,13 +84,10 @@ export class ApiClient {
   private baseURL: string
 
   constructor() {
-    // Read base URL from environment variable
-    this.baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-
-    // Remove trailing slash if present
-    if (this.baseURL.endsWith('/')) {
-      this.baseURL = this.baseURL.slice(0, -1)
-    }
+    // Use the Next.js rewrite proxy so the browser never calls localhost:8000 directly.
+    // /backend-proxy/* is rewritten server-side to http://backend:8000/* (internal k8s DNS).
+    // The request() method builds: ${baseURL}/api/${userId}${path}
+    this.baseURL = '/backend-proxy'
   }
 
   /**

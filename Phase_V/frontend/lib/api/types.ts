@@ -47,6 +47,9 @@ export interface TaskCreate {
 
   /** Task priority level (defaults to "Medium" if not provided) */
   priority?: TaskPriority
+
+  /** Optional tags to associate with this task */
+  tags?: string[]
 }
 
 /**
@@ -77,6 +80,9 @@ export interface TaskUpdate {
 
   /** Task priority level (required for PUT) */
   priority: TaskPriority
+
+  /** Optional tags to associate with this task */
+  tags?: string[]
 }
 
 // ============================================================================
@@ -121,6 +127,9 @@ export interface TaskRead {
 
   /** UUID of the user who owns this task */
   user_id: string
+
+  /** Tags associated with this task */
+  tags?: string[]
 }
 
 /**

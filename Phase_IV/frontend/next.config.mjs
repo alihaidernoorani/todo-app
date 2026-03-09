@@ -1,4 +1,11 @@
 /** @type {import('next').NextConfig} */
+
+// Derive backend host for the rewrite proxy.
+// BACKEND_URL is set at build time (Dockerfile ARG) to http://backend:8000/api
+// Strip the /api suffix to get the raw host for path-based proxying.
+const backendHost = (process.env.BACKEND_URL || 'http://backend:8000/api')
+  .replace(/\/api\/?$/, '')
+
 const nextConfig = {
   reactStrictMode: true,
 
@@ -19,6 +26,18 @@ const nextConfig = {
   // Image optimization
   images: {
     domains: [],
+  },
+
+  // Proxy all /backend-proxy/* requests to the backend service.
+  // Browser code calls /backend-proxy/api/{userId}/... (same origin, no CORS).
+  // Next.js server forwards to http://backend:8000/api/{userId}/... (internal k8s DNS).
+  async rewrites() {
+    return [
+      {
+        source: '/backend-proxy/:path*',
+        destination: `${backendHost}/:path*`,
+      },
+    ]
   },
 
   // Security headers for production

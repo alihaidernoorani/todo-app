@@ -110,6 +110,20 @@ function createAuth(): ReturnType<typeof betterAuth> | null {
       // Base URL for auth endpoints
       baseURL,
 
+      // Trust any 127.0.0.1 or localhost origin so minikube tunnel URLs
+      // (which get a random port each run) are never rejected.
+      trustedOrigins: (request) => {
+        const origin = request?.headers.get("origin") || ""
+        if (
+          origin.startsWith("http://127.0.0.1") ||
+          origin.startsWith("http://localhost")
+        ) {
+          return [origin]
+        }
+        const extra = process.env.BETTER_AUTH_TRUSTED_ORIGINS?.split(",").map(s => s.trim()).filter(Boolean) || []
+        return [baseURL, ...extra]
+      },
+
       // Secret for signing sessions
       secret: process.env.BETTER_AUTH_SECRET || "development-secret-change-in-production",
 

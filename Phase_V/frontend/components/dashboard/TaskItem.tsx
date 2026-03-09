@@ -163,6 +163,20 @@ export function TaskItem({
                 minute: "2-digit",
               })}
             </p>
+
+            {/* Tags */}
+            {task.tags && task.tags.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-2">
+                {task.tags.map(tag => (
+                  <span
+                    key={tag}
+                    className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Priority Badge - Always visible */}

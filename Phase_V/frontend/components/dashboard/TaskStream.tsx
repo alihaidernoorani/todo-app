@@ -26,7 +26,7 @@
 
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useState, KeyboardEvent } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { listTasks } from "@/lib/api/tasks"
 import { useOptimisticTask } from "@/lib/hooks/use-optimistic-task"
@@ -55,6 +55,7 @@ export function TaskStream({ onTasksChange, refreshKey }: TaskStreamProps = {}) 
   // T061: Filter state
   const [filters, setFilters] = useState<TaskFilters>({})
   const [totalCount, setTotalCount] = useState<number>(0)
+  const [tagInput, setTagInput] = useState("")
 
   const {
     tasks,
@@ -109,7 +110,22 @@ export function TaskStream({ onTasksChange, refreshKey }: TaskStreamProps = {}) 
   const handlePriorityFilter = (priority: TaskPriority | '') => {
     setFilters(prev => ({ ...prev, priority: priority || undefined }))
   }
-  const clearFilters = () => setFilters({})
+  const handleAddTagFilter = (tag: string) => {
+    const normalized = tag.trim().toLowerCase()
+    if (!normalized) return
+    setFilters(prev => ({
+      ...prev,
+      tags: prev.tags ? (prev.tags.includes(normalized) ? prev.tags : [...prev.tags, normalized]) : [normalized],
+    }))
+    setTagInput("")
+  }
+  const handleRemoveTagFilter = (tag: string) => {
+    setFilters(prev => ({ ...prev, tags: prev.tags?.filter(t => t !== tag) || undefined }))
+  }
+  const clearFilters = () => {
+    setFilters({})
+    setTagInput("")
+  }
 
   // Handle update task
   const handleUpdate = async (taskData: TaskCreate | TaskUpdate) => {
@@ -187,7 +203,7 @@ export function TaskStream({ onTasksChange, refreshKey }: TaskStreamProps = {}) 
 
   // Empty state (outside loading)
   if (!isLoading && tasks.length === 0) {
-    const hasFilters = filters.status || filters.priority || filters.tags?.length
+    const hasFilters = filters.status || filters.priority || filters.search || filters.tags?.length
     return (
       <div className="text-center py-12">
         {hasFilters ? (
@@ -240,7 +256,47 @@ export function TaskStream({ onTasksChange, refreshKey }: TaskStreamProps = {}) 
           <option value="Low">Low</option>
         </select>
 
-        {(filters.status || filters.priority) && (
+        <input
+          type="search"
+          value={filters.search || ''}
+          onChange={e => setFilters(prev => ({ ...prev, search: e.target.value || undefined }))}
+          placeholder="Search tasks…"
+          className="text-sm bg-slate-700 border border-slate-600 rounded-md px-3 py-1.5 text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 min-w-[160px]"
+          aria-label="Search tasks"
+        />
+
+        <input
+          type="text"
+          value={tagInput}
+          onChange={e => setTagInput(e.target.value)}
+          onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => {
+            if (e.key === "Enter") {
+              e.preventDefault()
+              handleAddTagFilter(tagInput)
+            }
+          }}
+          placeholder="Filter by tag…"
+          className="text-sm bg-slate-700 border border-slate-600 rounded-md px-3 py-1.5 text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 min-w-[140px]"
+          aria-label="Filter by tag"
+        />
+
+        {filters.tags?.map(tag => (
+          <span
+            key={tag}
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-900/40 text-blue-300 border border-blue-700"
+          >
+            {tag}
+            <button
+              onClick={() => handleRemoveTagFilter(tag)}
+              className="ml-0.5 text-blue-400 hover:text-blue-200"
+              aria-label={`Remove tag filter ${tag}`}
+            >
+              ×
+            </button>
+          </span>
+        ))}
+
+        {(filters.status || filters.priority || filters.search || filters.tags?.length) && (
           <button
             onClick={clearFilters}
             className="text-xs text-slate-400 hover:text-slate-200 underline"

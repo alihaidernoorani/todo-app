@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useState, useCallback, ReactNode } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react'
 import type { TaskRead } from '@/lib/api/types'
 
 interface TasksContextType {
@@ -38,6 +38,29 @@ export function TasksProvider({ children }: { children: ReactNode }) {
   const deleteTask = useCallback((taskId: string) => {
     setTasks(prevTasks => prevTasks.filter(task => task.id !== taskId))
   }, [])
+
+  // SSE subscription for real-time task updates (T076)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const es = new EventSource('/api/tasks/stream', { withCredentials: true })
+
+    es.addEventListener('task.instance_created', () => {
+      triggerRefresh()
+    })
+
+    es.addEventListener('task.status_changed', () => {
+      triggerRefresh()
+    })
+
+    es.onerror = (err) => {
+      console.warn('[SSE] Connection error, will auto-reconnect:', err)
+    }
+
+    return () => {
+      es.close()
+    }
+  }, [triggerRefresh])
 
   const value = {
     tasks,

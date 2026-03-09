@@ -38,7 +38,24 @@ async def create_task(
     session.add(task)
     await session.flush()
     await session.refresh(task)
-    return TaskRead.model_validate(task)
+    task_read = TaskRead.model_validate(task)
+
+    # Publish event via Dapr PubSub (best-effort — log errors but don't fail request)
+    try:
+        from src.services.dapr_pubsub import dapr_pubsub  # noqa: PLC0415
+
+        await dapr_pubsub.publish("task-events", {
+            "event_type": "task.instance_created",
+            "task_id": str(task.id),
+            "user_id": user_id,
+            "title": task.title,
+            "priority": task.priority,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        })
+    except Exception as exc:
+        logger.warning("Failed to publish task.instance_created event for %s: %s", task.id, exc)
+
+    return task_read
 
 
 async def list_tasks(
@@ -186,7 +203,25 @@ async def update_task(
     session.add(task)
     await session.flush()
     await session.refresh(task)
-    return TaskRead.model_validate(task)
+    task_read = TaskRead.model_validate(task)
+
+    # Publish event via Dapr PubSub (best-effort — log errors but don't fail request)
+    try:
+        from src.services.dapr_pubsub import dapr_pubsub  # noqa: PLC0415
+
+        await dapr_pubsub.publish("task-events", {
+            "event_type": "task.updated",
+            "task_id": str(task_id),
+            "user_id": user_id,
+            "status": "completed" if task.is_completed else "pending",
+            "title": task.title,
+            "priority": task.priority,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        })
+    except Exception as exc:
+        logger.warning("Failed to publish task.updated event for %s: %s", task_id, exc)
+
+    return task_read
 
 
 async def toggle_task_complete(
@@ -240,8 +275,28 @@ async def delete_task(
     if task is None:
         return False
 
+    # Capture task info before deletion for event payload
+    task_title = task.title
+    task_priority = task.priority
+
     await session.delete(task)
     await session.flush()
+
+    # Publish event via Dapr PubSub (best-effort — log errors but don't fail request)
+    try:
+        from src.services.dapr_pubsub import dapr_pubsub  # noqa: PLC0415
+
+        await dapr_pubsub.publish("task-events", {
+            "event_type": "task.deleted",
+            "task_id": str(task_id),
+            "user_id": user_id,
+            "title": task_title,
+            "priority": task_priority,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        })
+    except Exception as exc:
+        logger.warning("Failed to publish task.deleted event for %s: %s", task_id, exc)
+
     return True
 
 

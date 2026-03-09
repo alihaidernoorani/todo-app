@@ -33,16 +33,16 @@
 
 "use client"
 
-import { useState, FormEvent } from "react"
+import { useState, FormEvent, KeyboardEvent } from "react"
 import { PrimaryButton } from "@/components/atoms/PrimaryButton"
 import { Plus, Save, X } from "lucide-react"
-import type { TaskCreate, TaskUpdate, TaskPriority } from "@/lib/api/types"
+import type { TaskCreate, TaskRead, TaskUpdate, TaskPriority } from "@/lib/api/types"
 
 interface TaskFormProps {
   /**
    * Initial data for edit mode
    */
-  initialData?: Partial<TaskUpdate>
+  initialData?: Partial<TaskRead>
 
   /**
    * Submit callback (create or update)
@@ -71,6 +71,8 @@ export function TaskForm({
   const [priority, setPriority] = useState<TaskPriority>(
     (initialData?.priority as TaskPriority) || "Medium"
   )
+  const [tags, setTags] = useState<string[]>(initialData?.tags ?? [])
+  const [tagInput, setTagInput] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<{ title?: string; description?: string }>({})
@@ -126,11 +128,13 @@ export function TaskForm({
               description: description.trim() || null,
               priority,
               is_completed: initialData?.is_completed || false,
+              tags,
             }
           : {
               title: title.trim(),
               description: description.trim() || null,
               priority,
+              tags,
             }
 
       await onSubmit(taskData as TaskCreate | TaskUpdate)
@@ -140,6 +144,8 @@ export function TaskForm({
         setTitle("")
         setDescription("")
         setPriority("Medium")
+        setTags([])
+        setTagInput("")
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save task")
@@ -309,6 +315,54 @@ export function TaskForm({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>
         </div>
+      </div>
+
+      {/* Tag Input */}
+      <div>
+        <div className="relative">
+          <label htmlFor="task-tags" className="absolute left-4 top-2 text-xs text-blue-600 pointer-events-none">
+            Tags (optional)
+          </label>
+          <input
+            id="task-tags"
+            type="text"
+            value={tagInput}
+            onChange={(e) => setTagInput(e.target.value)}
+            onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => {
+              if (e.key === "Enter") {
+                e.preventDefault()
+                const normalized = tagInput.trim().toLowerCase()
+                if (normalized && !tags.includes(normalized)) {
+                  setTags(prev => [...prev, normalized])
+                }
+                setTagInput("")
+              }
+            }}
+            disabled={isSubmitting}
+            placeholder="Type a tag and press Enter"
+            className="w-full px-4 pt-6 pb-2 rounded-lg border border-slate-300 text-slate-900 text-sm md:text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 hover:border-slate-400 disabled:opacity-50 min-h-[56px]"
+          />
+        </div>
+        {tags.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {tags.map(tag => (
+              <span
+                key={tag}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200"
+              >
+                {tag}
+                <button
+                  type="button"
+                  onClick={() => setTags(prev => prev.filter(t => t !== tag))}
+                  className="ml-0.5 text-blue-500 hover:text-blue-700"
+                  aria-label={`Remove tag ${tag}`}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Action Buttons */}

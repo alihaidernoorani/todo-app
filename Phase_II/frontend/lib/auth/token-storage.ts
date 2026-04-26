@@ -63,7 +63,7 @@ export class TokenStorage {
 
     try {
       const decoded = this.decode(token)
-      if (!decoded || !decoded.exp) return true
+      if (!decoded || typeof decoded.exp !== 'number' || isNaN(decoded.exp)) return true
 
       // exp is in seconds, Date.now() is in milliseconds
       const now = Math.floor(Date.now() / 1000)

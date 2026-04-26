@@ -90,6 +90,34 @@ function createAuth(): ReturnType<typeof betterAuth> | null {
         requireEmailVerification: false, // Set to true for email verification flow
       },
 
+      // Social login providers (Google + Facebook)
+      socialProviders: {
+        google: {
+          clientId: process.env.GOOGLE_CLIENT_ID as string,
+          clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
+        },
+        facebook: {
+          clientId: process.env.FACEBOOK_CLIENT_ID as string,
+          clientSecret: process.env.FACEBOOK_CLIENT_SECRET as string,
+          scope: ["email", "public_profile"],
+        },
+      },
+
+      // Account linking: Facebook doesn't always return email_verified, so
+      // trustedProviders forces linking by email regardless of verified flag
+      account: {
+        accountLinking: {
+          enabled: true,
+          trustedProviders: ["google", "facebook"],
+        },
+      },
+
+      // Fallback redirect for OAuth errors that occur before state validation
+      // (e.g., blocked cookies, missing state cookie)
+      onAPIError: {
+        errorURL: "/login",
+      },
+
       // Session configuration (for cookie-based web auth)
       session: {
         expiresIn: 60 * 15, // 15 minutes (900 seconds)
@@ -109,6 +137,20 @@ function createAuth(): ReturnType<typeof betterAuth> | null {
 
       // Base URL for auth endpoints
       baseURL,
+
+      // Trust any 127.0.0.1 or localhost origin so minikube tunnel URLs
+      // (which get a random port each run) are never rejected.
+      trustedOrigins: (request) => {
+        const origin = request?.headers.get("origin") || ""
+        if (
+          origin.startsWith("http://127.0.0.1") ||
+          origin.startsWith("http://localhost")
+        ) {
+          return [origin]
+        }
+        const extra = process.env.BETTER_AUTH_TRUSTED_ORIGINS?.split(",").map(s => s.trim()).filter(Boolean) || []
+        return [baseURL, ...extra]
+      },
 
       // Secret for signing sessions
       secret: process.env.BETTER_AUTH_SECRET || "development-secret-change-in-production",

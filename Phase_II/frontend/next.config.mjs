@@ -1,9 +1,23 @@
 /** @type {import('next').NextConfig} */
+
+// Derive backend host for the rewrite proxy.
+// BACKEND_URL is set at build time (Dockerfile ARG) to http://backend:8000/api
+// Strip the /api suffix to get the raw host for path-based proxying.
+const backendHost = (process.env.BACKEND_URL || 'http://backend:8000/api')
+  .replace(/\/api\/?$/, '')
+
 const nextConfig = {
   reactStrictMode: true,
 
   // React Compiler (moved out of experimental in Next.js 15+)
   reactCompiler: false, // Disable for now, enable when stable
+
+  // Standalone output for Docker deployment
+  output: 'standalone',
+
+  // pg is a native Node.js module — tell Turbopack/webpack not to bundle it.
+  // It will be required at runtime instead, which avoids the Windows junction-point panic.
+  serverExternalPackages: ['pg', 'pg-native'],
 
   // Other experimental features
   experimental: {},
@@ -16,6 +30,18 @@ const nextConfig = {
   // Image optimization
   images: {
     domains: [],
+  },
+
+  // Proxy all /backend-proxy/* requests to the backend service.
+  // Browser code calls /backend-proxy/api/{userId}/... (same origin, no CORS).
+  // Next.js server forwards to http://backend:8000/api/{userId}/... (internal k8s DNS).
+  async rewrites() {
+    return [
+      {
+        source: '/backend-proxy/:path*',
+        destination: `${backendHost}/:path*`,
+      },
+    ]
   },
 
   // Security headers for production
@@ -31,7 +57,7 @@ const nextConfig = {
                   "script-src 'self' 'unsafe-inline' https://vercel.live https://va.vercel-scripts.com; " +
                   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; " + // Added cdn.jsdelivr.net
                   "font-src 'self' https://fonts.gstatic.com; " +
-                  "connect-src 'self' http://localhost:8000 https://alihaidernoorani-todo-app.hf.space https://cdn.jsdelivr.net; " + // Added cdn.jsdelivr.net
+                  "connect-src 'self' http://localhost:* http://localhost:3000 http://localhost:8000 http://localhost:30000 http://localhost:30001 https://alihaidernoorani-todo-app.hf.space https://cdn.jsdelivr.net; " + // Added localhost ports for Kubernetes
                   "img-src 'self' blob: data:; " +
                   "media-src 'self'; " +
                   "frame-ancestors 'self'; " +

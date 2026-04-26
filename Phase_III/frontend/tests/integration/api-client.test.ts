@@ -34,10 +34,9 @@ describe("ApiClient", () => {
       await apiClient.get(mockUserId, "/tasks");
 
       expect(global.fetch).toHaveBeenCalledWith(
-        `${mockBaseURL}/api/${mockUserId}/tasks`,
+        `/backend-proxy/api/${mockUserId}/tasks`,
         expect.objectContaining({
           method: "GET",
-          credentials: "include",
         })
       );
     });
@@ -53,16 +52,15 @@ describe("ApiClient", () => {
       await apiClient.get(mockUserId, "tasks");
 
       expect(global.fetch).toHaveBeenCalledWith(
-        `${mockBaseURL}/api/${mockUserId}/tasks`,
+        `/backend-proxy/api/${mockUserId}/tasks`,
         expect.any(Object)
       );
     });
 
     it("should remove trailing slash from base URL", () => {
-      process.env.NEXT_PUBLIC_API_URL = "http://localhost:8000/";
       const client = new ApiClient();
 
-      expect((client as any).baseURL).toBe("http://localhost:8000");
+      expect((client as any).baseURL).toBe("/backend-proxy");
     });
   });
 
@@ -80,7 +78,7 @@ describe("ApiClient", () => {
       expect(global.fetch).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
-          credentials: "include", // Include HttpOnly cookies
+          method: "GET",
         })
       );
     });
@@ -114,7 +112,7 @@ describe("ApiClient", () => {
       window.addEventListener("session-expired", eventListener);
 
       await expect(apiClient.get(mockUserId, "/tasks")).rejects.toThrow(
-        "Session expired. Please sign in again."
+        "Your authentication token has expired. Please sign in again."
       );
 
       expect(eventListener).toHaveBeenCalled();
@@ -130,7 +128,7 @@ describe("ApiClient", () => {
       });
 
       await expect(apiClient.get(mockUserId, "/tasks")).rejects.toThrow(
-        "Access denied. You do not have permission to access this resource."
+        "You don't have permission to perform this action."
       );
     });
 

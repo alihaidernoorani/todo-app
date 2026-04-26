@@ -15,7 +15,7 @@ const mockLocalStorage = (() => {
   let store: { [key: string]: string } = {};
 
   return {
-    getItem: (key: string) => store[key] || null,
+    getItem: (key: string) => key in store ? store[key] : null,
     setItem: (key: string, value: string) => {
       store[key] = value.toString();
     },
@@ -44,26 +44,26 @@ describe('TokenStorage', () => {
       const token = 'test-jwt-token';
       TokenStorage.setAccessToken(token);
 
-      expect(localStorage.getItem('better-auth-access-token')).toBe(token);
+      expect(localStorage.getItem('better_auth_access_token')).toBe(token);
     });
 
     it('should overwrite existing token', () => {
       TokenStorage.setAccessToken('first-token');
       TokenStorage.setAccessToken('second-token');
 
-      expect(localStorage.getItem('better-auth-access-token')).toBe('second-token');
+      expect(localStorage.getItem('better_auth_access_token')).toBe('second-token');
     });
 
     it('should handle empty token', () => {
       TokenStorage.setAccessToken('');
 
-      expect(localStorage.getItem('better-auth-access-token')).toBe('');
+      expect(localStorage.getItem('better_auth_access_token')).toBe('');
     });
   });
 
   describe('getAccessToken', () => {
     it('should return the token from localStorage', () => {
-      localStorage.setItem('better-auth-access-token', 'test-jwt-token');
+      localStorage.setItem('better_auth_access_token', 'test-jwt-token');
 
       expect(TokenStorage.getAccessToken()).toBe('test-jwt-token');
     });
@@ -73,7 +73,7 @@ describe('TokenStorage', () => {
     });
 
     it('should return empty string when token is empty', () => {
-      localStorage.setItem('better-auth-access-token', '');
+      localStorage.setItem('better_auth_access_token', '');
 
       expect(TokenStorage.getAccessToken()).toBe('');
     });
@@ -81,10 +81,10 @@ describe('TokenStorage', () => {
 
   describe('clearAccessToken', () => {
     it('should remove the token from localStorage', () => {
-      localStorage.setItem('better-auth-access-token', 'test-jwt-token');
+      localStorage.setItem('better_auth_access_token', 'test-jwt-token');
       TokenStorage.clearAccessToken();
 
-      expect(localStorage.getItem('better-auth-access-token')).toBeNull();
+      expect(localStorage.getItem('better_auth_access_token')).toBeNull();
     });
 
     it('should not error when no token exists', () => {
@@ -107,7 +107,7 @@ describe('TokenStorage', () => {
 
       const expiredToken = `${header}.${payload}.${signature}`;
 
-      localStorage.setItem('better-auth-access-token', expiredToken);
+      localStorage.setItem('better_auth_access_token', expiredToken);
 
       expect(TokenStorage.isExpired()).toBe(true);
     });
@@ -126,7 +126,7 @@ describe('TokenStorage', () => {
 
       const validToken = `${header}.${payload}.${signature}`;
 
-      localStorage.setItem('better-auth-access-token', validToken);
+      localStorage.setItem('better_auth_access_token', validToken);
 
       expect(TokenStorage.isExpired()).toBe(false);
     });
@@ -148,13 +148,13 @@ describe('TokenStorage', () => {
 
       const noExpToken = `${header}.${payload}.${signature}`;
 
-      localStorage.setItem('better-auth-access-token', noExpToken);
+      localStorage.setItem('better_auth_access_token', noExpToken);
 
       expect(TokenStorage.isExpired()).toBe(true);
     });
 
     it('should return true for malformed token', () => {
-      localStorage.setItem('better-auth-access-token', 'invalid.token.format');
+      localStorage.setItem('better_auth_access_token', 'invalid.token.format');
 
       expect(TokenStorage.isExpired()).toBe(true);
     });
@@ -172,7 +172,7 @@ describe('TokenStorage', () => {
 
       const invalidToken = `${header}.${payload}.${signature}`;
 
-      localStorage.setItem('better-auth-access-token', invalidToken);
+      localStorage.setItem('better_auth_access_token', invalidToken);
 
       expect(TokenStorage.isExpired()).toBe(true);
     });
@@ -290,4 +290,28 @@ describe('TokenStorage', () => {
       expect(TokenStorage.isExpired()).toBe(true);
     });
   });
+
+  // T028: TokenStorage works identically for social-login-format JWTs (RS256, same structure)
+  describe('T028: social-login JWT compatibility', () => {
+    it('stores and retrieves JWT token regardless of auth method (social login format)', () => {
+      // JWT structure is the same for social and email/password users (RS256, Better Auth issues both)
+      const socialPayload = {
+        sub: 'social-user-google-123',
+        email: 'user@gmail.com',
+        name: 'Test User',
+        exp: Math.floor(Date.now() / 1000) + 900, // 15 min from now (matches server config)
+        iat: Math.floor(Date.now() / 1000),
+        iss: 'http://localhost:3000',
+      }
+
+      const header = btoa(JSON.stringify({ alg: 'RS256', typ: 'JWT', kid: 'test-key-id' }))
+      const payload = btoa(JSON.stringify(socialPayload))
+      const signature = btoa('mock-rs256-signature')
+      const socialJwt = `${header}.${payload}.${signature}`
+
+      TokenStorage.setAccessToken(socialJwt)
+      expect(TokenStorage.getAccessToken()).toBe(socialJwt)
+      expect(TokenStorage.isExpired()).toBe(false)
+    })
+  })
 });

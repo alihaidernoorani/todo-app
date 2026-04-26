@@ -8,6 +8,7 @@
  * - Error handling for expired tokens
  */
 
+import { vi } from 'vitest';
 import { ApiClient } from '../lib/api/client';
 import { TokenStorage } from '../lib/auth/token-storage';
 
@@ -16,7 +17,7 @@ const mockLocalStorage = (() => {
   let store: { [key: string]: string } = {};
 
   return {
-    getItem: (key: string) => store[key] || null,
+    getItem: (key: string) => key in store ? store[key] : null,
     setItem: (key: string, value: string) => {
       store[key] = value.toString();
     },
@@ -36,12 +37,12 @@ Object.defineProperty(window, 'localStorage', {
 });
 
 // Mock fetch
-const mockFetch = jest.fn();
+const mockFetch = vi.fn();
 
 global.fetch = mockFetch;
 
 // Mock window.dispatchEvent
-const mockDispatchEvent = jest.fn();
+const mockDispatchEvent = vi.fn();
 Object.defineProperty(window, 'dispatchEvent', {
   value: mockDispatchEvent,
 });
@@ -61,7 +62,7 @@ describe('ApiClient JWT Integration', () => {
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('JWT Header Injection', () => {
@@ -89,14 +90,8 @@ describe('ApiClient JWT Integration', () => {
 
       await apiClient.get(userId, '/test-endpoint');
 
-      expect(mockFetch).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.objectContaining({
-          headers: expect.objectContaining({
-            'Authorization': `Bearer ${validToken}`,
-          }),
-        })
-      );
+      const callArgs = mockFetch.mock.calls[0][1];
+      expect(callArgs.headers.get('Authorization')).toBe(`Bearer ${validToken}`);
     });
 
     it('should not inject Authorization header when no token exists', async () => {
@@ -114,7 +109,7 @@ describe('ApiClient JWT Integration', () => {
       await apiClient.get(userId, '/test-endpoint');
 
       const callArgs = mockFetch.mock.calls[0][1];
-      expect(callArgs.headers).not.toHaveProperty('Authorization');
+      expect(callArgs.headers.get('Authorization')).toBeNull();
     });
 
     it('should not inject Authorization header when token is expired', async () => {
@@ -142,7 +137,7 @@ describe('ApiClient JWT Integration', () => {
       await apiClient.get(userId, '/test-endpoint');
 
       const callArgs = mockFetch.mock.calls[0][1];
-      expect(callArgs.headers).not.toHaveProperty('Authorization');
+      expect(callArgs.headers.get('Authorization')).toBeNull();
     });
 
     it('should not inject Authorization header when token is empty', async () => {
@@ -159,7 +154,7 @@ describe('ApiClient JWT Integration', () => {
       await apiClient.get(userId, '/test-endpoint');
 
       const callArgs = mockFetch.mock.calls[0][1];
-      expect(callArgs.headers).not.toHaveProperty('Authorization');
+      expect(callArgs.headers.get('Authorization')).toBeNull();
     });
   });
 
@@ -258,7 +253,7 @@ describe('ApiClient JWT Integration', () => {
       await apiClient.post(userId, '/test-post', { test: 'data' });
 
       const callArgs = mockFetch.mock.calls[0][1];
-      expect(callArgs.headers).toHaveProperty('Authorization', `Bearer ${token}`);
+      expect(callArgs.headers.get('Authorization')).toBe(`Bearer ${token}`);
     });
 
     it('should inject JWT header for PUT requests', async () => {
@@ -285,7 +280,7 @@ describe('ApiClient JWT Integration', () => {
       await apiClient.put(userId, '/test-put', { test: 'data' });
 
       const callArgs = mockFetch.mock.calls[0][1];
-      expect(callArgs.headers).toHaveProperty('Authorization', `Bearer ${token}`);
+      expect(callArgs.headers.get('Authorization')).toBe(`Bearer ${token}`);
     });
 
     it('should inject JWT header for DELETE requests', async () => {
@@ -312,7 +307,7 @@ describe('ApiClient JWT Integration', () => {
       await apiClient.delete(userId, '/test-delete');
 
       const callArgs = mockFetch.mock.calls[0][1];
-      expect(callArgs.headers).toHaveProperty('Authorization', `Bearer ${token}`);
+      expect(callArgs.headers.get('Authorization')).toBe(`Bearer ${token}`);
     });
 
     it('should inject JWT header for HEAD requests', async () => {
@@ -343,7 +338,7 @@ describe('ApiClient JWT Integration', () => {
   });
 
   describe('URL Construction with JWT', () => {
-    it('should construct correct URL with user_id path parameter', () => {
+    it('should construct correct URL with user_id path parameter', async () => {
       const validPayload = {
         sub: 'test-user',
         exp: Math.floor(Date.now() / 1000) + 3600,
@@ -368,7 +363,7 @@ describe('ApiClient JWT Integration', () => {
       await apiClient.get('user-123', '/tasks');
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:8000/api/user-123/tasks',
+        '/backend-proxy/api/user-123/tasks',
         expect.any(Object)
       );
     });
@@ -397,7 +392,7 @@ describe('ApiClient JWT Integration', () => {
       await apiClient.get('user-123', 'tasks'); // No leading slash
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:8000/api/user-123/tasks',
+        '/backend-proxy/api/user-123/tasks',
         expect.any(Object)
       );
     });

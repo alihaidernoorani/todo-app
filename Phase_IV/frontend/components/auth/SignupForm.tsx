@@ -10,6 +10,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { authClient } from '@/lib/auth/better-auth-client'
+import { SocialLoginButtons } from '@/components/auth/SocialLoginButtons'
 
 export function SignupForm() {
   const router = useRouter()
@@ -194,6 +195,9 @@ export function SignupForm() {
           )}
         </button>
       </form>
+
+      {/* Social Login Buttons */}
+      <SocialLoginButtons mode="signup" />
 
       {/* Footer */}
       <p className="mt-6 text-center text-xs text-slate-500">

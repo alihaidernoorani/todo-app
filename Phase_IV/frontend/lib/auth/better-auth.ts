@@ -90,6 +90,34 @@ function createAuth(): ReturnType<typeof betterAuth> | null {
         requireEmailVerification: false, // Set to true for email verification flow
       },
 
+      // Social login providers (Google + Facebook)
+      socialProviders: {
+        google: {
+          clientId: process.env.GOOGLE_CLIENT_ID as string,
+          clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
+        },
+        facebook: {
+          clientId: process.env.FACEBOOK_CLIENT_ID as string,
+          clientSecret: process.env.FACEBOOK_CLIENT_SECRET as string,
+          scope: ["email", "public_profile"],
+        },
+      },
+
+      // Account linking: Facebook doesn't always return email_verified, so
+      // trustedProviders forces linking by email regardless of verified flag
+      account: {
+        accountLinking: {
+          enabled: true,
+          trustedProviders: ["google", "facebook"],
+        },
+      },
+
+      // Fallback redirect for OAuth errors that occur before state validation
+      // (e.g., blocked cookies, missing state cookie)
+      onAPIError: {
+        errorURL: "/login",
+      },
+
       // Session configuration (for cookie-based web auth)
       session: {
         expiresIn: 60 * 15, // 15 minutes (900 seconds)

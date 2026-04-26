@@ -28,6 +28,12 @@ Not building:
 - MFA or password reset flows
 - Session cookie management or `/api/auth/session` endpoint calls"
 
+## Change Log
+
+| Date       | Change                                                                                     | Branch                  |
+|------------|--------------------------------------------------------------------------------------------|-------------------------|
+| 2026-04-26 | Added social login via Google and Facebook (User Stories 4–5, FR-018–FR-028, SC-009–SC-011) | 012-oauth-social-login  |
+
 ## Clarifications
 
 ### Session 2026-02-05
@@ -109,6 +115,44 @@ Developers can protect any FastAPI endpoint by adding a standardized authenticat
 
 ---
 
+### User Story 4 - Google Social Login (Priority: P1)
+
+A user clicks "Continue with Google" on the sign-in or sign-up page. They are redirected to Google's authentication page, grant permission, and are returned to the application as an authenticated user. If their Google account email matches an existing Better Auth account, they are signed in to that account. If no account exists, a new account is created automatically.
+
+**Why this priority**: Social login removes password friction and reduces drop-off at sign-in. Google is the most widely-used identity provider and its integration provides immediate UX value.
+
+**Independent Test**: Can be fully tested by clicking the Google login button, completing the Google OAuth consent flow in a test environment, and verifying the user lands on the dashboard with a valid session. Delivers value as a standalone feature independent of email/password auth.
+
+**Acceptance Scenarios**:
+
+1. **Given** the sign-in page is open, **When** the user clicks "Continue with Google", **Then** the browser redirects to Google's OAuth consent screen with the correct scopes (email, profile)
+2. **Given** the user approves the Google consent screen, **When** Google redirects back to the application callback URL, **Then** Better Auth creates or retrieves the user account and establishes a valid session
+3. **Given** a Google account whose email matches an existing email/password account, **When** the user signs in via Google, **Then** the accounts are linked and the user is signed in to their existing account without creating a duplicate
+4. **Given** the user denies the Google consent screen, **When** Google redirects back with an error, **Then** the user is returned to the sign-in page with a clear message: "Google sign-in was cancelled"
+5. **Given** the Google OAuth callback contains an authorization error (e.g., access_denied), **When** the callback is processed, **Then** the user sees a descriptive error message and is not signed in
+6. **Given** a successfully authenticated Google user, **When** they land on the dashboard, **Then** their display name and profile are populated from Google account data
+
+---
+
+### User Story 5 - Facebook Social Login (Priority: P1)
+
+A user clicks "Continue with Facebook" on the sign-in or sign-up page. They are redirected to Facebook's authentication dialog, grant permission, and are returned to the application as an authenticated user. Account creation and linking follows the same rules as Google social login.
+
+**Why this priority**: Facebook provides access to a large user segment who prefer social authentication. Consistent parity with Google login reduces decision fatigue on the sign-in page.
+
+**Independent Test**: Can be fully tested by clicking the Facebook login button, completing Facebook Login dialog in a test environment, and verifying the user lands on the dashboard with a valid session. Delivers standalone value independent of Google or email/password auth.
+
+**Acceptance Scenarios**:
+
+1. **Given** the sign-in page is open, **When** the user clicks "Continue with Facebook", **Then** the browser redirects to Facebook's OAuth dialog with the correct permissions (email, public_profile)
+2. **Given** the user approves the Facebook dialog, **When** Facebook redirects back to the application callback URL, **Then** Better Auth creates or retrieves the user account and establishes a valid session
+3. **Given** a Facebook account whose email matches an existing email/password account, **When** the user signs in via Facebook, **Then** the accounts are linked and the user is signed in to their existing account
+4. **Given** the user cancels the Facebook dialog, **When** Facebook redirects back with an error, **Then** the user is returned to the sign-in page with a clear message: "Facebook sign-in was cancelled"
+5. **Given** a Facebook account that has no public email (user has hidden email), **When** the callback is processed, **Then** the user sees a message: "Facebook did not provide an email address. Please sign in with email or use a different provider"
+6. **Given** a successfully authenticated Facebook user, **When** they land on the dashboard, **Then** their display name is populated from Facebook account data
+
+---
+
 ### Edge Cases
 
 - What happens when the Better Auth JWKS endpoint is unreachable during application startup?
@@ -119,6 +163,18 @@ Developers can protect any FastAPI endpoint by adding a standardized authenticat
   - Token should be accepted as long as required claims are present and valid; extra claims are safely ignored
 - What happens when a user's JWT is valid but the user has been deleted or deactivated in Better Auth?
   - JWT remains valid until expiration. Better Auth is responsible for issuing short-lived tokens (e.g., 15-60 minutes) to limit exposure. Consider implementing token revocation list if real-time invalidation is required
+- What happens when Google's OAuth service is temporarily unavailable during a social login attempt?
+  - The OAuth redirect will fail or timeout. The user is returned to the sign-in page with a message: "Google sign-in is currently unavailable. Please try again or use email/password." No partial session or account is created.
+- What happens when Facebook's OAuth service is temporarily unavailable?
+  - Same handling as Google: user is returned to sign-in with a provider-specific error message. No partial session created.
+- What happens when a social provider returns a duplicate email that belongs to a social account from a different provider (e.g., same email linked to both Google and Facebook)?
+  - The system signs the user in to their existing account. Both provider tokens are linked to the same account so subsequent logins via either provider succeed.
+- What happens when the OAuth state parameter in the callback does not match the original request (CSRF attempt)?
+  - Better Auth validates the state parameter. A mismatch results in the callback being rejected with HTTP 400 and the user sees "Sign-in failed: invalid state parameter." No session is created.
+- What happens when the social provider access token in the callback has already been used (replay attack)?
+  - OAuth authorization codes are single-use by the provider's protocol. Reuse results in the provider returning an error; Better Auth treats this as an auth failure and returns the user to sign-in.
+- What happens when a social login succeeds but Better Auth fails to create/retrieve the user account (database error)?
+  - The user is returned to the sign-in page with: "Sign-in failed. Please try again." The error is logged server-side. No session is created.
 - What happens when concurrent requests arrive with the same JWT token?
   - All concurrent requests should be processed independently; each request validates the token signature using cached JWKS keys (no shared state)
 - What happens when the JWT `sub` claim is missing or empty?
@@ -152,6 +208,20 @@ Developers can protect any FastAPI endpoint by adding a standardized authenticat
 - **FR-016**: System MUST validate JWT issuer (`iss` claim) matches the expected Better Auth URL to prevent token substitution attacks
 - **FR-017**: System MUST NOT expose JWT verification implementation details or internal error messages directly to API clients; all errors should be translated to a consistent backend error format
 
+### Social Login Functional Requirements
+
+- **FR-018**: System MUST display a "Continue with Google" button on the sign-in and sign-up pages, visually distinct from email/password fields
+- **FR-019**: System MUST display a "Continue with Facebook" button on the sign-in and sign-up pages, visually distinct from email/password fields
+- **FR-020**: Clicking a social login button MUST initiate the OAuth 2.0 authorization code flow for the selected provider (Google or Facebook), redirecting the user to the provider's consent screen
+- **FR-021**: Better Auth MUST be configured with Google OAuth2 credentials (client ID and secret) to handle the Google authorization and callback flow
+- **FR-022**: Better Auth MUST be configured with Facebook OAuth2 credentials (app ID and secret) to handle the Facebook authorization and callback flow
+- **FR-023**: On successful OAuth callback, Better Auth MUST create a new user account if no account exists for the provider's user identifier or email address
+- **FR-024**: On successful OAuth callback, Better Auth MUST link the social provider to an existing account if the provider's email matches an existing account, preventing duplicate accounts
+- **FR-025**: System MUST validate the OAuth state parameter on every callback to prevent CSRF attacks; mismatched state MUST be rejected with HTTP 400 and no session created
+- **FR-026**: System MUST handle provider errors in the OAuth callback (access_denied, server_error, etc.) by redirecting the user to the sign-in page with a clear, user-facing error message
+- **FR-027**: System MUST handle the case where a social provider does not return an email address by rejecting the login attempt with a descriptive message and returning the user to sign-in
+- **FR-028**: All JWT tokens issued after social login MUST follow the same RS256/JWKS structure as email/password tokens; backend JWT validation (FR-002 through FR-017) applies equally to socially-authenticated users
+
 ### Key Entities
 
 - **JWT Token**: A cryptographically signed JSON Web Token issued by Better Auth containing user identity claims. Signed using RS256 algorithm with Better Auth's private key. Contains standard claims: `sub` (user ID), `iss` (issuer URL), `exp` (expiration timestamp), and optionally `email`, `name`, etc.
@@ -163,6 +233,12 @@ Developers can protect any FastAPI endpoint by adding a standardized authenticat
 - **Authentication Dependency**: A reusable FastAPI dependency that extracts JWT from Authorization header, verifies signature using JWKS public keys, validates claims (`exp`, `iss`), and extracts user identity from `sub` claim. Returns standardized error responses for failures.
 
 - **Authorization Dependency**: An extension of the authentication dependency that additionally enforces user ID scoping by comparing the JWT `sub` claim with the `{user_id}` path parameter. It prevents horizontal privilege escalation.
+
+- **OAuth Provider (Google / Facebook)**: An external identity service that authenticates the user and returns an authorization code. Better Auth exchanges this code for an access token, retrieves the user's profile (email, name), and creates or links the local account. The provider is not trusted for authorization beyond initial identity assertion; all subsequent requests are validated via the standard JWT/JWKS flow.
+
+- **Social Account Link**: A record in Better Auth's database associating a local user account with one or more external provider identities (Google user ID, Facebook user ID). Enables a single local account to be reached via multiple sign-in methods.
+
+- **OAuth State Parameter**: A cryptographically random value generated by Better Auth at the start of the OAuth flow and stored temporarily (e.g., in a cookie or server-side cache). It is included in the authorization request and verified on the callback to prevent CSRF attacks.
 
 ## Success Criteria *(mandatory)*
 
@@ -176,6 +252,9 @@ Developers can protect any FastAPI endpoint by adding a standardized authenticat
 - **SC-006**: All authentication and authorization errors return consistent JSON response format with clear error messages for debugging
 - **SC-007**: Application fails to start if Better Auth JWKS endpoint URL is missing or unreachable during initial startup, preventing insecure deployment
 - **SC-008**: Backend continues operating with cached JWKS keys during temporary JWKS endpoint outages (graceful degradation)
+- **SC-009**: Users can complete Google social login end-to-end (button click → consent → dashboard) without encountering any unhandled errors or blank pages
+- **SC-010**: Users can complete Facebook social login end-to-end (button click → dialog → dashboard) without encountering any unhandled errors or blank pages
+- **SC-011**: Social login does not create duplicate accounts when the provider email matches an existing account; the returning user is seamlessly signed in to their original account
 
 ### Scope and Constraints
 
@@ -188,19 +267,26 @@ Developers can protect any FastAPI endpoint by adding a standardized authenticat
 - Reusable FastAPI dependencies for authentication and authorization
 - Environment variable configuration for Better Auth JWKS endpoint URL
 - Stateless backend operation (no cookies, no session state)
+- Google OAuth 2.0 social login button and authorization flow (frontend)
+- Facebook OAuth 2.0 social login button and authorization flow (frontend)
+- Better Auth social provider configuration (Google and Facebook credentials)
+- Account creation and linking for social login users via Better Auth
+- OAuth CSRF protection via state parameter validation
+- Error handling and user-facing messages for social login failures
 
 **Out of Scope**:
-- User login/signup UI or API endpoints (handled by Better Auth frontend integration)
+- User login/signup UI or API endpoints beyond social login buttons (handled by Better Auth frontend integration)
 - JWT token generation and signing (handled by Better Auth JWT plugin)
 - Session cookie generation and management (replaced by JWT tokens in Authorization headers)
 - `/api/auth/session` endpoint calls (removed entirely)
 - Password validation, hashing, or reset flows (handled by Better Auth)
 - Multi-factor authentication (MFA) implementation
-- OAuth provider integration (Google, GitHub, etc.)
-- User registration and account creation flows
+- OAuth provider integration beyond Google and Facebook (e.g., GitHub, Twitter, Apple)
+- User registration and account creation flows beyond social login auto-creation
 - Email verification or password reset mechanisms
 - Token refresh logic (handled by Better Auth frontend)
 - User profile management endpoints
+- Social account unlinking or provider removal from an account
 
 **Constraints**:
 - Backend MUST perform local JWT verification using RS256 signature verification with JWKS public keys (no session API calls)
@@ -222,6 +308,11 @@ Developers can protect any FastAPI endpoint by adding a standardized authenticat
 - Network communication between client and backend uses HTTPS in production to prevent token interception
 - JWT tokens have reasonable expiration times (e.g., 15-60 minutes) to limit exposure if compromised
 - Database or data access layer is responsible for filtering data by user ID; authentication/authorization layer only validates identity and access rights
+- Google OAuth2 credentials (client ID and client secret) are registered in the Google Cloud Console with the application's callback URL whitelisted
+- Facebook OAuth credentials (app ID and app secret) are registered in the Facebook Developer Portal with the application's callback URL whitelisted
+- Better Auth's social provider plugin supports Google and Facebook out of the box
+- Social providers will always return at least an email address; the Facebook no-email edge case (FR-027) is handled as an error path rather than a silent failure
+- The OAuth 2.0 authorization code flow (not implicit flow) is used for all social providers to keep tokens server-side
 
 ### Dependencies
 
@@ -235,13 +326,21 @@ Developers can protect any FastAPI endpoint by adding a standardized authenticat
   - `httpx>=0.24.0` for fetching JWKS from Better Auth endpoint (async support)
   - `pydantic>=2.0.0` for validating JWT claims structure
 - FastAPI framework and its dependency injection system must be available
+- Google OAuth2 client ID and secret must be registered in Google Cloud Console with the correct redirect URI
+- Facebook OAuth app ID and secret must be registered in the Facebook Developer Portal with the correct redirect URI
+- Better Auth social provider plugin must be installed and configured for Google and Facebook
 
 ### Environment Configuration
 
 **Frontend (Better Auth) Required Variables**:
 - `BETTER_AUTH_URL`: The base URL where Better Auth is hosted (e.g., `https://app.example.com` or `http://localhost:3000` for development)
 - `BETTER_AUTH_SECRET`: Secret key for Better Auth operations (JWT signing with RS256). Must be a cryptographically secure random string (minimum 32 characters recommended)
+- `GOOGLE_CLIENT_ID`: OAuth 2.0 client ID from Google Cloud Console
+- `GOOGLE_CLIENT_SECRET`: OAuth 2.0 client secret from Google Cloud Console
+- `FACEBOOK_CLIENT_ID`: App ID from Facebook Developer Portal
+- `FACEBOOK_CLIENT_SECRET`: App secret from Facebook Developer Portal
 - JWT plugin must be enabled in Better Auth configuration with RS256 algorithm
+- Social provider plugin must be enabled in Better Auth configuration for Google and Facebook
 
 **Backend (FastAPI) Required Variables**:
 - `BETTER_AUTH_URL`: The base URL of the Better Auth instance (must match frontend value). Used to construct JWKS endpoint URL and validate JWT issuer claim
@@ -253,3 +352,5 @@ Developers can protect any FastAPI endpoint by adding a standardized authenticat
 - The JWKS endpoint must be publicly accessible from the backend service (no authentication required for public key retrieval)
 - In development environments, ensure CORS is properly configured if frontend and backend run on different ports/domains
 - In production, both services should use HTTPS to prevent token interception during transmission
+- OAuth callback URLs registered with Google and Facebook MUST exactly match the callback URL that Better Auth uses (e.g., `${BETTER_AUTH_URL}/api/auth/callback/google` and `${BETTER_AUTH_URL}/api/auth/callback/facebook`); a mismatch will cause all social logins to fail
+- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `FACEBOOK_CLIENT_ID`, and `FACEBOOK_CLIENT_SECRET` MUST NEVER be committed to version control

@@ -3,7 +3,9 @@
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from sqlmodel import Field, SQLModel
+from sqlmodel import Field, Relationship, SQLModel
+
+from src.models.tag import Tag, TaskTag  # noqa: E402 — loaded after tag registry
 
 
 class Task(SQLModel, table=True):
@@ -21,3 +23,6 @@ class Task(SQLModel, table=True):
         nullable=False,
     )
     user_id: str = Field(nullable=False, index=True)
+
+    # M2M relationship to Tag via TaskTag
+    tags: list[Tag] = Relationship(back_populates="tasks", link_model=TaskTag)

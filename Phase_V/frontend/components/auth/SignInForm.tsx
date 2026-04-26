@@ -10,6 +10,21 @@
 import { useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { authClient } from '@/lib/auth/better-auth-client'
+import { SocialLoginButtons } from '@/components/auth/SocialLoginButtons'
+
+// Maps Better Auth OAuth error codes (from ?error= query param) to user-facing strings.
+// Better Auth appends ?error=<code> to errorCallbackURL after a failed OAuth callback.
+const SOCIAL_ERROR_MESSAGES: Record<string, string> = {
+  google_failed:            'Google sign-in failed. Please try again or use email/password.',
+  facebook_failed:          'Facebook sign-in failed. Please try again or use email/password.',
+  access_denied:            'Sign-in was cancelled.',
+  state_not_found:          'Sign-in session expired. Please try again.',
+  state_mismatch:           'Sign-in failed: security check failed. Please try again.',
+  account_not_linked:       'This account is not linked. Please sign in with email/password first.',
+  unable_to_link_account:   'Could not link social account. Please try again.',
+  oauth_provider_not_found: 'Social login is not configured. Please use email/password.',
+  email_required:           'Facebook sign-in requires an email address. Please ensure your Facebook account has an email and try again.',
+}
 
 export function SignInForm() {
   const router = useRouter()
@@ -23,6 +38,12 @@ export function SignInForm() {
   // Check if redirected due to session expiry
   const sessionExpired = searchParams.get('expired') === 'true'
   const returnUrl = searchParams.get('from') || '/dashboard'
+
+  // Resolve social OAuth error from query param (set by Better Auth on errorCallbackURL)
+  const errorCode = searchParams.get('error')
+  const socialError = errorCode
+    ? (SOCIAL_ERROR_MESSAGES[errorCode] ?? 'Sign-in failed. Please try again.')
+    : null
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -111,10 +132,10 @@ export function SignInForm() {
         </div>
       )}
 
-      {/* Error Display */}
-      {error && (
+      {/* Error Display — shows social OAuth error from query param or form submission error */}
+      {(error || socialError) && (
         <div className="mb-6 p-4 rounded-lg auth-error">
-          <p className="text-sm text-red-700">{error}</p>
+          <p className="text-sm text-red-700">{error || socialError}</p>
         </div>
       )}
 
@@ -191,6 +212,9 @@ export function SignInForm() {
           )}
         </button>
       </form>
+
+      {/* Social Login Buttons */}
+      <SocialLoginButtons mode="login" />
 
       {/* Footer */}
       <p className="mt-6 text-center text-xs text-slate-500">

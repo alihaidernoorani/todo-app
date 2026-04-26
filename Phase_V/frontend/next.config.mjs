@@ -15,6 +15,10 @@ const nextConfig = {
   // Standalone output for Docker deployment
   output: 'standalone',
 
+  // pg is a native Node.js module — tell Turbopack/webpack not to bundle it.
+  // It will be required at runtime instead, which avoids the Windows junction-point panic.
+  serverExternalPackages: ['pg', 'pg-native'],
+
   // Other experimental features
   experimental: {},
 

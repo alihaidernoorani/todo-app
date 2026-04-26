@@ -80,6 +80,10 @@ class AgentRequestHandler:
         user_msg_id = await persist_message(
             db, conversation_id, user_id, "user", request.message
         )
+        # Release DB connection back to the pool before the long-running agent call.
+        # persist_message() already committed; holding the connection idle risks a
+        # PostgreSQL idle-session or idle-in-transaction timeout during agent execution.
+        await db.close()
 
         # [6] + [7] Run agent with MCP tools (hybrid mode)
         async with BackendClient(self.backend_base_url, token=token) as mcp_client:

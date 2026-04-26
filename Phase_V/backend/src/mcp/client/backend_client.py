@@ -137,12 +137,26 @@ class BackendClient:
         self,
         user_id: str,
         status: str = "all",
+        priority: str | None = None,
+        tags: list[str] | None = None,
+        search: str | None = None,
+        sort_by: str = "created_at",
+        sort_order: str = "desc",
+        page: int = 1,
+        page_size: int = 50,
     ) -> dict[str, Any]:
         """List tasks via GET /api/{user_id}/tasks.
 
         Args:
             user_id: User identifier for task scoping
             status: Filter by status ('all', 'pending', 'completed')
+            priority: Filter by priority ('High', 'Medium', 'Low')
+            tags: Filter by tag names (AND semantics)
+            search: Full-text search in title/description
+            sort_by: Sort field ('created_at', 'priority', 'title')
+            sort_order: Sort direction ('asc', 'desc')
+            page: 1-based page number
+            page_size: Results per page (1-200)
 
         Returns:
             dict: Object with 'items' (list of tasks) and 'count' fields
@@ -152,16 +166,24 @@ class BackendClient:
         """
         client = self._get_client()
         url = f"/api/{user_id}/tasks"
-        params = {}
+        params: dict[str, Any] = {}
 
-        # Backend API expects status as query param only for filtering
-        # If status is 'all', we omit the param (backend returns all)
         if status != "all":
             params["status"] = status
+        if priority is not None:
+            params["priority"] = priority
+        if tags:
+            params["tags"] = tags
+        if search:
+            params["search"] = search
+        params["sort_by"] = sort_by
+        params["sort_order"] = sort_order
+        params["page"] = page
+        params["page_size"] = page_size
 
         logger.info(
-            f"Listing tasks for user {user_id} with status filter: {status} "
-            f"(target: {self.base_url}{url})"
+            f"Listing tasks for user {user_id} with filters: status={status} "
+            f"priority={priority} search={search} (target: {self.base_url}{url})"
         )
 
         try:

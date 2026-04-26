@@ -57,3 +57,4 @@ alembic/versions/*.pyc
 
 # Logs
 *.log
+nohup.out
